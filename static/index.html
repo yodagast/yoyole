@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOYOLE | 瑜伽与户外生活</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    /* ------- 首页 Hero 轮播展示优化（满幅大图 + 遮罩） ------- */
+    .hero {
+      background: #fff;
+    }
+    .hero-slider {
+      padding: 0;
+      min-height: 0;
+      display: block;
+      position: relative;
+      max-width: none;
+      margin: 0 auto;
+    }
+    .hero-slide-box {
+      position: relative;
+      height: clamp(430px, 37vw, 560px);
+      overflow: hidden;
+      margin: 0;
+      background: #fff;
+    }
+    .hero-slide-box .hero-bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: transform 6s ease;
+      animation: heroZoom 8s ease-out both;
+    }
+    .hero-slide-box .hero-video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #232323;
+    }
+    @keyframes heroZoom {
+      from { transform: scale(1.08); }
+      to { transform: scale(1); }
+    }
+    .hero-slide-box .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to top, rgba(15, 16, 18, 0.75) 0%, rgba(15, 16, 18, 0.25) 45%, transparent 70%),
+        linear-gradient(to right, rgba(15, 16, 18, 0.55), transparent 60%);
+    }
+    .hero-slide-box .hero-copy {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      z-index: 2;
+      max-width: 640px;
+      padding: 34px 44px 40px;
+      color: #fff;
+      text-align: left;
+    }
+    .hero-slide-box .hero-copy .hero-tag {
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #fff;
+      backdrop-filter: blur(6px);
+    }
+    .hero-slide-box .hero-copy h1 {
+      color: #fff;
+      font-size: 44px;
+      line-height: 1.2;
+    }
+    .hero-slide-box .hero-copy p.sub {
+      color: rgba(255, 255, 255, 0.85);
+      max-width: 520px;
+      margin-bottom: 26px;
+      font-size: 16px;
+    }
+    .hero-slide-box .btn-hero {
+      background: var(--jjs-primary);
+      border-color: var(--jjs-primary);
+    }
+    .hero-slide-box .btn-hero:hover {
+      box-shadow: 0 10px 30px rgba(216, 30, 83, 0.45);
+    }
+    .hero-dots {
+      bottom: 34px;
+      right: 46px;
+      left: auto;
+      transform: none;
+    }
+    .hero-dots span {
+      background: rgba(255, 255, 255, 0.4);
+    }
+    .hero-dots span.active {
+      background: #fff;
+    }
+    @media (max-width: 1024px) {
+      .hero-slide-box { height: 400px; }
+      .hero-slide-box .hero-copy h1 { font-size: 34px; }
+    }
+    @media (max-width: 768px) {
+      .hero-slide-box {
+        height: 360px;
+      }
+      .hero-slide-box .hero-copy { padding: 22px 20px 30px; }
+      .hero-slide-box .hero-copy h1 { font-size: 26px; }
+      .hero-slide-box .hero-copy p.sub { font-size: 14px; }
+      .hero-dots { right: 20px; bottom: 28px; }
+    }
+    /* ------- 热销 / 推荐区块标题 ------- */
+    .hot-sale-card .product-tag { background: var(--jjs-accent); color: #232323; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部服务条 + 主导航 -->
+    <top-bar></top-bar>
+    <main-nav active="home"></main-nav>
+
+    <!-- Hero 轮播（优化展示：大图 + 渐变遮罩 + 缩放动画） -->
+    <section class="hero">
+      <div class="hero-slider">
+        <div class="hero-slide-box" v-for="(slide, i) in slides" :key="i" v-show="currentSlide === i">
+          <video v-if="slide.video" class="hero-video" :src="slide.video"
+                 autoplay muted loop playsinline></video>
+          <div v-else class="hero-bg" :style="{backgroundImage: 'url(' + slide.img + ')'}"></div>
+          <div class="hero-overlay"></div>
+          <div class="hero-copy">
+            <div class="hero-tag">{{ slide.tag }}</div>
+            <h1>{{ slide.title }}</h1>
+            <p class="sub">{{ slide.sub }}</p>
+            <button class="btn-hero" @click="goBanner(slide)"><base-icon name="bag" :size="18"></base-icon> {{ slide.cta || t('shop_now') }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="hero-dots">
+        <span v-for="(s, i) in slides" :key="i" :class="{active: currentSlide === i}"
+              @click="currentSlide = i"></span>
+      </div>
+    </section>
+
+    <!-- 服务保障条 -->
+    <div class="benefits">
+      <div class="benefits-inner">
+        <div class="benefit"><span class="bi"><base-icon name="truck" :size="22"></base-icon></span><div><div class="bt">{{ t('free_ship') }}</div><div class="bd">{{ t('free_ship_desc') }}</div></div></div>
+        <div class="benefit"><span class="bi"><base-icon name="shield" :size="22"></base-icon></span><div><div class="bt">{{ t('safe_pay') }}</div><div class="bd">{{ t('safe_pay_desc') }}</div></div></div>
+        <div class="benefit"><span class="bi"><base-icon name="refresh" :size="22"></base-icon></span><div><div class="bt">{{ t('easy_return') }}</div><div class="bd">{{ t('easy_return_desc') }}</div></div></div>
+        <div class="benefit"><span class="bi"><base-icon name="review" :size="22"></base-icon></span><div><div class="bt">{{ t('support') }}</div><div class="bd">{{ t('support_desc') }}</div></div></div>
+      </div>
+    </div>
+
+    <!-- 热销商品 -->
+    <section class="section container">
+      <div class="section-header">
+        <div class="kicker">TOP PICKS</div>
+        <h2>{{ t('hot_sale') }}</h2>
+        <div class="line-deco"></div>
+      </div>
+      <div class="product-grid" v-if="hotProducts.length">
+        <div class="product-card hot-sale-card" v-for="p in hotProducts" :key="p.id" @click="goDetail(p)">
+          <div class="imgwrap">
+            <img :src="p.main_image || 'https://picsum.photos/seed/' + p.id + '/600/400'"
+                 loading="lazy" :onerror="'this.src=&quot;https://picsum.photos/seed/' + p.id + '/600/400&quot;'">
+            <div class="product-tag" v-if="(p.sales_count || 0) > 0">HOT</div>
+          </div>
+          <div class="body">
+            <div class="name">{{ p.display_name || p.sku_code }}</div>
+            <div class="price-row">
+              <span class="price">{{ money(p.base_price) }}</span>
+            </div>
+            <div class="meta">
+              <span><base-icon name="fire" :size="13"></base-icon> {{ t('sold') }} {{ p.sales_count || 0 }}</span>
+              <span class="product-actions">
+                <button class="fav-star" :class="{active: isWished(p.id)}"
+                        @click.stop.prevent="toggleWish(p)" :title="t('wishlist')"><base-icon name="star" :size="15" :fill="isWished(p.id)"></base-icon></button>
+                <span class="buy-link" @click.stop.prevent="buyNow(p)"><base-icon name="zap" :size="13"></base-icon> {{ t('buy_now') }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="loading" v-else-if="loadingHot">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+      <div style="text-align:center;margin-top:26px">
+        <button class="btn btn-dark btn-lg" @click="goProducts">{{ t('all_products') }} <base-icon name="chevronRight" :size="16"></base-icon></button>
+      </div>
+    </section>
+
+    <!-- 推荐商品 -->
+    <section class="section" style="background:var(--jjs-bg-light)">
+      <div class="container">
+        <div class="section-header">
+          <div class="kicker">STAFF PICKS</div>
+          <h2>{{ t('featured') }}</h2>
+          <div class="line-deco"></div>
+        </div>
+        <div class="product-grid" v-if="products.length">
+          <div class="product-card" v-for="p in products" :key="p.id" @click="goDetail(p)">
+            <div class="imgwrap">
+              <img :src="p.main_image || 'https://picsum.photos/seed/' + p.id + '/600/400'"
+                   loading="lazy" :onerror="'this.src=&quot;https://picsum.photos/seed/' + p.id + '/600/400&quot;'">
+              <div class="product-tag" v-if="p.is_featured">HOT</div>
+            </div>
+            <div class="body">
+              <div class="name">{{ p.display_name || p.sku_code }}</div>
+              <div class="price-row">
+                <span class="price">{{ money(p.base_price) }}</span>
+              </div>
+              <div class="meta">
+                <span><base-icon name="fire" :size="13"></base-icon> {{ t('sold') }} {{ p.sales_count || 0 }}</span>
+                <span class="product-actions">
+                  <button class="fav-star" :class="{active: isWished(p.id)}"
+                          @click.stop.prevent="toggleWish(p)" :title="t('wishlist')"><base-icon name="star" :size="15" :fill="isWished(p.id)"></base-icon></button>
+                  <span class="buy-link" @click.stop.prevent="buyNow(p)"><base-icon name="zap" :size="13"></base-icon> {{ t('buy_now') }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="loading" v-else-if="loadingProducts">
+          <div class="spinner"></div>{{ t('loading') }}
+        </div>
+        <div style="text-align:center;margin-top:26px">
+          <button class="btn btn-dark btn-lg" @click="goProducts">{{ t('all_products') }} <base-icon name="chevronRight" :size="16"></base-icon></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 页脚 -->
+    <site-footer></site-footer>
+
+    <!-- 登录弹窗 -->
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=28"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      var defaultSlides = [
+        {
+          tag: t('home_new'),
+          title: t('home_title'),
+          sub: t('home_sub'),
+          img: 'https://picsum.photos/seed/hero1/1600/900',
+          video: '',
+          cta: '',
+          link: '',
+        },
+        {
+          tag: t('home2_tag'),
+          title: t('home2_title'),
+          sub: t('home2_sub'),
+          img: 'https://picsum.photos/seed/hero2/1600/900',
+          video: '',
+          cta: '',
+          link: '',
+        },
+        {
+          tag: t('home3_tag'),
+          title: t('home3_title'),
+          sub: t('home3_sub'),
+          img: 'https://picsum.photos/seed/hero3/1600/900',
+          video: '',
+          cta: '',
+          link: '',
+        },
+      ];
+
+      window.mountPyMall({
+        setup() {
+          var lang = PyMall.getLang();
+          var state = Vue.reactive({
+            slides: defaultSlides.slice(),
+            currentSlide: 0,
+            hotProducts: [],
+            products: [],
+            loadingHot: true,
+            loadingProducts: true,
+            wishIds: [],
+          });
+
+          // 首页轮播：后台 ERP「内容管理」维护，返回启用轮播则优先展示
+          PyMall.api('/api/banners?placement=home_hero', { noLang: true })
+            .then(function (banners) {
+              if (banners && banners.length) {
+                state.slides = banners.map(function (b, idx) {
+                  var ti = b.title_i18n || {};
+                  var si = b.subtitle_i18n || {};
+                  var bi = b.button_text_i18n || {};
+                  function localized(obj, fallback) {
+                    var value = obj[lang] || (lang === 'en' ? '' : obj.zh || obj.en || '');
+                    if (lang === 'en' && /[\u4e00-\u9fff]/.test(value)) return fallback;
+                    return value || fallback;
+                  }
+                  return {
+                    tag: t('hero_kicker'),
+                    title: localized(ti, t('home_title')),
+                    sub: localized(si, t('home_sub')),
+                    cta: localized(bi, t('shop_now')),
+                    // 后台可传视频；无图时用默认图兜底，避免大片深色空白
+                    video: b.video_url || '',
+                    img: b.image_url || ('https://picsum.photos/seed/hero' + (idx + 1) + '/1600/900'),
+                    link: b.link_url || '',
+                  };
+                });
+                state.currentSlide = 0;
+              }
+            })
+            .catch(function () { /* 保留默认轮播 */ });
+
+          // ---------- 收藏 ----------
+          function loadWishlist() {
+            if (!PyMall.getToken()) { state.wishIds = []; return Promise.resolve(); }
+            return PyMall.api('/api/wishlist', { token: PyMall.getToken() })
+              .then(function (data) { state.wishIds = (data && data.product_ids) || []; })
+              .catch(function () { state.wishIds = []; });
+          }
+
+          function isWished(id) { return state.wishIds.indexOf(id) > -1; }
+
+          function toggleWish(p) {
+            if (!PyMall.getToken()) { PyMall.openAuth('login'); return; }
+            var wished = isWished(p.id);
+            var method = wished ? 'DELETE' : 'POST';
+            var path = wished ? '/api/wishlist/' + p.id : '/api/wishlist';
+            var body = wished ? null : { product_id: p.id };
+            PyMall.api(path, { method: method, token: PyMall.getToken(), body: body })
+              .then(function () {
+                if (wished) {
+                  state.wishIds = state.wishIds.filter(function (x) { return x !== p.id; });
+                  PyMall.toast(t('removed_from_wishlist'), 'success');
+                } else {
+                  state.wishIds.push(p.id);
+                  PyMall.toast(t('added_to_wishlist'), 'success');
+                }
+                PyMall.refreshWishlist();
+              })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function goProducts() {
+            location.href = '/products.html';
+          }
+          function goDetail(p) {
+            location.href = '/products.html?id=' + p.id;
+          }
+          function goBanner(slide) {
+            if (slide && slide.link) location.href = slide.link;
+            else goProducts();
+          }
+
+          var timer = setInterval(function () {
+            if (!state.slides.length) return;
+            state.currentSlide = (state.currentSlide + 1) % state.slides.length;
+          }, 5000);
+          Vue.onUnmounted(function () { clearInterval(timer); });
+
+          // 热销商品：按销量倒序，只展示有销量的商品；若都无销量则回退展示全部
+          var hotReq = PyMall.api('/api/products?sort_by=sales_desc&page_size=8', { noLang: false })
+            .then(function (data) {
+              var list = Array.isArray(data) ? data : (data.items || []);
+              var sold = list.filter(function (p) { return (p.sales_count || 0) > 0; });
+              state.hotProducts = sold.length ? sold : list;
+              state.loadingHot = false;
+            })
+            .catch(function () {
+              state.loadingHot = false;
+              return PyMall.api('/api/products?page_size=8').then(function (d) {
+                state.hotProducts = Array.isArray(d) ? d : (d.items || []);
+              }).catch(function () {});
+            });
+
+          // 推荐商品：优先展示后台标记为「推荐」的商品，并尽量与热销区块去重；
+          // 若去重后为空（商品总数较少时常见），则回退，保证推荐区块始终有内容
+          function loadFeatured() {
+            var hotIds = state.hotProducts.map(function (p) { return p.id; });
+            function excludeHot(list) {
+              return list.filter(function (p) { return hotIds.indexOf(p.id) === -1; });
+            }
+            function toList(data) { return Array.isArray(data) ? data : (data.items || []); }
+            function done() { state.loadingProducts = false; }
+
+            PyMall.api('/api/products?featured=true').then(function (data) {
+              var featured = toList(data);
+              var unique = excludeHot(featured);
+              if (unique.length) {
+                state.products = unique;
+                return done();
+              }
+              // 推荐商品与热销完全重合：改用未在热销区出现的商品
+              return PyMall.api('/api/products?page_size=8').then(function (d) {
+                var rest = excludeHot(toList(d));
+                // 全部商品都在热销区时，直接展示推荐商品，避免区块空白
+                state.products = rest.length ? rest : featured;
+                done();
+              });
+            }).catch(function () {
+              done();
+              PyMall.api('/api/products?page_size=8').then(function (d) {
+                var rest = excludeHot(toList(d));
+                state.products = rest.length ? rest : toList(d);
+              }).catch(function () {});
+            });
+          }
+
+          hotReq.then(loadFeatured);
+          loadWishlist();
+
+          return {
+            t: t, money: PyMall.money,
+            slides: Vue.computed(function () { return state.slides; }),
+            currentSlide: Vue.computed({
+              get: function () { return state.currentSlide; },
+              set: function (v) { state.currentSlide = v; },
+            }),
+            hotProducts: Vue.computed(function () { return state.hotProducts; }),
+            products: Vue.computed(function () { return state.products; }),
+            loadingHot: Vue.computed(function () { return state.loadingHot; }),
+            loadingProducts: Vue.computed(function () { return state.loadingProducts; }),
+            goProducts: goProducts,
+            goDetail: goDetail,
+            goBanner: goBanner,
+            isWished: isWished,
+            toggleWish: toggleWish,
+            buyNow: PyMall.buyNow,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

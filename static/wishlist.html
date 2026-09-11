@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的收藏 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+</head>
+<body>
+  <div id="app">
+    <top-bar></top-bar>
+    <main-nav active="wishlist"></main-nav>
+
+    <div class="container">
+      <h1 class="page-title"><base-icon name="star" :size="24" fill style="color:#f5a623"></base-icon> {{ t('my_wishlist') }}</h1>
+
+      <div class="loading" v-if="loading">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+
+      <!-- 未登录 -->
+      <div class="empty" v-else-if="notLoggedIn" style="padding-top:30px">
+        <div class="empty-icon"><base-icon name="lock" :size="52"></base-icon></div>
+        <div>{{ t('need_login') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="doLogin">
+          {{ t('login') }}
+        </button>
+      </div>
+
+      <!-- 空收藏 -->
+      <div class="empty" v-else-if="!items.length" style="padding-top:30px">
+        <div class="empty-icon"><base-icon name="star" :size="52"></base-icon></div>
+        <div>{{ t('wishlist_empty') }}</div>
+        <div style="font-size:13px;margin-top:6px">{{ t('wishlist_empty_desc') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="goShopping">
+          {{ t('go_shopping') }}
+        </button>
+      </div>
+
+      <!-- 收藏列表 -->
+      <div v-else class="wishlist-grid" style="padding-bottom:40px">
+        <div class="product-card" v-for="it in items" :key="it.product_id">
+          <div class="imgwrap" @click="goDetail(it)">
+            <img :src="it.main_image || 'https://picsum.photos/seed/' + it.product_id + '/600/400'" loading="lazy">
+            <button class="wishlist-remove" @click.stop="remove(it)"><base-icon name="trash" :size="15"></base-icon></button>
+          </div>
+          <div class="body" @click="goDetail(it)">
+            <div class="name">{{ it.product_name }}</div>
+            <div class="price-row">
+              <span class="price">{{ money(it.base_price) }}</span>
+            </div>
+          </div>
+          <div class="wishlist-actions">
+            <button class="btn btn-primary btn-sm" @click="moveToCart(it)"><base-icon name="cart" :size="14"></base-icon> {{ t('add_to_cart') }}</button>
+            <button class="btn btn-ghost btn-sm" @click="remove(it)">{{ t('delete') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            items: [],
+            loading: true,
+            notLoggedIn: false,
+          });
+
+          function load() {
+            if (!PyMall.getToken()) {
+              state.notLoggedIn = true;
+              state.loading = false;
+              return;
+            }
+            state.loading = true;
+            PyMall.api('/api/wishlist', { token: PyMall.getToken() })
+              .then(function (data) {
+                state.items = (data && data.items) || [];
+                state.loading = false;
+              })
+              .catch(function (e) {
+                state.loading = false;
+                if (e.status === 401) { state.notLoggedIn = true; return; }
+                PyMall.toast(e.message, 'error');
+              });
+          }
+
+          function remove(it) {
+            PyMall.api('/api/wishlist/' + it.product_id, {
+              method: 'DELETE', token: PyMall.getToken(),
+            }).then(function () {
+              state.items = state.items.filter(function (x) { return x.product_id !== it.product_id; });
+              PyMall.refreshWishlist();
+              PyMall.toast(t('removed_from_wishlist'), 'success');
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function moveToCart(it) {
+            PyMall.api('/api/wishlist/move-to-cart/' + it.product_id, {
+              method: 'POST', token: PyMall.getToken(),
+            }).then(function () {
+              // 移入购物车后从收藏列表移除该商品
+              state.items = state.items.filter(function (x) { return x.product_id !== it.product_id; });
+              PyMall.refreshWishlist();
+              PyMall.toast(t('added_to_cart'), 'success');
+              PyMall.refreshCart();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function goDetail(it) { location.href = '/products.html?id=' + it.product_id; }
+          function goShopping() { location.href = '/'; }
+          function doLogin() { PyMall.openAuth('login'); }
+
+          Vue.onMounted(load);
+
+          return {
+            t: t, money: PyMall.money,
+            items: Vue.computed(function () { return state.items; }),
+            loading: Vue.computed(function () { return state.loading; }),
+            notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
+            remove: remove, moveToCart: moveToCart,
+            goDetail: goDetail, goShopping: goShopping, doLogin: doLogin,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

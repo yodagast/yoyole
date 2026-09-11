@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>装备清单 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+</head>
+<body>
+  <div id="app">
+    <top-bar></top-bar>
+    <main-nav active="cart"></main-nav>
+
+    <div class="container">
+      <h1 class="page-title"><base-icon name="cart" :size="26"></base-icon> {{ t('cart') }}</h1>
+
+      <!-- 未登录：登录引导 -->
+      <div class="empty" v-if="notLoggedIn">
+        <div class="empty-icon"><base-icon name="lock" :size="52"></base-icon></div>
+        <div>{{ t('need_login') }}</div>
+        <div style="font-size:13px;margin-top:6px">{{ t('cart_login_tip') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="doLogin">
+          {{ t('login') }}
+        </button>
+      </div>
+
+      <!-- 空购物车 -->
+      <div class="empty" v-else-if="!loading && !items.length">
+        <div class="empty-icon"><base-icon name="cart" :size="52"></base-icon></div>
+        <div>{{ t('empty_cart') }}</div>
+        <div style="font-size:13px;margin-top:6px">{{ t('empty_cart_desc') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="goShopping">
+          {{ t('go_shopping') }}
+        </button>
+      </div>
+
+      <div class="cart-layout" v-else-if="items.length">
+        <!-- 商品列表 -->
+        <div>
+          <table class="cart-table">
+            <thead>
+              <tr>
+                <th>{{ t('products') }}</th>
+                <th>{{ t('unit_price') }}</th>
+                <th>{{ t('quantity') }}</th>
+                <th>{{ t('total') }}</th>
+                <th>{{ t('actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="it in items" :key="it.id">
+                <td>
+                  <div class="cart-item-cell">
+                    <img :src="it.image || 'https://picsum.photos/seed/' + it.sku_id + '/200/200'">
+                    <div>
+                      <div class="nm">{{ it.product_name }}</div>
+                      <div class="sp">{{ it.sku_spec ? specText(it.sku_spec) : it.sku_code }}</div>
+                      <div class="sp">{{ it.sku_code }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ money(it.unit_price) }}</td>
+                <td>
+                  <div class="qty-control">
+                    <button @click="changeQty(it, it.quantity - 1)">−</button>
+                    <span>{{ it.quantity }}</span>
+                    <button @click="changeQty(it, it.quantity + 1)">+</button>
+                  </div>
+                </td>
+                <td style="font-weight:700">{{ money(it.subtotal) }}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" @click="removeItem(it)"><base-icon name="trash" :size="14"></base-icon> {{ t('delete') }}</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px;font-size:13px;color:var(--jjs-gray-light)">
+            <base-icon name="bulb" :size="14"></base-icon> {{ t('free_ship') }} · {{ t('easy_return') }}
+          </div>
+        </div>
+
+        <!-- 结算侧栏 -->
+        <div class="side-card">
+          <h3><base-icon name="card" :size="20"></base-icon> {{ t('checkout') }}</h3>
+
+          <div class="form-group" v-if="addresses.length">
+            <label>{{ t('my_addresses') }}</label>
+            <div class="addr-select" style="display:flex;flex-wrap:wrap;gap:8px">
+              <div class="addr-chip" v-for="a in addresses" :key="a.id"
+                   :class="{active: activeAddrId === a.id}"
+                   @click="applyAddress(a)"
+                   style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:12px;transition:all .15s">
+                <strong @click.stop>{{ a.receiver_name }}</strong>
+                <span style="color:#999"> · {{ a.phone }}</span>
+                <div style="color:#666;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.detail }}</div>
+                <span v-if="a.is_default" style="color:var(--jjs-primary);font-weight:600"><base-icon name="star" :size="13" fill></base-icon> {{ t('addr_default') }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" v-if="addresses.length" style="padding-bottom:6px;border-bottom:1px dashed #eee;margin-bottom:10px">
+            <button class="btn btn-ghost btn-sm" @click="addAddress">＋ {{ t('add_address') }}</button>
+          </div>
+          <div class="form-group">
+            <label>{{ t('receiver_name') }} *</label>
+            <input type="text" v-model="form.receiver_name">
+          </div>
+          <div class="form-group">
+            <label>{{ t('receiver_phone') }} *</label>
+            <input type="text" v-model="form.receiver_phone">
+          </div>
+          <div class="form-group">
+            <label>{{ t('receiver_address') }} *</label>
+            <textarea rows="2" v-model="form.receiver_address"></textarea>
+          </div>
+
+          <div class="detail-label">{{ t('payment_method') }}</div>
+          <div class="pay-methods">
+            <div class="pay-method" :class="{active: form.payment_method === m.value}"
+                 v-for="m in payMethods" :key="m.value" @click="form.payment_method = m.value">
+              <span class="pm-icon"><base-icon :name="m.icon" :size="20"></base-icon></span>
+              <div>
+                <div class="pm-name">{{ m.label }}</div>
+                <div class="pm-desc" v-if="!m.enabled">({{ t('pending') }})</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-row"><span>{{ t('subtotal') }}</span><span>{{ money(cart.total_amount) }}</span></div>
+          <div class="summary-row"><span>{{ t('shipping_fee') }}</span><span>¥0.00</span></div>
+          <div class="summary-row"><span>{{ t('discount') }}</span><span>-¥0.00</span></div>
+          <div class="summary-row total">
+            <span>{{ t('total') }}</span>
+            <span class="amt">{{ money(cart.total_amount) }}</span>
+          </div>
+
+          <button class="btn btn-primary btn-block btn-lg" style="margin-top:18px"
+                  :disabled="submitting" @click="checkout">
+            {{ submitting ? t('loading') : t('submit_order') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="loading" v-if="loading">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+    </div>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            items: [],
+            total_amount: 0,
+            loading: true,
+            submitting: false,
+            notLoggedIn: false,
+            addresses: [],
+            activeAddrId: null,
+            form: {
+              receiver_name: '',
+              receiver_phone: '',
+              receiver_address: '',
+              payment_method: 'mock',
+            },
+          });
+
+          // 加载常用地址
+          function loadAddresses() {
+            if (!PyMall.getToken()) {
+              state.addresses = [];
+              return;
+            }
+            PyMall.api('/api/addresses', { token: PyMall.getToken() })
+              .then(function (data) {
+                state.addresses = data || [];
+                var def = state.addresses.find(function (a) { return a.is_default; }) || state.addresses[0];
+                if (def && !state.form.receiver_name) {
+                  applyAddress(def);
+                }
+              })
+              .catch(function () { state.addresses = []; });
+          }
+
+          function applyAddress(a) {
+            state.form.receiver_name = a.receiver_name;
+            state.form.receiver_phone = a.receiver_phone;
+            state.form.receiver_address = a.detail;
+            state.activeAddrId = a.id;
+          }
+
+          function addAddress() {
+            var f = state.form;
+            if (!f.receiver_name || !f.receiver_phone || !f.receiver_address) {
+              PyMall.toast(t('receiver_name') + ' / ' + t('receiver_phone') + ' / ' + t('receiver_address'), 'error');
+              return;
+            }
+            PyMall.api('/api/addresses', {
+              method: 'POST', token: PyMall.getToken(),
+              body: {
+                receiver_name: f.receiver_name,
+                receiver_phone: f.receiver_phone,
+                detail: f.receiver_address,
+                is_default: true,
+              },
+            }).then(function () {
+              PyMall.toast(t('operation_success'), 'success');
+              loadAddresses();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          var payMethods = Vue.computed(function () {
+            return [
+              { value: 'mock', icon: 'card', label: t('mock_pay'), enabled: true },
+              { value: 'alipay', icon: 'wallet', label: t('alipay'), enabled: false },
+              { value: 'wechat', icon: 'review', label: t('wechat'), enabled: false },
+              { value: 'stripe', icon: 'card', label: 'Stripe', enabled: false },
+            ];
+          });
+
+          var cart = Vue.computed(function () {
+            return { items: state.items, total_amount: state.total_amount };
+          });
+          var items = Vue.computed(function () { return state.items; });
+          var loading = Vue.computed(function () { return state.loading; });
+          var submitting = Vue.computed(function () { return state.submitting; });
+          var form = Vue.computed(function () { return state.form; });
+
+          function specText(attrs) {
+            if (!attrs) return '';
+            return Object.keys(attrs).map(function (k) { return k + ': ' + attrs[k]; }).join(' / ');
+          }
+
+          function load() {
+            if (!PyMall.getToken()) {
+              state.notLoggedIn = true;
+              state.loading = false;
+              return;
+            }
+            state.loading = true;
+            PyMall.api('/api/cart', { token: PyMall.getToken() })
+              .then(function (data) {
+                state.items = data.items || [];
+                state.total_amount = data.total_amount || 0;
+                state.loading = false;
+              })
+              .catch(function (e) {
+                state.loading = false;
+                PyMall.toast(e.message, 'error');
+              });
+          }
+
+          function changeQty(it, newQty) {
+            if (newQty < 1) return;
+            PyMall.api('/api/cart/items/' + it.id, {
+              method: 'PUT', token: PyMall.getToken(),
+              body: { quantity: newQty },
+            }).then(function (data) {
+              state.items = data.items || [];
+              state.total_amount = data.total_amount || 0;
+              PyMall.refreshCart();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function removeItem(it) {
+            PyMall.api('/api/cart/items/' + it.id, {
+              method: 'DELETE', token: PyMall.getToken(),
+            }).then(function (data) {
+              state.items = data.items || [];
+              state.total_amount = data.total_amount || 0;
+              PyMall.refreshCart();
+              PyMall.toast(t('operation_success'), 'success');
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function checkout() {
+            var f = state.form;
+            if (!f.receiver_name || !f.receiver_phone || !f.receiver_address) {
+              PyMall.toast(t('receiver_name') + ' / ' + t('receiver_phone') + ' / ' + t('receiver_address'), 'error');
+              return;
+            }
+            state.submitting = true;
+            PyMall.api('/api/orders/checkout', {
+              method: 'POST', token: PyMall.getToken(),
+              body: {
+                receiver_name: f.receiver_name,
+                receiver_phone: f.receiver_phone,
+                receiver_address: f.receiver_address,
+                payment_method: f.payment_method,
+              },
+            }).then(function (order) {
+              return PyMall.api('/api/orders/' + order.order_no + '/pay', {
+                method: 'POST', token: PyMall.getToken(),
+              }).then(function (pay) {
+                if (pay.pay_url) {
+                  return fetch(pay.pay_url).then(function () { return order; });
+                }
+                return order;
+              });
+            }).then(function (order) {
+              state.submitting = false;
+              PyMall.refreshCart();
+              PyMall.toast(t('operation_success'), 'success');
+              location.href = '/orders.html';
+            }).catch(function (e) {
+              state.submitting = false;
+              PyMall.toast(e.message, 'error');
+            });
+          }
+
+          function goShopping() { location.href = '/'; }
+
+          function doLogin() { PyMall.openAuth('login'); }
+
+          Vue.onMounted(function () {
+            load();
+            loadAddresses();
+          });
+
+          return {
+            t: t, money: PyMall.money,
+            items: items, cart: cart, loading: loading,
+            notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
+            submitting: submitting, form: form,
+            payMethods: payMethods,
+            addresses: Vue.computed(function () { return state.addresses; }),
+            activeAddrId: Vue.computed(function () { return state.activeAddrId; }),
+            applyAddress: applyAddress, addAddress: addAddress,
+            specText: specText,
+            changeQty: changeQty, removeItem: removeItem,
+            checkout: checkout, goShopping: goShopping, doLogin: doLogin,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

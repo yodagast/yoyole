@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>瑜伽与户外装备 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    .sort-tabs { display:flex; align-items:center; gap:8px; overflow-x:auto; margin-top:18px; padding:4px 0 10px; border-bottom:1px solid var(--jjs-border); scrollbar-width:none; }
+    .sort-tabs::-webkit-scrollbar { display:none; }
+    .sort-tab { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; padding:10px 16px; border:0; border-radius:999px; background:#f7f7f7; color:#555; font-size:14px; cursor:pointer; transition:background .2s, color .2s; }
+    .sort-tab:hover { color:var(--jjs-primary); background:#fff0f4; }
+    .sort-tab.active { background:var(--jjs-primary); color:#fff; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <top-bar></top-bar>
+    <main-nav active="products"></main-nav>
+
+    <!-- 分类导航条 -->
+    <div class="cat-bar">
+      <div class="cat-bar-inner">
+        <a class="cat-link" :class="{active: !categoryId}" @click.prevent="selectCat(null)">
+          {{ t('all_categories') }}
+        </a>
+        <a class="cat-link" v-for="c in categories" :key="c.id"
+           :class="{active: categoryId === c.id}" @click.prevent="selectCat(c.id)">
+          {{ catName(c) }}
+        </a>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- TEMU 风格排序栏：点击排序项立即刷新商品列表 -->
+      <nav class="sort-tabs" aria-label="商品排序">
+        <button v-for="option in sortOptions" :key="option.value" class="sort-tab"
+                :class="{active: sortBy === option.value}" @click="selectSort(option.value)">
+          {{ option.label }}
+          <base-icon v-if="option.value !== 'default'" name="chevronDown" :size="13"></base-icon>
+        </button>
+      </nav>
+
+      <div class="section-header" style="margin-top:26px">
+        <div class="kicker">Products</div>
+        <h2>{{ pageTitle }}</h2>
+        <div class="line-deco"></div>
+      </div>
+
+      <!-- 商品网格 -->
+      <div class="product-grid" v-if="products.length" style="padding-bottom:40px">
+        <div class="product-card" v-for="p in products" :key="p.id" @click="openDetail(p)">
+          <div class="imgwrap">
+            <img :src="p.main_image || 'https://picsum.photos/seed/' + p.id + '/600/400'"
+                 loading="lazy">
+            <div class="product-tag" v-if="p.is_featured">HOT</div>
+          </div>
+          <div class="body">
+            <div class="name">{{ p.display_name || p.sku_code }}</div>
+            <div class="price-row">
+              <span class="price">{{ money(p.base_price) }}</span>
+            </div>
+            <div class="meta">
+              <span><base-icon name="fire" :size="13"></base-icon> {{ t('sold') }} {{ p.sales_count || 0 }}</span>
+              <span class="product-actions">
+                <button class="fav-star" :class="{active: isWished(p.id)}"
+                        @click.stop.prevent="toggleWish(p)" :title="t('wishlist')"><base-icon name="star" :size="15" :fill="isWished(p.id)"></base-icon></button>
+                <span class="buy-link" @click.stop.prevent="buyNow(p)"><base-icon name="zap" :size="13"></base-icon> {{ t('buy_now') }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="loading" v-else-if="loading">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+      <div class="empty" v-else>
+        <div class="empty-icon"><base-icon name="search" :size="52"></base-icon></div>
+        <div>{{ t('no_result') }}</div>
+        <button class="btn btn-outline" style="margin-top:14px" @click="resetFilter">
+          {{ t('clear_search') }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 商品详情模态 -->
+    <div class="modal-mask" v-if="detail && detailOpen" @click.self="detailOpen=false">
+      <div class="modal" style="width:860px;max-width:94vw;max-height:88vh;overflow-y:auto">
+        <button class="modal-close" @click="detailOpen=false">×</button>
+        <div class="detail-wrap" v-if="detail">
+          <div class="detail-gallery" style="position:static">
+            <div class="main-img-box">
+              <img :src="currentImg" :onerror="'this.src=&quot;https://picsum.photos/seed/' + detail.id + '/600/400&quot;'">
+            </div>
+            <div class="thumb-row" v-if="galImgs.length > 1">
+              <div class="thumb" v-for="(im, i) in galImgs" :key="i"
+                   :class="{active: i === imgIdx}" @click="imgIdx = i">
+                <img :src="im" :onerror="'this.src=&quot;https://picsum.photos/seed/' + detail.id + '/100/100&quot;'">
+              </div>
+            </div>
+          </div>
+          <div class="detail-info">
+            <h1 class="detail-name">{{ detail.display_name || detail.sku_code }}</h1>
+            <div class="detail-meta">SKU: {{ detail.sku_code }}</div>
+            <div class="detail-price">
+              {{ money(selectedSku ? selectedSku.price : detail.base_price) }}
+            </div>
+            <div class="detail-desc">{{ detailDesc }}</div>
+            <div class="detail-block">
+              <div class="detail-label">{{ t('sku') }}</div>
+              <div class="sku-list">
+                <button class="sku-option" v-for="s in activeSkus" :key="s.id"
+                        :class="{active: selectedSku && selectedSku.id === s.id}"
+                        :disabled="!s.is_active" @click="selectedSku = s">
+                  <div class="spec">{{ specText(s.attributes) || s.sku_code }}</div>
+                  <div class="sprice">{{ money(s.price) }}</div>
+                  <div class="sstock">{{ t('stock') }}: {{ s.available_stock }}</div>
+                </button>
+              </div>
+            </div>
+            <div class="detail-block">
+              <div class="detail-label">{{ t('quantity') }}</div>
+              <div class="qty-control">
+                <button @click="qty = Math.max(1, qty - 1)">−</button>
+                <span>{{ qty }}</span>
+                <button @click="qty = Math.min(maxQty, qty + 1)">+</button>
+              </div>
+            </div>
+            <div class="detail-fav-row">
+              <button class="btn btn-sm btn-block" :class="isWished(detail.id) ? 'btn-primary' : 'btn-outline'"
+                      @click="toggleWish(detail)">
+                <base-icon name="star" :size="16" :fill="isWished(detail.id)"></base-icon>
+                {{ isWished(detail.id) ? t('wishlisted') : t('add_wishlist') }}
+              </button>
+            </div>
+            <div class="detail-actions">
+              <button class="btn btn-primary btn-lg" @click="addToCart"><base-icon name="cart" :size="18"></base-icon> {{ t('add_to_cart') }}</button>
+              <button class="btn btn-outline btn-lg" @click="buyNow"><base-icon name="zap" :size="18"></base-icon> {{ t('buy_now') }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评价区（评论未加载时显示骨架） -->
+        <div class="review-section" style="margin-top:30px;padding-top:26px;border-top:1px solid #eee">
+          <h3 style="font-size:18px;font-weight:700;margin-bottom:14px">
+            {{ t('reviews') }}（{{ reviewCount }}）
+          </h3>
+
+          <!-- 写评价表单（仅登录） -->
+          <div class="review-form" v-if="canReview" style="background:var(--jjs-bg-light);padding:16px;border-radius:12px;margin-bottom:18px">
+            <div class="star-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span>{{ t('review_rating') }}:</span>
+              <button v-for="n in 5" :key="n"
+                      style="font-size:22px;background:none;border:none;cursor:pointer;color:#ccc;padding:0 2px"
+                      @click="reviewForm.rating = n"><base-icon name="star" :size="20" :fill="n <= (reviewForm.rating||0)" :style="n <= (reviewForm.rating||0) ? 'color:#f5a623' : 'color:#ccc'"></base-icon></button>
+            </div>
+            <input v-model="reviewForm.title" class="form-input"
+                   :placeholder="t('review_title')" style="margin-bottom:10px" maxlength="80">
+            <textarea v-model="reviewForm.content" class="form-input"
+                      :placeholder="t('review_placeholder')" rows="3"
+                      style="margin-bottom:10px;resize:vertical"></textarea>
+            <button class="btn btn-primary" :disabled="reviewSubmitting"
+                    @click="submitReview"><base-icon name="pencil" :size="15"></base-icon> {{ t('review_submit') }}</button>
+          </div>
+          <div v-else class="review-login-tip"
+               style="font-size:13px;color:#999;margin-bottom:16px">
+            {{ alreadyReviewed ? t('already_reviewed') : t('login_to_review') }}
+          </div>
+
+          <!-- 评价列表 -->
+          <div class="review-list" v-if="reviews.length">
+            <div class="review-item" v-for="(r, i) in reviews" :key="i"
+                 style="padding:14px 0;border-bottom:1px dashed #eee">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:14px;font-weight:600;color:var(--jjs-primary)">
+                  {{ r.customer_name }}
+                </div>
+                <div class="stars" style="color:var(--jjs-gold);font-size:14px">
+                  <base-icon name="star" :size="14" fill v-for="n in r.rating" :key="n" style="color:#f5a623"></base-icon>
+                </div>
+              </div>
+              <div v-if="r.title" style="font-size:14px;font-weight:600;margin-bottom:4px">{{ r.title }}</div>
+              <div style="font-size:14px;line-height:1.7;color:#444">{{ r.content }}</div>
+            </div>
+          </div>
+          <div v-else-if="reviewsLoaded" style="font-size:13px;color:#999;padding:20px 0;text-align:center">
+            {{ t('no_reviews') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      function qs(name) {
+        return new URLSearchParams(location.search).get(name);
+      }
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            categories: [],
+            products: [],
+            loading: true,
+            categoryId: Number(qs('category_id')) || null,
+            keyword: qs('q') || '',
+            sortBy: qs('sort_by') || 'default',
+            detail: null,
+            detailOpen: false,
+            imgIdx: 0,
+            selectedSku: null,
+            qty: 1,
+            wishIds: [],
+            // 评价
+            reviews: [],
+            reviewCount: 0,
+            reviewsLoaded: false,
+            reviewForm: { rating: 5, title: '', content: '' },
+            reviewSubmitting: false,
+            canReview: false, // 该商品是否可评价（购买过）
+            alreadyReviewed: false, // 已评价过（审核中/已通过）
+          });
+
+          // ---------- 评价 ----------
+          function loadReviews(productId) {
+            state.reviews = [];
+            state.reviewsLoaded = false;
+            state.canReview = false;
+            state.alreadyReviewed = false;
+            PyMall.api('/api/products/' + productId + '/reviews').then(function (data) {
+              state.reviews = data || [];
+              state.reviewCount = state.reviews.length;
+              state.reviewsLoaded = true;
+            }).catch(function () {
+              state.reviewsLoaded = true;
+            });
+            // 登录时查询是否可评价
+            if (PyMall.getToken()) {
+              PyMall.api('/api/products/' + productId + '/reviewable', { token: PyMall.getToken() })
+                .then(function (data) {
+                  state.canReview = !!(data && data.reviewable);
+                  state.alreadyReviewed = !!(data && data.reason === 'already_reviewed');
+                })
+                .catch(function () { state.canReview = false; state.alreadyReviewed = false; });
+            }
+          }
+
+          function submitReview() {
+            if (!PyMall.getToken()) { PyMall.openAuth('login'); return; }
+            var p = state.detail;
+            if (!p) return;
+            if (!state.reviewForm.rating || !state.reviewForm.content.trim()) {
+              PyMall.toast(t('review_required'), 'error');
+              return;
+            }
+            state.reviewSubmitting = true;
+            PyMall.api('/api/products/' + p.id + '/reviews', {
+              method: 'POST', token: PyMall.getToken(),
+              body: {
+                rating: state.reviewForm.rating,
+                title: state.reviewForm.title,
+                content: state.reviewForm.content,
+              },
+            }).then(function () {
+              state.reviewSubmitting = false;
+              state.canReview = false;
+              state.alreadyReviewed = true;
+              state.reviewForm = { rating: 5, title: '', content: '' };
+              PyMall.toast(t('review_submitted'), 'success');
+            }).catch(function (e) {
+              state.reviewSubmitting = false;
+              PyMall.toast(e.message, 'error');
+            });
+          }
+
+          // ---------- 收藏 ----------
+          function loadWishlist() {
+            if (!PyMall.getToken()) { state.wishIds = []; return Promise.resolve(); }
+            return PyMall.api('/api/wishlist', { token: PyMall.getToken() })
+              .then(function (data) { state.wishIds = (data && data.product_ids) || []; })
+              .catch(function () { state.wishIds = []; });
+          }
+
+          function isWished(id) { return state.wishIds.indexOf(id) > -1; }
+
+          function toggleWish(p) {
+            if (!PyMall.getToken()) { PyMall.openAuth('login'); return; }
+            var wished = isWished(p.id);
+            var method = wished ? 'DELETE' : 'POST';
+            var path = wished ? '/api/wishlist/' + p.id : '/api/wishlist';
+            var body = wished ? null : { product_id: p.id };
+            PyMall.api(path, { method: method, token: PyMall.getToken(), body: body })
+              .then(function () {
+                if (wished) {
+                  state.wishIds = state.wishIds.filter(function (x) { return x !== p.id; });
+                  PyMall.toast(t('removed_from_wishlist'), 'success');
+                } else {
+                  state.wishIds.push(p.id);
+                  PyMall.toast(t('added_to_wishlist'), 'success');
+                }
+                PyMall.refreshWishlist();
+              })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          var pageTitle = Vue.computed(function () {
+            if (state.keyword) return t('search_result') + ': “' + state.keyword + '”';
+            if (state.categoryId) {
+              var c = state.categories.find(function (x) { return x.id === state.categoryId; });
+              if (c) return catName(c);
+            }
+            return t('all_products');
+          });
+
+          function catName(c) {
+            return PyMall.localName(c.name_i18n, c.code);
+          }
+
+          function loadCategories() {
+            return PyMall.api('/api/categories').then(function (data) {
+              state.categories = data || [];
+            }).catch(function () {});
+          }
+
+          function loadProducts() {
+            state.loading = true;
+            var params = [];
+            if (state.categoryId) params.push('category_id=' + state.categoryId);
+            if (state.keyword) params.push('q=' + encodeURIComponent(state.keyword));
+            if (state.sortBy && state.sortBy !== 'default') params.push('sort_by=' + state.sortBy);
+            var path = '/api/products' + (params.length ? '?' + params.join('&') : '');
+            return PyMall.api(path).then(function (data) {
+              state.products = Array.isArray(data) ? data : (data.items || []);
+              state.loading = false;
+            }).catch(function (e) {
+              state.products = [];
+              state.loading = false;
+              PyMall.toast(e.message, 'error');
+            });
+          }
+
+          var sortOptions = [
+            { value: 'default', label: t('sort_default') },
+            { value: 'sales_desc', label: t('sort_sales_desc') },
+            { value: 'newest', label: t('sort_newest') },
+            { value: 'price_asc', label: t('sort_price_asc') },
+            { value: 'price_desc', label: t('sort_price_desc') },
+            { value: 'favorites_desc', label: t('sort_favorites_desc') },
+          ];
+
+          function selectSort(value) {
+            state.sortBy = value;
+            updateUrl();
+            loadProducts();
+          }
+
+          function selectCat(id) {
+            state.categoryId = id;
+            state.keyword = '';
+            updateUrl();
+            loadProducts();
+          }
+
+          function resetFilter() {
+            state.categoryId = null;
+            state.keyword = '';
+            state.sortBy = 'default';
+            updateUrl();
+            loadProducts();
+          }
+
+          function updateUrl() {
+            var p = [];
+            if (state.categoryId) p.push('category_id=' + state.categoryId);
+            if (state.keyword) p.push('q=' + encodeURIComponent(state.keyword));
+            if (state.sortBy && state.sortBy !== 'default') p.push('sort_by=' + encodeURIComponent(state.sortBy));
+            history.replaceState(null, '', '/products.html' + (p.length ? '?' + p.join('&') : ''));
+          }
+
+          // ---------- 详情 ----------
+          function openDetail(p) {
+            PyMall.api('/api/products/' + p.id).then(function (detail) {
+              state.detail = detail;
+              state.detailOpen = true;
+              state.imgIdx = 0;
+              state.qty = 1;
+              var skus = (detail.skus || []).filter(function (s) { return s.is_active; });
+              state.selectedSku = skus.length ? skus[0] : null;
+              loadReviews(p.id);
+            }).catch(function (e) {
+              PyMall.toast(e.message, 'error');
+            });
+          }
+
+          var detailDesc = Vue.computed(function () {
+            var d = state.detail;
+            if (!d || !d.description_i18n) return '';
+            return d.description_i18n[PyMall.getLang()] || d.description_i18n.zh || '';
+          });
+
+          var activeSkus = Vue.computed(function () {
+            return (state.detail && state.detail.skus) ? state.detail.skus : [];
+          });
+
+          var galImgs = Vue.computed(function () {
+            var d = state.detail;
+            if (!d) return [];
+            var imgs = (d.images && d.images.length) ? d.images : [d.main_image || ''];
+            return imgs.filter(function (x) { return !!x; });
+          });
+
+          var currentImg = Vue.computed(function () {
+            var imgs = galImgs.value;
+            return imgs[state.imgIdx] || (state.detail ? state.detail.main_image : '');
+          });
+
+          var maxQty = Vue.computed(function () {
+            return state.selectedSku ? Math.max(state.selectedSku.available_stock, 1) : 99;
+          });
+
+          function specText(attrs) {
+            if (!attrs) return '';
+            return Object.keys(attrs).map(function (k) { return k + ': ' + attrs[k]; }).join(' / ');
+          }
+
+          function ensureAuth() {
+            if (!PyMall.getToken()) {
+              PyMall.openAuth('login');
+              return false;
+            }
+            return true;
+          }
+
+          function addToCart() {
+            if (!ensureAuth()) return;
+            if (!state.selectedSku) { PyMall.toast(t('sku'), 'error'); return; }
+            PyMall.api('/api/cart/items', {
+              method: 'POST', token: PyMall.getToken(),
+              body: { sku_id: state.selectedSku.id, quantity: state.qty },
+            }).then(function () {
+              PyMall.toast(t('added_to_cart'), 'success');
+              PyMall.refreshCart();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function buyNow(p) {
+            if (!ensureAuth()) return;
+            var sku = null;
+            if (p && p.id) {
+              // 卡片快捷购买：取第一个有货 SKU
+              return PyMall.api('/api/products/' + p.id).then(function (detail) {
+                var skus = (detail.skus || []).filter(function (s) { return s.is_active && s.available_stock > 0; });
+                if (!skus.length) { PyMall.toast(t('sku'), 'error'); return; }
+                return PyMall.api('/api/cart/items', {
+                  method: 'POST', token: PyMall.getToken(),
+                  body: { sku_id: skus[0].id, quantity: 1 },
+                });
+              }).then(function (data) {
+                if (data) location.href = '/cart.html';
+              }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+            }
+            if (!state.selectedSku) { PyMall.toast(t('sku'), 'error'); return; }
+            PyMall.api('/api/cart/items', {
+              method: 'POST', token: PyMall.getToken(),
+              body: { sku_id: state.selectedSku.id, quantity: state.qty },
+            }).then(function () {
+              location.href = '/cart.html';
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          // ---------- 初始化 ----------
+          loadCategories().then(function () {
+            loadWishlist().then(function () {
+              loadProducts();
+              // 支持首页跳转 /products.html?id=xxx 直达详情
+              var idParam = qs('id');
+              if (idParam) {
+                openDetail({ id: Number(idParam) });
+              }
+            });
+          });
+
+          return {
+            t: t, money: PyMall.money,
+            categories: Vue.computed(function () { return state.categories; }),
+            products: Vue.computed(function () { return state.products; }),
+            loading: Vue.computed(function () { return state.loading; }),
+            categoryId: Vue.computed(function () { return state.categoryId; }),
+            keyword: Vue.computed(function () { return state.keyword; }),
+            pageTitle: pageTitle,
+            sortBy: Vue.computed({
+              get: function () { return state.sortBy; },
+              set: function (v) { state.sortBy = v; },
+            }),
+            sortOptions: sortOptions,
+            selectSort: selectSort,
+            detail: Vue.computed(function () { return state.detail; }),
+            detailOpen: Vue.computed({
+              get: function () { return state.detailOpen; },
+              set: function (v) { state.detailOpen = v; },
+            }),
+            currentImg: currentImg,
+            galImgs: galImgs,
+            imgIdx: Vue.computed({
+              get: function () { return state.imgIdx; },
+              set: function (v) { state.imgIdx = v; },
+            }),
+            selectedSku: Vue.computed({
+              get: function () { return state.selectedSku; },
+              set: function (v) { state.selectedSku = v; },
+            }),
+            activeSkus: activeSkus,
+            qty: Vue.computed({
+              get: function () { return state.qty; },
+              set: function (v) { state.qty = v; },
+            }),
+            maxQty: maxQty,
+            detailDesc: detailDesc,
+            catName: catName,
+            selectCat: selectCat,
+            resetFilter: resetFilter,
+            openDetail: openDetail,
+            addToCart: addToCart,
+            buyNow: buyNow,
+            specText: specText,
+            isWished: isWished,
+            toggleWish: toggleWish,
+            reviews: Vue.computed(function () { return state.reviews; }),
+            reviewCount: Vue.computed(function () { return state.reviewCount; }),
+            reviewsLoaded: Vue.computed(function () { return state.reviewsLoaded; }),
+            reviewForm: state.reviewForm,
+            reviewSubmitting: Vue.computed(function () { return state.reviewSubmitting; }),
+            canReview: Vue.computed(function () { return state.canReview; }),
+            alreadyReviewed: Vue.computed(function () { return state.alreadyReviewed; }),
+            submitReview: submitReview,
+            goDetail: function (p) { location.href = '/products.html?id=' + p.id; },
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

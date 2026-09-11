@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    /* ---- 我的故事 tab ---- */
+    .acct2-story-form .form-group label { display:block; font-size:13px; font-weight:600; color:#475569; margin-bottom:6px; }
+    .acct2-story-form input, .acct2-story-form textarea { width:100%; border:1px solid var(--jjs-border, #eee); border-radius:8px; padding:10px 12px; box-sizing:border-box; font:inherit; }
+    .acct2-story-form textarea { resize:vertical; }
+    .acct2-story-list { display:flex; flex-direction:column; gap:12px; }
+    .acct2-story-item { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; padding:16px 18px; border:1px solid var(--jjs-border, #eee); border-radius:12px; background:#fff; }
+    .acct2-story-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .acct2-story-title { font-weight:700; font-size:15px; color:#1e293b; text-decoration:none; }
+    a.acct2-story-title:hover { color:var(--jjs-primary, #d81e53); }
+    .acct2-story-tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .acct2-story-preview { color:#64748b; font-size:13px; line-height:1.7; margin-top:8px; }
+    .acct2-story-ops { display:flex; gap:8px; flex-shrink:0; }
+    .acct2-story-ops .acct2-op { display:inline-flex; align-items:center; gap:4px; background:none; border:1px solid var(--jjs-border, #eee); border-radius:8px; padding:6px 12px; font-size:12.5px; color:#475569; cursor:pointer; }
+    .acct2-story-ops .acct2-op:hover { border-color:var(--jjs-primary, #d81e53); color:var(--jjs-primary, #d81e53); }
+    .acct2-story-ops .acct2-op.danger:hover { border-color:#dc2626; color:#dc2626; }
+    .my-story-status { font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px; flex-shrink:0; }
+    .my-story-status.approved { background:#dcfce7; color:#166534; }
+    .my-story-status.pending { background:#fef3c7; color:#92400e; }
+    .my-story-status.rejected { background:#fee2e2; color:#b91c1c; }
+    .my-story-reason { font-size:12px; color:#b91c1c; background:#fef2f2; border-radius:6px; padding:3px 10px; margin-top:8px; display:inline-block; }
+    .story-tag-chip { font-size:11px; font-weight:700; color:var(--jjs-primary, #d81e53); background:rgba(216,30,83,.08); border-radius:999px; padding:2px 10px; }
+    .share-img-preview { position:relative; display:inline-block; margin-top:10px; border-radius:10px; overflow:hidden; border:1px solid var(--jjs-border, #eee); }
+    .share-img-preview img { max-width:220px; max-height:150px; display:block; object-fit:cover; }
+    .share-img-preview .share-img-remove { position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%; border:none; background:rgba(0,0,0,.55); color:#fff; font-size:14px; line-height:22px; cursor:pointer; }
+    .share-img-preview .share-img-remove:hover { background:var(--jjs-primary, #d81e53); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <main-nav active="account"></main-nav>
+
+    <div class="container" style="padding-bottom:40px">
+      <!-- 未登录 -->
+      <div class="empty" v-if="notLoggedIn" style="padding-top:60px">
+        <base-icon name="lock" :size="52" style="color:#cbd5e1"></base-icon>
+        <div style="margin-top:12px">{{ t('need_login') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="doLogin">{{ t('login') }}</button>
+      </div>
+
+      <div v-else class="acct2-wrap">
+        <!-- 账户头 -->
+        <div class="acct2-user">
+          <div class="acct2-avatar">{{ (profile.full_name || profile.email || '?').charAt(0).toUpperCase() }}</div>
+          <div class="acct2-user-info">
+            <div class="acct2-username">{{ profile.full_name || profile.email }}</div>
+            <div class="acct2-email">{{ profile.email }}</div>
+          </div>
+          <button class="acct2-logout" @click="logout"><base-icon name="logout" :size="16"></base-icon>{{ t('logout') }}</button>
+        </div>
+
+        <!-- 两列布局：左侧菜单 + 右侧内容 -->
+        <div class="acct2-layout">
+          <!-- 左侧菜单 -->
+          <aside class="acct2-sidebar">
+            <a class="acct2-menu" :class="{active: tab==='profile'}" @click="tab='profile'">
+              <base-icon name="user" :size="20"></base-icon><span>{{ t('my_profile') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='orders'}" @click="tab='orders'">
+              <base-icon name="box" :size="20"></base-icon><span>{{ t('orders') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='addresses'}" @click="tab='addresses'">
+              <base-icon name="location" :size="20"></base-icon><span>{{ t('my_addresses_title') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='reviews'}" @click="tab='reviews'">
+              <base-icon name="review" :size="20"></base-icon><span>{{ t('my_reviews_title') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='afterSales'}" @click="tab='afterSales'">
+              <base-icon name="headset" :size="20"></base-icon><span>{{ t('my_after_sales') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='wishlist'}" @click="tab='wishlist'">
+              <base-icon name="star" :size="20"></base-icon><span>{{ t('my_wishlist_title') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+            <a class="acct2-menu" :class="{active: tab==='stories'}" @click="tab='stories'">
+              <base-icon name="review" :size="20"></base-icon><span>{{ t('my_stories') }}</span>
+              <base-icon name="chevronRight" :size="15" class="acct2-arrow"></base-icon>
+            </a>
+          </aside>
+
+          <!-- 右侧内容 -->
+          <section class="acct2-panel">
+            <!-- 我的资料 -->
+            <div v-if="tab==='profile'">
+              <div class="acct2-panel-head">
+                <div>
+                  <h2>{{ t('my_profile') }}</h2>
+                  <p class="acct2-panel-subtitle">{{ t('profile_intro') }}</p>
+                </div>
+                <span class="acct2-member-tag">{{ t('account_active') }}</span>
+              </div>
+              <div class="acct2-profile-summary">
+                <div class="acct2-summary-item clickable" @click="tab='orders'">
+                  <strong>{{ orders.length }}</strong><span>{{ t('orders') }}</span>
+                </div>
+                <div class="acct2-summary-item clickable" @click="tab='addresses'">
+                  <strong>{{ addresses.length }}</strong><span>{{ t('my_addresses_title') }}</span>
+                </div>
+                <div class="acct2-summary-item clickable" @click="tab='wishlist'">
+                  <strong>{{ wishlist.length }}</strong><span>{{ t('my_wishlist_title') }}</span>
+                </div>
+                <div class="acct2-summary-item clickable" @click="tab='reviews'">
+                  <strong>{{ reviews.length }}</strong><span>{{ t('my_reviews_title') }}</span>
+                </div>
+              </div>
+              <div v-if="profileError" class="acct2-profile-error">{{ profileError }}</div>
+              <div class="acct2-profile-form">
+                <div class="form-group">
+                  <label>{{ t('email') }}</label>
+                  <input type="email" :value="profile.email || t('loading')" disabled class="acct2-readonly-input">
+                  <small class="acct2-field-hint">{{ t('email_secure_hint') }}</small>
+                </div>
+                <div class="form-group">
+                  <label>{{ t('full_name') }}</label>
+                  <input type="text" v-model="profileForm.full_name" :placeholder="t('full_name')">
+                </div>
+                <div class="form-group">
+                  <label>{{ t('phone') }}</label>
+                  <input type="text" v-model="profileForm.phone" :placeholder="t('phone_placeholder')">
+                </div>
+                <div class="acct2-profile-actions">
+                  <button class="btn btn-primary" @click="saveProfile"><base-icon name="save" :size="16"></base-icon> {{ t('save') }}</button>
+                  <button class="btn btn-outline" @click="openPasswordReset">{{ t('change_password') }}</button>
+                </div>
+              </div>
+              <div class="acct2-profile-links">
+                <button @click="tab='addresses'"><base-icon name="location" :size="17"></base-icon><span>{{ t('manage_addresses') }}</span><base-icon name="chevronRight" :size="15"></base-icon></button>
+                <button @click="tab='orders'"><base-icon name="box" :size="17"></base-icon><span>{{ t('view_order_history') }}</span><base-icon name="chevronRight" :size="15"></base-icon></button>
+              </div>
+            </div>
+
+            <!-- 我的订单 -->
+            <div v-if="tab==='orders'">
+              <div class="acct2-panel-head">
+                <h2>{{ t('orders') }}</h2>
+                <div class="acct2-tabs">
+                  <button :class="{active: orderFilter==='all'}" @click="orderFilter='all'">{{ t('all_orders') }}</button>
+                  <button :class="{active: orderFilter==='pending'}" @click="orderFilter='pending'">{{ t('pending_orders_title') }}<span v-if="pendingCount" class="acct2-tab-badge">{{ pendingCount }}</span></button>
+                  <button :class="{active: orderFilter==='paid'}" @click="orderFilter='paid'">{{ t('paid_orders_title') }}</button>
+                </div>
+              </div>
+              <order-list :orders="filteredOrders"></order-list>
+            </div>
+
+            <!-- 我的地址 -->
+            <div v-if="tab==='addresses'">
+              <div class="acct2-panel-head">
+                <h2>{{ t('my_addresses_title') }}</h2>
+                <button class="btn btn-primary btn-sm" @click="openAddrForm()"><base-icon name="plus" :size="15"></base-icon> {{ t('add_address') }}</button>
+              </div>
+              <div class="acct2-empty" v-if="!addresses.length">
+                <base-icon name="location" :size="44" style="color:#cbd5e1"></base-icon>
+                <div style="margin-top:8px">{{ t('my_addresses_title') }}</div>
+              </div>
+              <div v-else class="acct2-addr-list">
+                <div class="acct2-addr-item" v-for="a in addresses" :key="a.id">
+                  <div class="acct2-addr-main">
+                    <div class="acct2-addr-who">
+                      <strong>{{ a.receiver_name }}</strong>
+                      <span class="acct2-addr-phone">{{ a.receiver_phone }}</span>
+                      <span v-if="a.is_default" class="acct2-addr-tag">{{ t('addr_default') }}</span>
+                    </div>
+                    <div class="acct2-addr-detail">{{ a.detail }}</div>
+                  </div>
+                  <div class="acct2-addr-ops">
+                    <button class="acct2-op" @click="openAddrForm(a)"><base-icon name="pencil" :size="14"></base-icon>{{ t('edit') }}</button>
+                    <button class="acct2-op danger" @click="delAddress(a)"><base-icon name="trash" :size="14"></base-icon>{{ t('delete') }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 我的评价 -->
+            <div v-if="tab==='reviews'">
+              <div class="acct2-panel-head"><h2>{{ t('my_reviews_title') }}</h2></div>
+              <div class="acct2-empty" v-if="!reviews.length">
+                <base-icon name="review" :size="44" style="color:#cbd5e1"></base-icon>
+                <div style="margin-top:8px">{{ t('no_reviews') }}</div>
+              </div>
+              <div v-else class="acct2-review-list">
+                <div class="acct2-review-item" v-for="r in reviews" :key="r.id">
+                  <div class="acct2-review-top">
+                    <div>
+                      <span v-for="n in 5" :key="n"><base-icon name="star" :size="14" :fill="n <= r.rating" :style="n <= r.rating ? 'color:#f5a623' : 'color:#e5e7eb'"></base-icon></span>
+                      <span v-if="r.title" class="acct2-review-title">{{ r.title }}</span>
+                    </div>
+                    <span class="acct2-status" :class="r.status === 'approved' ? 'ok' : 'pending'">{{ t(r.status === 'approved' ? 'approved_review' : 'review_pending') }}</span>
+                  </div>
+                  <div class="acct2-review-content" v-if="r.content">{{ r.content }}</div>
+                  <div class="acct2-review-time">{{ formatTime(r.created_at) }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 我的售后 -->
+            <div v-if="tab==='afterSales'">
+              <div class="acct2-panel-head"><h2>{{ t('my_after_sales') }}</h2></div>
+              <div class="acct2-empty">
+                <base-icon name="headset" :size="44" style="color:#cbd5e1"></base-icon>
+                <div style="margin-top:8px">{{ t('after_sales_empty') }}</div>
+                <div style="font-size:13px;color:#999;margin-top:6px">{{ t('after_sales_tip') }}</div>
+              </div>
+            </div>
+
+            <!-- 我的收藏 -->
+            <div v-if="tab==='wishlist'">
+              <div class="acct2-panel-head">
+                <h2>{{ t('my_wishlist_title') }}</h2>
+                <button class="btn btn-outline btn-sm" @click="clearWishlist"><base-icon name="trash" :size="13"></base-icon> {{ t('clear_wishlist') }}</button>
+              </div>
+              <div class="acct2-empty" v-if="!wishlist.length">
+                <base-icon name="star" :size="44" style="color:#cbd5e1"></base-icon>
+                <div style="margin-top:8px">{{ t('wishlist_empty') }}</div>
+              </div>
+              <div v-else class="acct2-wish-grid">
+                <div class="acct2-wish-item" v-for="it in wishlist" :key="it.id" @click="goProduct(it.product_id)">
+                  <img :src="it.main_image || 'https://picsum.photos/seed/' + it.product_id + '/300/300'">
+                  <div class="acct2-wish-name">{{ it.product_name }}</div>
+                  <div class="acct2-wish-price">{{ money(it.base_price) }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 我的故事（投稿管理 + 内容编辑 + 图片上传） -->
+            <div v-if="tab==='stories'">
+              <div class="acct2-panel-head">
+                <h2>{{ t('my_stories') }}</h2>
+                <button v-if="!storyForm.open" class="btn btn-primary btn-sm" @click="openStoryForm()"><base-icon name="plus" :size="15"></base-icon> {{ t('publish_story') }}</button>
+              </div>
+
+              <!-- 发布/编辑表单 -->
+              <div v-if="storyForm.open" class="acct2-story-form card" style="margin-bottom:20px;padding:18px">
+                <div class="form-group">
+                  <label>{{ t('story_title_label') }}</label>
+                  <input v-model="storyForm.title" :placeholder="t('story_title_ph')">
+                </div>
+                <div class="form-group" style="margin-top:12px">
+                  <label>{{ t('story_tags_label') }}</label>
+                  <input v-model="storyForm.tagsText" :placeholder="t('story_tags_ph')">
+                </div>
+                <div class="form-group" style="margin-top:12px">
+                  <label>{{ t('story_content_label') }}</label>
+                  <textarea v-model="storyForm.content" rows="4" :placeholder="t('story_content_ph')"></textarea>
+                </div>
+                <div class="form-group" style="margin-top:12px">
+                  <label>{{ t('story_image_label') }}</label>
+                  <input class="story-file" type="file" accept="image/*" @change="uploadStoryImage" ref="storyFileInput">
+                  <div v-if="storyForm.image" class="share-img-preview">
+                    <img :src="storyForm.image" :alt="t('my_stories')">
+                    <button type="button" class="share-img-remove" @click="removeStoryImage">×</button>
+                  </div>
+                </div>
+                <div class="acct2-story-actions" style="margin-top:14px">
+                  <button class="btn btn-primary" @click="saveStory"><base-icon name="save" :size="15"></base-icon> {{ storyForm.id ? t('save_edit') : t('submit_story') }}</button>
+                  <button v-if="storyForm.id" class="btn btn-outline" @click="cancelStoryForm">{{ t('cancel_edit') }}</button>
+                  <span v-if="storyForm.msg" style="margin-left:10px;color:var(--jjs-gray, #64748b);font-size:13px">{{ storyForm.msg }}</span>
+                </div>
+              </div>
+
+              <!-- 投稿列表 -->
+              <div class="acct2-empty" v-if="!stories.length && !storyForm.open">
+                <base-icon name="review" :size="44" style="color:#cbd5e1"></base-icon>
+                <div style="margin-top:8px">{{ t('story_empty_list') }}</div>
+              </div>
+              <div v-else class="acct2-story-list">
+                <div class="acct2-story-item" v-for="s in stories" :key="s.id">
+                  <div class="acct2-story-main">
+                    <div class="acct2-story-top">
+                      <a class="acct2-story-title" :href="'/story-detail.html?id=' + s.id" @click.stop v-if="s.status==='approved'">{{ s.title }}</a>
+                      <span v-else class="acct2-story-title">{{ s.title }}</span>
+                      <span class="my-story-status" :class="s.status">{{ s.status==='approved' ? t('status_approved') : (s.status==='rejected' ? t('status_rejected') : t('status_pending')) }}</span>
+                    </div>
+                    <div class="acct2-story-tags">
+                      <span v-for="tg in (s.tags || [])" :key="tg" class="story-tag-chip">{{ tg }}</span>
+                    </div>
+                    <div class="acct2-story-preview" v-if="s.content">{{ s.content.slice(0, 80) }}{{ s.content.length > 80 ? '…' : '' }}</div>
+                    <div v-if="s.status==='rejected' && s.reject_reason" class="my-story-reason">{{ t('reject_reason_label') }}{{ s.reject_reason }}</div>
+                  </div>
+                  <div class="acct2-story-ops">
+                    <button class="acct2-op" @click="openStoryForm(s)"><base-icon name="pencil" :size="14"></base-icon>{{ t('edit') }}</button>
+                    <button class="acct2-op danger" @click="delStory(s)"><base-icon name="trash" :size="14"></base-icon>{{ t('delete') }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地址编辑弹窗 -->
+    <div class="modal-mask" v-if="addrForm.open" @click.self="addrForm.open=false">
+      <div class="modal" style="max-width:440px">
+        <button class="modal-close" @click="addrForm.open=false"><base-icon name="close" :size="18"></base-icon></button>
+        <h3>{{ addrForm.id ? t('edit') : t('add_address') }}</h3>
+        <div class="form-group"><label>{{ t('receiver_name') }}</label><input v-model="addrForm.receiver_name"></div>
+        <div class="form-group"><label>{{ t('receiver_phone') }}</label><input v-model="addrForm.receiver_phone"></div>
+        <div class="form-group"><label>{{ t('addr_detail') }}</label><textarea rows="2" v-model="addrForm.detail"></textarea></div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" v-model="addrForm.is_default" style="width:auto">
+          <label style="margin:0">{{ t('addr_default') }}</label>
+        </div>
+        <button class="btn btn-primary btn-block" @click="saveAddress"><base-icon name="save" :size="15"></base-icon> {{ t('save') }}</button>
+      </div>
+    </div>
+
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      // 订单列表子组件
+      var OrderList = {
+        props: ['orders'],
+        template: `
+          <div>
+            <div class="empty" v-if="!orders.length" style="padding:30px 0">
+              <base-icon name="box" :size="44" style="color:#cbd5e1"></base-icon>
+              <div style="margin-top:8px">{{ t('no_orders') }}</div>
+              <button class="btn btn-primary" style="margin-top:14px" @click="goShopping">{{ t('go_shopping') }}</button>
+            </div>
+            <div v-else class="acct2-order-list">
+              <div class="acct2-order-item" v-for="o in orders" :key="o.order_no">
+                <div class="acct2-order-head">
+                  <span class="acct2-order-no">{{ t('order_no') }}: {{ o.order_no }}</span>
+                  <span :class="'badge badge-' + o.status">{{ t(o.status) }}</span>
+                </div>
+                <div class="acct2-order-goods">
+                  <div class="acct2-order-goods-item" v-for="(it, idx) in o.items" :key="idx">
+                    <img :src="it.image || 'https://picsum.photos/seed/' + idx + '/120/120'">
+                    <div class="acct2-order-goods-info">
+                      <div class="acct2-order-goods-name">{{ it.product_name }}</div>
+                      <div class="acct2-order-goods-spec">{{ it.sku_code }}</div>
+                    </div>
+                    <div class="acct2-order-goods-right">
+                      <div class="acct2-order-goods-price">{{ money(it.unit_price) }}</div>
+                      <div class="acct2-order-goods-qty">×{{ it.quantity }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="acct2-order-total">
+                  <span style="font-size:12px;color:#999">{{ formatTime(o.created_at) }}</span>
+                  <span>{{ t('total') }}: <strong class="acct2-price">{{ money(o.total_amount) }}</strong></span>
+                </div>
+                <div class="acct2-order-actions">
+                  <button class="btn btn-ghost btn-sm" @click="viewDetail(o)"><base-icon name="chevronRight" :size="14"></base-icon> {{ t('order_detail') }}</button>
+                  <template v-if="o.status === 'pending'">
+                    <button class="btn btn-ghost btn-sm" @click="cancel(o)">{{ t('cancel_order') }}</button>
+                    <button class="btn btn-primary btn-sm" @click="pay(o)">{{ t('pay_now') }}</button>
+                  </template>
+                  <template v-else-if="o.status === 'shipped'">
+                    <button class="btn btn-primary btn-sm" @click="confirm(o)">{{ t('confirm_receipt') }}</button>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>`,
+        setup() {
+          function formatTime(s) { if (!s) return ''; return String(s).replace('T', ' ').slice(0, 19); }
+          function reload() { if (window.location) window.location.reload(); }
+          function goShopping() { location.href = '/products.html'; }
+          function pay(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/pay', { method: 'POST', token: PyMall.getToken() })
+              .then(function (pay) {
+                if (pay.pay_url) return fetch(pay.pay_url).then(function (r) { return r.json(); });
+                throw new Error('no pay_url');
+              }).then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function cancel(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/cancel', { method: 'POST', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function confirm(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/confirm', { method: 'POST', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function viewDetail(o) {
+            location.href = '/order-detail.html?order_no=' + encodeURIComponent(o.order_no);
+          }
+          return { t: PyMall.t, money: PyMall.money, formatTime, goShopping, pay, cancel, confirm, viewDetail };
+        },
+      };
+
+      window.mountPyMall({
+        components: { 'order-list': OrderList },
+        setup() {
+          var state = Vue.reactive({
+            tab: 'profile',
+            orderFilter: 'all',
+            profile: {},
+            profileForm: { full_name: '', phone: '' },
+            orders: [],
+            addresses: [],
+            reviews: [],
+            wishlist: [],
+            notLoggedIn: false,
+            profileError: '',
+            addrForm: { open: false, id: null, receiver_name: '', receiver_phone: '', detail: '', is_default: false },
+            stories: [],
+            storyForm: { open: false, id: null, title: '', tagsText: '', content: '', image: '', msg: '' },
+          });
+
+          // ---- 我的故事：投稿增删改 + 图片上传 ----
+          function loadStories() {
+            PyMall.api('/api/user-stories/mine', { token: PyMall.getToken() })
+              .then(function (list) { state.stories = list || []; })
+              .catch(function () { state.stories = []; });
+          }
+          function openStoryForm(s) {
+            if (s) {
+              state.storyForm.id = s.id;
+              state.storyForm.title = s.title || '';
+              state.storyForm.tagsText = (s.tags || []).join(', ');
+              state.storyForm.content = s.content || '';
+              state.storyForm.image = s.image_url || '';
+              state.storyForm.msg = t('story_editing_tip');
+            } else {
+              state.storyForm.id = null;
+              state.storyForm.title = '';
+              state.storyForm.tagsText = '';
+              state.storyForm.content = '';
+              state.storyForm.image = '';
+              state.storyForm.msg = '';
+            }
+            state.storyForm.open = true;
+          }
+          function cancelStoryForm() {
+            state.storyForm.open = false;
+            state.storyForm.id = null;
+            state.storyForm.title = '';
+            state.storyForm.tagsText = '';
+            state.storyForm.content = '';
+            state.storyForm.image = '';
+            state.storyForm.msg = '';
+          }
+          function uploadStoryImage(event) {
+            var file = event.target.files && event.target.files[0];
+            if (!file) return;
+            var form = new FormData();
+            form.append('file', file);
+            fetch('/api/user-story-upload', { method: 'POST', headers: { Authorization: 'Bearer ' + PyMall.getToken() }, body: form })
+              .then(function (res) { return res.json().then(function (data) { if (!res.ok) throw new Error(data.detail || t('story_upload_fail')); return data; }); })
+              .then(function (data) { state.storyForm.image = data.url; state.storyForm.msg = t('image_uploaded'); })
+              .catch(function (e) { state.storyForm.msg = e.message || t('story_upload_fail'); });
+          }
+          function removeStoryImage() {
+            state.storyForm.image = '';
+            state.storyForm.msg = '';
+          }
+          function saveStory() {
+            var f = state.storyForm;
+            if (!f.title.trim() || !f.content.trim()) {
+              state.storyForm.msg = t('story_fill_required');
+              return;
+            }
+            var tags = String(f.tagsText || '').split(/[,，、]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; }).slice(0, 6);
+            var body = {
+              title: f.title, content: f.content,
+              image_url: f.image, tags: tags,
+              category: tags[0] || 'life',
+            };
+            PyMall.api(f.id ? '/api/user-stories/' + f.id : '/api/user-stories', {
+              method: f.id ? 'PUT' : 'POST', token: PyMall.getToken(), body: body,
+            }).then(function () {
+              var wasEdit = !!f.id;
+              cancelStoryForm();
+              PyMall.toast(wasEdit ? t('story_saved_edit') : t('story_submitted'), 'success');
+              loadStories();
+            }).catch(function (e) { state.storyForm.msg = e.message || t('story_submit_fail'); });
+          }
+          function delStory(s) {
+            if (!confirm(t('confirm_delete'))) return;
+            PyMall.api('/api/user-stories/' + s.id, { method: 'DELETE', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); loadStories(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function doLogin() { PyMall.openAuth('login'); }
+          function logout() { PyMall.clearToken(); location.href = '/'; }
+          function formatTime(s) { if (!s) return ''; return String(s).replace('T', ' ').slice(0, 19); }
+
+          function loadProfile() {
+            PyMall.api('/api/auth/me', { token: PyMall.getToken() })
+              .then(function (d) {
+                state.profile = d || {};
+                state.profileForm.full_name = d.full_name || '';
+                state.profileForm.phone = d.phone || '';
+              }).catch(function (e) {
+                // token 失效已被 api() 清除，切回未登录视图
+                if (e.status === 401) { state.notLoggedIn = true; return; }
+                state.profileError = e.message || t('profile_load_failed');
+              });
+          }
+          function loadOrders() {
+            PyMall.api('/api/orders', { token: PyMall.getToken() })
+              .then(function (d) { state.orders = d || []; })
+              .catch(function () { state.orders = []; });
+          }
+          function loadAddresses() {
+            PyMall.api('/api/addresses', { token: PyMall.getToken() })
+              .then(function (d) { state.addresses = d || []; })
+              .catch(function () { state.addresses = []; });
+          }
+          function loadReviews() {
+            PyMall.api('/api/my-reviews', { token: PyMall.getToken() })
+              .then(function (d) { state.reviews = d || []; })
+              .catch(function () { state.reviews = []; });
+          }
+          function loadWishlist() {
+            PyMall.api('/api/wishlist', { token: PyMall.getToken() })
+              .then(function (d) { state.wishlist = (d && d.items) || []; PyMall.store.wishlistCount = state.wishlist.length; })
+              .catch(function () { state.wishlist = []; });
+          }
+          function clearWishlist() {
+            if (!confirm(t('confirm_delete'))) return;
+            PyMall.api('/api/wishlist', { method: 'DELETE', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); loadWishlist(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function saveProfile() {
+            PyMall.api('/api/auth/me', { method: 'PATCH', token: PyMall.getToken(),
+              body: { full_name: state.profileForm.full_name, phone: state.profileForm.phone },
+            }).then(function (d) { state.profile = d || {}; PyMall.toast(t('operation_success'), 'success'); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+              function openPasswordReset() { PyMall.openAuth('reset'); }
+          function openAddrForm(a) {
+            state.addrForm.open = true;
+            if (a) { state.addrForm.id = a.id; state.addrForm.receiver_name = a.receiver_name; state.addrForm.receiver_phone = a.receiver_phone; state.addrForm.detail = a.detail; state.addrForm.is_default = !!a.is_default; }
+            else { state.addrForm.id = null; state.addrForm.receiver_name = ''; state.addrForm.receiver_phone = ''; state.addrForm.detail = ''; state.addrForm.is_default = false; }
+          }
+          function saveAddress() {
+            var f = state.addrForm;
+            if (!f.receiver_name || !f.receiver_phone || !f.detail) {
+              PyMall.toast(t('receiver_name') + '/' + t('receiver_phone') + '/' + t('addr_detail'), 'error'); return;
+            }
+            var body = { receiver_name: f.receiver_name, receiver_phone: f.receiver_phone, detail: f.detail, is_default: !!f.is_default };
+            PyMall.api('/api/addresses' + (f.id ? '/' + f.id : ''), { method: f.id ? 'PUT' : 'POST', token: PyMall.getToken(), body: body })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); state.addrForm.open = false; loadAddresses(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function delAddress(a) {
+            if (!confirm(t('confirm_delete'))) return;
+            PyMall.api('/api/addresses/' + a.id, { method: 'DELETE', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); loadAddresses(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function goProduct(id) { location.href = '/products.html?id=' + id; }
+
+          var pendingOrders = Vue.computed(function () { return state.orders.filter(function (o) { return o.status === 'pending'; }); });
+          var paidOrders = Vue.computed(function () { return state.orders.filter(function (o) { return ['paid', 'shipped', 'completed'].indexOf(o.status) > -1; }); });
+          var allOrders = Vue.computed(function () { return state.orders; });
+          var filteredOrders = Vue.computed(function () {
+            if (state.orderFilter === 'pending') return pendingOrders.value;
+            if (state.orderFilter === 'paid') return paidOrders.value;
+            return allOrders.value;
+          });
+          var pendingCount = Vue.computed(function () { return pendingOrders.value.length; });
+          var paidCount = Vue.computed(function () { return paidOrders.value.length; });
+          var wishlistCount = Vue.computed(function () { return state.wishlist.length; });
+
+          if (!PyMall.getToken()) {
+            state.notLoggedIn = true;
+          } else {
+            // token 失效时各接口返回 401，由 api() 清除凭证、catch 切换未登录视图
+            loadProfile(); loadOrders(); loadAddresses(); loadReviews(); loadWishlist(); loadStories();
+          }
+
+          return {
+            t: t, money: PyMall.money,
+            tab: Vue.computed({
+              get: function () { return state.tab; },
+              set: function (v) { state.tab = v; },
+            }),
+            orderFilter: Vue.computed({
+              get: function () { return state.orderFilter; },
+              set: function (v) { state.orderFilter = v; },
+            }),
+            profile: Vue.computed(function () { return state.profile; }),
+            profileForm: state.profileForm,
+            orders: Vue.computed(function () { return state.orders; }),
+            addresses: Vue.computed(function () { return state.addresses; }),
+            reviews: Vue.computed(function () { return state.reviews; }),
+            wishlist: Vue.computed(function () { return state.wishlist; }),
+            addrForm: state.addrForm,
+            notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
+            profileError: Vue.computed(function () { return state.profileError; }),
+            filteredOrders: filteredOrders,
+            pendingCount: pendingCount, paidCount: paidCount, wishlistCount: wishlistCount,
+            doLogin: doLogin, logout: logout, formatTime: formatTime,
+            saveProfile: saveProfile, openAddrForm: openAddrForm, saveAddress: saveAddress,
+            delAddress: delAddress, goProduct: goProduct, clearWishlist: clearWishlist, openPasswordReset: openPasswordReset,
+            stories: Vue.computed(function () { return state.stories; }),
+            storyForm: state.storyForm,
+            loadStories: loadStories, openStoryForm: openStoryForm, cancelStoryForm: cancelStoryForm,
+            uploadStoryImage: uploadStoryImage, removeStoryImage: removeStoryImage,
+            saveStory: saveStory, delStory: delStory,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

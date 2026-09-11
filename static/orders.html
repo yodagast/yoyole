@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的订单 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+</head>
+<body>
+  <div id="app">
+    <top-bar></top-bar>
+    <main-nav active="orders"></main-nav>
+
+    <div class="container">
+      <h1 class="page-title"><base-icon name="box" :size="26"></base-icon> {{ t('orders') }}</h1>
+
+      <div class="loading" v-if="loading">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+
+      <!-- 未登录：登录引导 -->
+      <div class="empty" v-else-if="notLoggedIn" style="padding-top:30px">
+        <div class="empty-icon"><base-icon name="lock" :size="52"></base-icon></div>
+        <div>{{ t('need_login') }}</div>
+        <div style="font-size:13px;margin-top:6px">{{ t('orders_login_tip') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="doLogin">
+          {{ t('login') }}
+        </button>
+      </div>
+
+      <div class="empty" v-else-if="!orders.length" style="padding-top:30px">
+        <div class="empty-icon"><base-icon name="box" :size="52"></base-icon></div>
+        <div>{{ t('no_orders') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="goShopping">
+          {{ t('go_shopping') }}
+        </button>
+      </div>
+
+      <div v-else style="padding-bottom:40px">
+        <div class="order-card" v-for="o in orders" :key="o.order_no">
+          <div class="order-head">
+            <div>
+              <span class="ono">{{ t('order_no') }}: {{ o.order_no }}</span>
+              <span class="otime">{{ formatTime(o.created_at) }}</span>
+            </div>
+            <span :class="'badge badge-' + o.status">{{ t(o.status) }}</span>
+          </div>
+          <div class="order-body">
+            <div class="order-items">
+              <div class="order-item" v-for="(it, idx) in o.items" :key="idx">
+                <img :src="it.image || 'https://picsum.photos/seed/' + idx + '/120/120'">
+                <div>
+                  <div class="oi-name">{{ it.product_name }}</div>
+                  <div class="oi-spec">{{ it.sku_code }}</div>
+                </div>
+                <div class="oi-qty">× {{ it.quantity }}</div>
+                <div class="oi-sub">{{ money(it.subtotal) }}</div>
+              </div>
+            </div>
+            <div class="of-info">
+              {{ t('receiver') }}: {{ o.receiver_name }} · {{ o.receiver_phone }} · {{ o.receiver_address }}
+            </div>
+          </div>
+          <div class="order-foot">
+            <div style="font-size:15px">
+              {{ t('total') }}:
+              <span style="font-size:20px;font-weight:800;color:var(--jjs-primary)">
+                {{ money(o.total_amount) }}
+              </span>
+            </div>
+            <div class="of-actions">
+              <button class="btn btn-outline btn-sm" @click="viewDetail(o)"><base-icon name="chevronRight" :size="14"></base-icon> {{ t('order_detail') }}</button>
+              <template v-if="o.status === 'pending'">
+                <button class="btn btn-primary" @click="pay(o)"><base-icon name="card" :size="15"></base-icon> {{ t('pay_now') }}</button>
+                <button class="btn btn-ghost" @click="cancel(o)">{{ t('cancel_order') }}</button>
+              </template>
+              <template v-else-if="o.status === 'shipped'">
+                <button class="btn btn-primary" @click="confirm(o)"><base-icon name="check" :size="15"></base-icon> {{ t('confirm_receipt') }}</button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            orders: [],
+            loading: true,
+            notLoggedIn: false,
+          });
+
+          function load() {
+            if (!PyMall.getToken()) {
+              state.notLoggedIn = true;
+              state.loading = false;
+              return;
+            }
+            state.loading = true;
+            PyMall.api('/api/orders', { token: PyMall.getToken() })
+              .then(function (data) {
+                state.orders = data || [];
+                state.loading = false;
+              })
+              .catch(function (e) {
+                state.loading = false;
+                if (e.status === 401) { state.notLoggedIn = true; return; }
+                PyMall.toast(e.message, 'error');
+              });
+          }
+
+          function formatTime(s) {
+            if (!s) return '';
+            return String(s).replace('T', ' ').slice(0, 19);
+          }
+
+          function pay(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/pay', {
+              method: 'POST', token: PyMall.getToken(),
+            }).then(function (pay) {
+              if (pay.pay_url) {
+                return fetch(pay.pay_url).then(function (r) { return r.json(); });
+              }
+              throw new Error('no pay_url');
+            }).then(function () {
+              PyMall.toast(t('operation_success'), 'success');
+              load();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function cancel(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/cancel', {
+              method: 'POST', token: PyMall.getToken(),
+            }).then(function () {
+              PyMall.toast(t('operation_success'), 'success');
+              load();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function confirm(o) {
+            PyMall.api('/api/orders/' + o.order_no + '/confirm', {
+              method: 'POST', token: PyMall.getToken(),
+            }).then(function () {
+              PyMall.toast(t('operation_success'), 'success');
+              load();
+            }).catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function goShopping() { location.href = '/'; }
+
+          function viewDetail(o) {
+            location.href = '/order-detail.html?order_no=' + encodeURIComponent(o.order_no);
+          }
+
+          function doLogin() { PyMall.openAuth('login'); }
+
+          Vue.onMounted(load);
+
+          return {
+            t: t, money: PyMall.money,
+            orders: Vue.computed(function () { return state.orders; }),
+            loading: Vue.computed(function () { return state.loading; }),
+            notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
+            formatTime: formatTime,
+            pay: pay, cancel: cancel, confirm: confirm, viewDetail: viewDetail,
+            goShopping: goShopping, doLogin: doLogin,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

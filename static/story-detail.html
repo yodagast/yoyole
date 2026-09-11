@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户故事详情 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    .sd-wrap { max-width: 760px; margin: 0 auto; padding: 28px 0 48px; }
+    .sd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--jjs-gray, #64748b); font-size: 13.5px; font-weight: 600; text-decoration: none; margin-bottom: 20px; transition: color .2s; }
+    .sd-back:hover { color: var(--jjs-primary, #d81e53); }
+    .sd-card { background: #fff; border: 1px solid var(--jjs-border, #eee); border-radius: 16px; overflow: hidden; }
+    .sd-img { width: 100%; max-height: 420px; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; }
+    .sd-img img { width: 100%; height: auto; display: block; object-fit: cover; }
+    .sd-img-placeholder { height: 200px; color: #cbd5e1; display: flex; align-items: center; justify-content: center; }
+    .sd-body { padding: 30px 34px 36px; }
+    .sd-title { font-size: 26px; font-weight: 800; line-height: 1.4; margin-bottom: 12px; }
+    .sd-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--jjs-border, #eee); color: var(--jjs-gray, #64748b); font-size: 13px; }
+    .sd-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #f06b8a, var(--jjs-primary, #d81e53)); color: #fff; font-size: 14px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+    .sd-author { font-weight: 700; color: #334155; }
+    .sd-time { color: #94a3b8; }
+    .sd-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .sd-tag { font-size: 11.5px; font-weight: 700; color: var(--jjs-primary, #d81e53); background: rgba(216, 30, 83, .08); border-radius: 999px; padding: 4px 12px; }
+    .sd-content { font-size: 15.5px; line-height: 2; color: #475569; white-space: pre-wrap; word-break: break-word; }
+    .sd-empty { text-align: center; padding: 70px 20px; color: var(--jjs-gray, #64748b); }
+
+    /* 互动区：点赞 + 评论 */
+    .sd-actions { display: flex; align-items: center; gap: 20px; padding: 18px 34px; border-top: 1px solid var(--jjs-border, #eee); background: #fafafa; }
+    .sd-like-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--jjs-border, #e2e8f0); background: #fff; border-radius: 999px; padding: 9px 20px; font-size: 14px; font-weight: 700; color: #475569; cursor: pointer; transition: all .2s; }
+    .sd-like-btn:hover { border-color: var(--jjs-primary, #d81e53); color: var(--jjs-primary, #d81e53); }
+    .sd-like-btn.liked { background: rgba(216,30,83,.08); border-color: var(--jjs-primary, #d81e53); color: var(--jjs-primary, #d81e53); }
+    .sd-like-btn .sd-like-count { font-weight: 800; }
+    .sd-like-hint { color: #94a3b8; font-size: 12.5px; }
+    .sd-comments { padding: 24px 34px 30px; border-top: 1px solid var(--jjs-border, #eee); }
+    .sd-comments-title { font-size: 15px; font-weight: 800; margin-bottom: 16px; color: #334155; display: flex; align-items: baseline; gap: 6px; }
+    .sd-comments-title span { color: #94a3b8; font-size: 13px; font-weight: 600; }
+    .sd-comment-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .sd-comment-item:last-child { border-bottom: none; }
+    .sd-comment-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #f06b8a, var(--jjs-primary, #d81e53)); color: #fff; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sd-comment-body { flex: 1; min-width: 0; }
+    .sd-comment-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+    .sd-comment-author { font-weight: 700; font-size: 13px; color: #334155; }
+    .sd-comment-time { font-size: 11.5px; color: #a0aec0; }
+    .sd-comment-content { font-size: 13.5px; line-height: 1.7; color: #475569; word-break: break-word; }
+    .sd-comment-form { display: flex; gap: 10px; margin-top: 16px; }
+    .sd-comment-form input { flex: 1; border: 1px solid var(--jjs-border, #e2e8f0); border-radius: 999px; padding: 10px 16px; font-size: 13.5px; font-family: inherit; outline: none; }
+    .sd-comment-form input:focus { border-color: var(--jjs-primary, #d81e53); }
+    .sd-comment-empty { color: #94a3b8; font-size: 13px; padding: 10px 0; }
+    .sd-new-comment { font-size: 13px; color: var(--jjs-gray, #64748b); }
+    @media (max-width: 640px) { .sd-body { padding: 22px 18px 26px; } .sd-title { font-size: 21px; } .sd-actions, .sd-comments { padding-left: 18px; padding-right: 18px; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <main-nav></main-nav>
+
+    <div class="container">
+      <div class="sd-wrap">
+        <!-- 加载中 -->
+        <div class="loading" v-if="loading">
+          <div class="spinner"></div>{{ t('loading') }}
+        </div>
+
+        <!-- 未找到/失败 -->
+        <div class="empty" v-else-if="notFound" style="padding-top:40px">
+          <base-icon name="review" :size="52" style="color:#cbd5e1"></base-icon>
+          <div style="margin-top:12px">{{ t('story_not_found') }}</div>
+          <button class="btn btn-primary" style="margin-top:18px" @click="goStories">{{ t('back_to_stories') }}</button>
+        </div>
+
+        <!-- 详情主体 -->
+        <div v-else-if="story">
+          <a class="sd-back" href="/stories.html">
+            <base-icon name="chevronRight" :size="16" style="transform:rotate(180deg)"></base-icon>
+            {{ t('back_to_stories') }}
+          </a>
+          <article class="sd-card">
+            <div class="sd-img" v-if="story.image_url && !imgError">
+              <img :src="story.image_url" :alt="story.title" @error="imgError = true">
+            </div>
+            <div class="sd-img sd-img-placeholder" v-else>
+              <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            </div>
+            <div class="sd-body">
+              <h1 class="sd-title">{{ story.title }}</h1>
+              <div class="sd-meta">
+                <span class="sd-avatar">{{ (story.author || 'U').charAt(0).toUpperCase() }}</span>
+                <span class="sd-author">{{ story.author }}</span>
+                <span class="sd-time" v-if="story.created_at">{{ formatTime(story.created_at) }}</span>
+                <span class="sd-tags">
+                  <span v-for="tg in (story.tags || [])" :key="tg" class="sd-tag">{{ tg }}</span>
+                </span>
+              </div>
+              <div class="sd-content">{{ story.content }}</div>
+            </div>
+            <!-- 互动区：点赞 + 评论数 -->
+            <div class="sd-actions">
+              <button class="sd-like-btn" :class="{liked: story.liked}" @click="toggleLike">
+                <svg viewBox="0 0 24 24" width="16" height="16" :fill="story.liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span class="sd-like-count">{{ story.like_count || 0 }}</span>
+                <span>{{ story.liked ? t('liked') : t('like') }}</span>
+              </button>
+              <span class="sd-like-hint">{{ tt('comments_count', story.comment_count || 0) }}</span>
+            </div>
+            <!-- 评论区 -->
+            <div class="sd-comments">
+              <div class="sd-comments-title">{{ t('comments') }}<span>{{ comments.length }}</span></div>
+              <div class="sd-comment-empty" v-if="!comments.length">{{ t('no_comments') }}</div>
+              <div class="sd-comment-item" v-for="c in comments" :key="c.id">
+                <span class="sd-comment-avatar">{{ (c.author || 'U').charAt(0).toUpperCase() }}</span>
+                <div class="sd-comment-body">
+                  <div class="sd-comment-head">
+                    <span class="sd-comment-author">{{ c.author }}</span>
+                    <span class="sd-comment-time">{{ formatTime(c.created_at) }}</span>
+                  </div>
+                  <div class="sd-comment-content">{{ c.content }}</div>
+                </div>
+              </div>
+              <div class="sd-comment-form">
+                <input v-model="commentText" @keyup.enter="submitComment" :placeholder="t('comment_placeholder')">
+                <button class="btn btn-primary" @click="submitComment">{{ t('comment_submit') }}</button>
+              </div>
+              <div v-if="commentMsg" class="sd-new-comment" style="margin-top:8px">{{ commentMsg }}</div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+      var tt = PyMall.tt;
+
+      // 跟随语言设置页面标题
+      document.title = t('story_detail_title') + ' - YOYOLE';
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            story: null,
+            loading: true,
+            notFound: false,
+            imgError: false,
+            comments: [],
+            commentText: '',
+            commentMsg: '',
+          });
+
+          function qs(name) {
+            var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+            return m ? decodeURIComponent(m[1]) : '';
+          }
+
+          function formatTime(s) {
+            if (!s) return '';
+            var d = new Date(s);
+            if (isNaN(d.getTime())) return String(s).replace('T', ' ').slice(0, 10);
+            var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+          }
+
+          function load() {
+            var id = qs('id');
+            if (!id) {
+              state.notFound = true;
+              state.loading = false;
+              return;
+            }
+            PyMall.api('/api/user-stories/' + id)
+              .then(function (d) {
+                state.story = d || null;
+                if (!d) state.notFound = true;
+                state.loading = false;
+                if (d) loadComments(id);
+              })
+              .catch(function () {
+                state.notFound = true;
+                state.loading = false;
+              });
+          }
+
+          function loadComments(id) {
+            PyMall.api('/api/user-stories/' + (id || qs('id')) + '/comments')
+              .then(function (list) { state.comments = list || []; })
+              .catch(function () { state.comments = []; });
+          }
+
+          function toggleLike() {
+            if (!PyMall.getToken()) { PyMall.openAuth('login'); return; }
+            var id = qs('id');
+            var url = '/api/user-stories/' + id + (state.story.liked ? '/unlike' : '/like');
+            PyMall.api(url, { method: 'POST', token: PyMall.getToken() })
+              .then(function (d) {
+                state.story.liked = d.liked;
+                state.story.like_count = d.like_count;
+              })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          function submitComment() {
+            var text = state.commentText.trim();
+            if (!text) return;
+            if (!PyMall.getToken()) { PyMall.openAuth('login'); return; }
+            var id = qs('id');
+            PyMall.api('/api/user-stories/' + id + '/comments', { method: 'POST', token: PyMall.getToken(), body: { content: text } })
+              .then(function () {
+                state.commentText = '';
+                state.commentMsg = t('comment_posted');
+                loadComments(id);
+                // 刷新详情里的评论数
+                PyMall.api('/api/user-stories/' + id).then(function (d) {
+                  if (d) { state.story.comment_count = d.comment_count; }
+                }).catch(function () {});
+              })
+              .catch(function (e) { state.commentMsg = e.message || t('comment_failed'); });
+          }
+
+          function goStories() { location.href = '/stories.html'; }
+          load();
+
+          return {
+            t: t,
+            tt: tt,
+            story: Vue.computed(function () { return state.story; }),
+            comments: Vue.computed(function () { return state.comments; }),
+            commentText: Vue.computed({ get: function () { return state.commentText; }, set: function (v) { state.commentText = v; } }),
+            commentMsg: Vue.computed(function () { return state.commentMsg; }),
+            loading: Vue.computed(function () { return state.loading; }),
+            notFound: Vue.computed(function () { return state.notFound; }),
+            imgError: Vue.computed({ get: function () { return state.imgError; }, set: function (v) { state.imgError = v; } }),
+            formatTime: formatTime,
+            goStories: goStories,
+            toggleLike: toggleLike,
+            submitComment: submitComment,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

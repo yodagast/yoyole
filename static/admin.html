@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOYOLE 管理后台</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* 成长经历与品牌价值观：表格输入 */
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .admin-table th { text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; font-weight: 600; }
+    .admin-table td { padding: 6px 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+    .admin-table input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
+    .admin-table input:focus { outline: none; border-color: #e02e24; }
+    .row-del-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; color: #e02e24; cursor: pointer; font-size: 13px; padding: 4px 10px; }
+    .row-del-btn:hover { background: #fee2e2; }
+  </style>
+</head>
+<body>
+  <div id="admin-login" class="container" style="max-width:420px;margin-top:80px">
+    <div class="card">
+      <h3 style="margin-bottom:16px">YOYOLE 管理后台</h3>
+      <div class="form-group"><label>用户名</label><input type="text" id="admin-user" value="admin"></div>
+      <div class="form-group"><label>密码</label><input type="password" id="admin-pass" value="admin123"></div>
+      <button class="btn btn-primary" style="width:100%" id="admin-login-btn">登录</button>
+    </div>
+  </div>
+
+  <div id="admin-app" class="admin-layout hidden">
+    <aside class="admin-sidebar">
+      <div class="logo"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> ERP<small id="admin-role-tag"></small></div>
+      <a href="javascript:void(0)" data-view="dashboard" class="active"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></svg>仪表盘</a>
+      <a href="javascript:void(0)" data-view="products"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>商品管理</a>
+      <a href="javascript:void(0)" data-view="categories">类目管理</a>
+      <a href="javascript:void(0)" data-view="orders"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>订单管理</a>
+      <a href="javascript:void(0)" data-view="customers"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>用户管理</a>
+      <a href="javascript:void(0)" data-view="newsletter"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>订阅管理</a>
+      <a href="javascript:void(0)" data-view="cms"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>内容管理</a>
+      <a href="javascript:void(0)" data-view="admins" id="nav-admins" class="hidden"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>管理员权限</a>
+      <a href="javascript:void(0)" id="admin-logout" class="nav-logout"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>退出登录</a>
+    </aside>
+    <main class="admin-main">
+      <div id="view-dashboard">
+        <div class="stat-grid" id="stats"></div>
+        <div id="low-stock"></div>
+      </div>
+      <div id="view-products" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2>商品管理</h2>
+          <button class="btn btn-primary" id="add-product-btn">新增商品</button>
+        </div>
+        <div id="product-table"></div>
+      </div>
+      <div id="view-categories" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2>类目管理</h2>
+          <button class="btn btn-primary" id="add-category-btn" data-need-write>新增类目</button>
+        </div>
+        <div id="category-table"></div>
+      </div>
+      <!-- 商品编辑模态框 -->
+      <div id="product-modal" class="modal-mask hidden">
+        <div class="modal-panel" style="max-width:640px;max-height:92vh;overflow:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 id="product-modal-title">新增商品</h3>
+            <button class="btn btn-outline btn-sm" onclick="Admin.closeProductModal()">✕</button>
+          </div>
+          <div class="form-group">
+            <label>SKU 编码</label>
+            <input type="text" id="pf-sku" placeholder="如 PHONE-002" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>名称（中文）</label>
+            <input type="text" id="pf-name-zh" placeholder="商品名称" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>名称（英文）</label>
+            <input type="text" id="pf-name-en" placeholder="Product Name" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>描述（中文）</label>
+            <textarea id="pf-desc-zh" rows="3" placeholder="商品详情描述..." style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+          </div>
+          <div class="form-group">
+            <label>描述（英文）</label>
+            <textarea id="pf-desc-en" rows="3" placeholder="Product Description..." style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div class="form-group" style="flex:1;min-width:180px">
+              <label>分类</label>
+              <select id="pf-category" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%"><option value="">未分类</option></select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:150px">
+              <label>基础价格</label>
+              <input type="number" step="0.01" min="0" id="pf-price" placeholder="如 399.00" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>主图</label>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <div style="width:110px;height:90px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#f8fafc;display:flex;align-items:center;justify-content:center">
+                <img id="pf-main-image-preview" src="" alt="" style="max-width:100%;max-height:100%;display:none;object-fit:cover">
+                <span id="pf-main-image-empty" style="font-size:12px;color:#94a3b8">未设置</span>
+              </div>
+              <div>
+                <input type="file" id="pf-main-image-file" accept="image/*" style="display:none">
+                <button class="btn btn-outline" id="pf-main-image-btn">上传主图</button>
+                <button class="btn btn-danger btn-sm" id="pf-main-image-remove" style="margin-left:8px;display:none">移除</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>轮播图（点击下方按钮上传多张，用于商品详情页画廊）</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap" id="pf-gallery"></div>
+            <input type="file" id="pf-gallery-file" accept="image/*" multiple style="display:none">
+            <button class="btn btn-outline btn-sm" id="pf-gallery-add" style="margin-top:10px">+ 添加图片</button>
+          </div>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 14px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:14px"><input type="checkbox" id="pf-featured"> 设为推荐（首页展示）</label>
+          </div>
+          <div style="display:flex;gap:12px">
+            <button class="btn btn-primary" id="pf-save">保存商品</button>
+            <button class="btn btn-outline" onclick="Admin.closeProductModal()">取消</button>
+            <span id="pf-status" style="font-size:13px;color:#64748b;align-self:center"></span>
+          </div>
+        </div>
+      </div>
+      <div id="view-orders" class="hidden">
+        <h2 style="margin-bottom:16px">订单管理</h2>
+        <div id="order-table"></div>
+      </div>
+      <div id="view-customers" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2>用户管理</h2>
+          <input type="text" id="customer-search" placeholder="按邮箱/姓名/电话搜索..." style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:260px">
+        </div>
+        <div id="customer-table"></div>
+      </div>
+      <div id="view-newsletter" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2>订阅管理</h2>
+        </div>
+        <!-- 群发邮件表单 -->
+        <div class="card" style="padding:16px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+          <h3 style="margin-bottom:12px">群发优惠邮件</h3>
+          <div class="form-group">
+            <label>邮件主题</label>
+            <input type="text" id="newsletter-subject" placeholder="请输入邮件主题" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>邮件内容</label>
+            <textarea id="newsletter-content" rows="4" placeholder="请输入邮件正文内容" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-primary" id="send-newsletter-btn">发送群发邮件</button>
+            <span id="subscriber-count" style="font-size:13px;color:#64748b"></span>
+          </div>
+        </div>
+        <!-- 订阅者列表 -->
+        <div id="subscriber-table"></div>
+      </div>
+      <div id="view-cms" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2>内容管理</h2>
+          <span style="font-size:13px;color:#64748b">编辑品牌故事标题、正文与配图，保存后前台「关于我们」页实时生效</span>
+        </div>
+        <!-- 品牌故事编辑 -->
+        <div class="card" style="padding:20px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+          <h3 style="margin-bottom:16px">品牌故事</h3>
+          <div class="form-group">
+            <label>标题（中文）</label>
+            <input type="text" id="cms-story-title-zh" placeholder="品牌故事" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>标题（英文）</label>
+            <input type="text" id="cms-story-title-en" placeholder="Brand Story" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+          </div>
+          <div class="form-group">
+            <label>正文（中文）</label>
+            <textarea id="cms-story-content-zh" rows="4" placeholder="品牌故事正文..." style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+          </div>
+          <div class="form-group">
+            <label>正文（英文）</label>
+            <textarea id="cms-story-content-en" rows="4" placeholder="Brand story content..." style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+          </div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+            <h3 style="margin-bottom:6px;font-size:14px;color:#475569">页面 Hero 区（顶部大标题，前台 about 页顶部展示）</h3>
+            <div class="form-group" style="margin-top:10px">
+              <label>Hero 标签（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-hero-tag-zh" placeholder="如 ABOUT YOYOLE" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-hero-tag-en" placeholder="About us" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>Hero 主标题（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-hero-title-zh" placeholder="如 YOYOLE，让身体回到自然" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-hero-title-en" placeholder="YOYOLE brings the body back to nature" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>Hero 副标题（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <textarea id="cms-hero-sub-zh" rows="2" placeholder="从瑜伽练习到山野远行…" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%;resize:vertical"></textarea>
+                <textarea id="cms-hero-sub-en" rows="2" placeholder="Thoughtful gear for yoga practice…" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%;resize:vertical"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>品牌故事配图</label>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <div style="width:150px;height:110px;border:1px solid var(--jjs-border,#e2e8f0);border-radius:10px;overflow:hidden;background:#f8fafc;display:flex;align-items:center;justify-content:center">
+                <img id="cms-story-image-preview" src="" alt="" style="max-width:100%;max-height:100%;display:none;object-fit:cover">
+                <span id="cms-story-image-empty" style="font-size:12px;color:#94a3b8">未设置图片</span>
+              </div>
+              <div>
+                <input type="file" id="cms-story-image-file" accept="image/*" style="display:none">
+                <button class="btn btn-outline" id="cms-story-image-btn">上传图片</button>
+                <button class="btn btn-danger btn-sm" id="cms-story-image-remove" style="margin-left:8px;display:none">移除</button>
+                <div style="font-size:12px;color:#94a3b8;margin-top:6px">建议 760×500，支持 jpg/png/webp，≤5MB</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+            <button class="btn btn-primary" id="cms-story-save">保存品牌故事</button>
+            <span id="cms-story-status" style="font-size:13px;color:#64748b"></span>
+          </div>
+        </div>
+        <div class="card" style="padding:20px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+          <h3 style="margin-bottom:8px">成长经历与品牌价值观</h3>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">以表格形式维护成长历程时间线与品牌价值观，中英文分别填写，保存后前台「关于我们」页实时生效。</p>
+          <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e2e8f0">
+            <h3 style="margin-bottom:6px;font-size:14px;color:#475569">区块标题（前台「成长历程」与「我们的价值观」的标题文字）</h3>
+            <div class="form-group" style="margin-top:10px">
+              <label>成长历程 Kicker（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-milestones-kicker-zh" placeholder="如 MILESTONES" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-milestones-kicker-en" placeholder="MILESTONES" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>成长历程标题（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-milestones-title-zh" placeholder="成长历程" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-milestones-title-en" placeholder="Milestones" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>价值观 Kicker（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-values-kicker-zh" placeholder="如 VALUES" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-values-kicker-en" placeholder="VALUES" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label>价值观标题（中文 / 英文）</label>
+              <div style="display:flex;gap:10px">
+                <input type="text" id="cms-values-title-zh" placeholder="我们的价值观" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+                <input type="text" id="cms-values-title-en" placeholder="Our Values" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:50%">
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700">成长经历（时间线）</label>
+            <table class="admin-table" style="margin-top:8px">
+              <thead>
+                <tr>
+                  <th style="width:110px">时间</th>
+                  <th>标题（中）</th>
+                  <th>标题（EN）</th>
+                  <th>描述（中）</th>
+                  <th>描述（EN）</th>
+                  <th style="width:70px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="cms-milestones-rows"></tbody>
+            </table>
+            <button type="button" class="btn btn-outline btn-sm" id="cms-milestones-add" style="margin-top:8px">+ 添加经历</button>
+          </div>
+          <div class="form-group" style="margin-top:18px">
+            <label style="font-weight:700">品牌价值观</label>
+            <table class="admin-table" style="margin-top:8px">
+              <thead>
+                <tr>
+                  <th>标题（中）</th>
+                  <th>标题（EN）</th>
+                  <th>描述（中）</th>
+                  <th>描述（EN）</th>
+                  <th style="width:70px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="cms-values-rows"></tbody>
+            </table>
+            <button type="button" class="btn btn-outline btn-sm" id="cms-values-add" style="margin-top:8px">+ 添加价值观</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:18px">
+            <button class="btn btn-primary" id="cms-about-save">保存成长经历与价值观</button>
+            <span id="cms-about-status" style="font-size:13px;color:#64748b"></span>
+          </div>
+        </div>
+        <div class="card" style="padding:20px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+          <h3 style="margin-bottom:8px">用户故事审核</h3>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">用户投稿默认待审核，发布后会展示在前台关于我们页；驳回时请填写理由（用户可见）。点击「查看/审核」进入独立审核页。</p>
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-sm" data-story-status="all" onclick="Admin.setStoryFilter('all')" style="background:#e2e8f0">全部</button>
+            <button class="btn btn-sm" data-story-status="pending" onclick="Admin.setStoryFilter('pending')" style="background:#fef3c7;color:#92400e">待审核</button>
+            <button class="btn btn-sm" data-story-status="approved" onclick="Admin.setStoryFilter('approved')" style="background:#dcfce7;color:#166534">已发布</button>
+            <button class="btn btn-sm" data-story-status="rejected" onclick="Admin.setStoryFilter('rejected')" style="background:#fee2e2;color:#b91c1c">已驳回</button>
+          </div>
+          <div id="cms-user-story-list"></div>
+        </div>
+        <!-- 首页轮播管理简要入口 -->
+        <div class="card" style="padding:20px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+          <h3 style="margin-bottom:8px">首页轮播</h3>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">管理首页 Hero 轮播图（标题/副标题/图片/跳转链接）</p>
+          <div id="cms-banner-list"></div>
+        </div>
+      </div>
+      <div id="view-admins" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2>管理员权限</h2>
+          <button class="btn btn-primary" id="add-admin-btn">新增管理员</button>
+        </div>
+        <div id="admin-table"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/js/common.js?v=6"></script>
+  <script>
+    (function () {
+      var App = window.App;
+      var t = App.t;
+      var adminToken = null;
+      var initialView = new URLSearchParams(location.search).get('view') || 'dashboard';
+
+      function api(path, opts) {
+        opts = opts || {};
+        if (!adminToken) adminToken = App.getAdminToken();
+        return App.api(path, Object.assign({}, opts, { token: adminToken, includeLang: false }));
+      }
+
+      function shoeLogin() {
+        document.getElementById('admin-login').classList.remove('hidden');
+        document.getElementById('admin-app').classList.add('hidden');
+      }
+      function showApp() {
+        document.getElementById('admin-login').classList.add('hidden');
+        document.getElementById('admin-app').classList.remove('hidden');
+      }
+
+      function login() {
+        var u = document.getElementById('admin-user').value.trim();
+        var p = document.getElementById('admin-pass').value;
+        api('/api/admin/login', { method: 'POST', body: { username: u, password: p } })
+          .then(function (d) {
+            adminToken = d.access_token;
+            adminRole = d.role;
+            App.setAdminToken(d.access_token);
+            localStorage.setItem('admin_role', d.role);
+            localStorage.setItem('admin_username', d.username);
+            meUsername = d.username;
+            showApp();
+            applyRoleUI();
+            loadDashboard();
+            loadProducts();
+            loadOrders();
+            loadCustomers();
+            loadCategoryOptions();
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 角色控制 ----------
+      var adminRole = localStorage.getItem('admin_role') || '';
+      var ROLE_LABEL = { superadmin: '超级管理员', operator: '运营', viewer: '只读' };
+
+      function applyRoleUI() {
+        document.getElementById('admin-role-tag').textContent = ROLE_LABEL[adminRole] || adminRole;
+        var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
+        var isSuper = adminRole === 'superadmin';
+        // 管理员权限入口仅超管可见
+        document.getElementById('nav-admins').classList.toggle('hidden', !isSuper);
+        // 写操作按钮仅可写角色可见
+        var addBtn = document.getElementById('add-product-btn');
+        if (addBtn) addBtn.style.display = canWrite ? '' : 'none';
+        document.querySelectorAll('[data-need-write]').forEach(function (el) {
+          el.style.display = canWrite ? '' : 'none';
+        });
+        document.querySelectorAll('[data-need-super]').forEach(function (el) {
+          el.style.display = isSuper ? '' : 'none';
+        });
+      }
+
+      function loadDashboard() {
+        api('/api/admin/dashboard')
+          .then(function (d) {
+            document.getElementById('stats').innerHTML =
+              '<div class="stat-card"><div class="stat-value">' + d.products_count + '</div><div class="stat-label">' + t('products_count') + '</div></div>'
+              + '<div class="stat-card"><div class="stat-value">' + d.orders_count + '</div><div class="stat-label">' + t('orders_count') + '</div></div>'
+              + '<div class="stat-card"><div class="stat-value">' + d.customers_count + '</div><div class="stat-label">' + t('customers_count') + '</div></div>'
+              + '<div class="stat-card"><div class="stat-value">' + App.money(d.revenue) + '</div><div class="stat-label">' + t('revenue') + '</div></div>'
+              + '<div class="stat-card"><div class="stat-value">' + d.pending_orders + '</div><div class="stat-label">' + t('pending_orders') + '</div></div>'
+              + '<div class="stat-card"><div class="stat-value">' + d.low_stock + '</div><div class="stat-label">' + t('low_stock') + '</div></div>';
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function loadProducts() {
+        api('/api/admin/products')
+          .then(function (list) {
+            var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
+            var rows = list.map(function (p) {
+              var imgHtml = p.main_image
+                ? '<img src="' + p.main_image + '" style="width:44px;height:44px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'">'
+                : '<span style="color:#cbd5e1">无图</span>';
+              var skus = (p.skus || []).map(function (s) {
+                var stockInp = canWrite
+                  ? '<input type="number" value="' + s.stock + '" onchange="Admin.stock(' + s.id + ',this.value)" style="width:80px" data-need-write>'
+                  : s.stock;
+                return '<tr><td>' + s.sku_code + '</td><td>' + App.money(s.price) + '</td>'
+                  + '<td>' + stockInp + '</td>'
+                  + '<td>' + (s.available_stock) + '</td></tr>';
+              }).join('');
+              var editBtn = canWrite
+                ? '<button class="btn btn-outline btn-sm" onclick="Admin.editProduct(' + p.id + ')">编辑</button>' : '';
+              var delBtn = canWrite
+                ? '<button class="btn btn-danger btn-sm" onclick="Admin.delProduct(' + p.id + ')">删除</button>' : '';
+              var featuredTag = p.is_featured ? '<span class="badge" style="background:#fef3c7;color:#92400e">推荐</span>' : '';
+              return '<tr><td>' + p.id + '</td><td>' + imgHtml + '</td><td>' + (p.name_i18n.zh || p.sku_code) + '</td>'
+                + '<td>' + App.money(p.base_price) + '</td>'
+                + '<td>' + p.status + ' ' + featuredTag + '</td><td><table class="admin-table" style="margin:0"><thead><tr><th>SKU</th><th>售价</th><th>调整库存</th><th>可售库存</th></tr></thead><tbody>' + skus + '</tbody></table></td>'
+                + '<td class="actions-cell">' + editBtn + ' ' + delBtn + '</td></tr>';
+            }).join('');
+            document.getElementById('product-table').innerHTML =
+              '<table class="admin-table"><thead><tr><th>ID</th><th>图</th><th>名称</th><th>基础价</th><th>状态</th><th>SKU（售价 / 库存 / 可售）</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="7">暂无</td></tr>') + '</tbody></table>';
+            applyRoleUI();
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function loadOrders() {
+        api('/api/admin/orders')
+          .then(function (list) {
+            var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
+            var rows = list.map(function (o) {
+              var shipBtn = o.status === 'paid' && canWrite
+                ? '<button class="btn btn-primary btn-sm" onclick="Admin.ship(\'' + o.order_no + '\')">发货</button>' : '';
+              return '<tr><td>' + o.order_no + '</td><td>' + o.receiver_name + '</td>'
+                + '<td>' + App.money(o.total_amount) + '</td><td>' + App.badge(o.status) + '</td>'
+                + '<td>' + o.created_at + '</td><td class="actions-cell">'
+                + '<button class="btn btn-outline btn-sm" onclick="Admin.viewOrder(\'' + o.order_no + '\')">详情</button>'
+                + shipBtn + '</td></tr>';
+            }).join('');
+            document.getElementById('order-table').innerHTML =
+              '<table class="admin-table"><thead><tr><th>订单号</th><th>收货人</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="6">暂无订单</td></tr>') + '</tbody></table>';
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 用户管理 ----------
+      function loadCustomers(q) {
+        var url = '/api/admin/customers' + (q ? '?q=' + encodeURIComponent(q) : '');
+        api(url)
+          .then(function (list) {
+            var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
+            var isSuper = adminRole === 'superadmin';
+            var rows = list.map(function (c) {
+              var statusBadge = c.is_active
+                ? '<span class="badge" style="background:#dcfce7;color:#166534">正常</span>'
+                : '<span class="badge" style="background:#fee2e2;color:#991b1b">已禁用</span>';
+              var act = '';
+              if (canWrite) {
+                act += '<button class="btn btn-outline btn-sm" onclick="Admin.toggleCustomer(' + c.id + ',' + (c.is_active ? 'false' : 'true') + ')">'
+                  + (c.is_active ? '禁用' : '启用') + '</button> ';
+              }
+              if (isSuper) {
+                act += '<button class="btn btn-danger btn-sm" onclick="Admin.delCustomer(' + c.id + ')">删除</button>';
+              }
+              return '<tr><td>' + c.id + '</td><td>' + c.email + '</td><td>' + (c.full_name || '-') + '</td>'
+                + '<td>' + (c.phone || '-') + '</td><td>' + c.orders_count + '</td>'
+                + '<td>' + App.money(c.total_spent) + '</td><td>' + statusBadge + '</td>'
+                + '<td class="actions-cell">' + act + '</td></tr>';
+            }).join('');
+            document.getElementById('customer-table').innerHTML =
+              '<table class="admin-table"><thead><tr><th>ID</th><th>邮箱</th><th>姓名</th><th>电话</th><th>订单</th><th>消费</th><th>状态</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="8">暂无用户</td></tr>') + '</tbody></table>';
+            applyRoleUI();
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 管理员管理 ----------
+      var meUsername = localStorage.getItem('admin_username') || '';
+      function loadAdmins() {
+        api('/api/admin/admins')
+          .then(function (list) {
+            var rows = list.map(function (u) {
+              var statusBadge = u.is_active
+                ? '<span class="badge" style="background:#dcfce7;color:#166534">正常</span>'
+                : '<span class="badge" style="background:#fee2e2;color:#991b1b">已禁用</span>';
+              var isMe = u.username === meUsername;
+              var my = isMe ? '（我）' : '';
+              return '<tr><td>' + u.id + '</td><td>' + u.username + my + '</td><td>' + (u.full_name || '-') + '</td>'
+                + '<td>' + (ROLE_LABEL[u.role] || u.role) + '</td><td>' + statusBadge + '</td>'
+                + '<td>' + (u.last_login || '-') + '</td>'
+                + '<td class="actions-cell">'
+                + '<button class="btn btn-outline btn-sm" onclick="Admin.editAdmin(' + u.id + ')">编辑</button> '
+                + (!isMe ? '<button class="btn btn-danger btn-sm" onclick="Admin.delAdmin(' + u.id + ')">删除</button>' : '')
+                + '</td></tr>';
+            }).join('');
+            document.getElementById('admin-table').innerHTML =
+              '<table class="admin-table"><thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="7">暂无管理员</td></tr>') + '</tbody></table>';
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function stock(skuId, val) {
+        api('/api/admin/skus/' + skuId + '/stock', { method: 'PUT', body: { stock: Number(val), reason: 'admin_adjust' } })
+          .then(function () { App.toast(t('operation_success'), 'success'); loadProducts(); loadDashboard(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function ship(orderNo) {
+        api('/api/admin/orders/' + orderNo + '/ship', { method: 'POST' })
+          .then(function () { App.toast(t('operation_success'), 'success'); loadOrders(); loadDashboard(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delProduct(id) {
+        if (!confirm('确认删除该商品？相关 SKU 与库存流水将一并删除。')) return;
+        api('/api/admin/products/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('商品已删除', 'success'); loadProducts(); loadDashboard(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 商品编辑模态框 ----------
+      var productForm = {
+        id: null,
+        mainImage: '',
+        gallery: [],
+        skuCode: '',
+      };
+      var categoriesCache = [];
+
+      function uploadImageFile(file) {
+        // 用 FormData 上传，返回 Promise<url>
+        return new Promise(function (resolve, reject) {
+          var fd = new FormData();
+          fd.append('file', file);
+          fetch('/api/upload?kind=image', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + adminToken },
+            body: fd,
+          }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              if (res.ok) resolve(data.url);
+              else reject(new Error(data.detail || '上传失败'));
+            });
+          }).catch(reject);
+        });
+      }
+
+      function openProductModal(product) {
+        productForm.id = product ? product.id : null;
+        productForm.mainImage = product ? (product.main_image || '') : '';
+        productForm.gallery = product ? (product.images || []).slice() : [];
+        productForm.skuCode = product ? product.sku_code : '';
+        document.getElementById('product-modal-title').textContent = product ? '编辑商品 #' + product.id : '新增商品';
+        document.getElementById('pf-sku').value = productForm.skuCode;
+        document.getElementById('pf-name-zh').value = product ? (product.name_i18n.zh || '') : '';
+        document.getElementById('pf-name-en').value = product ? (product.name_i18n.en || '') : '';
+        document.getElementById('pf-desc-zh').value = product ? (product.description_i18n.zh || '') : '';
+        document.getElementById('pf-desc-en').value = product ? (product.description_i18n.en || '') : '';
+        document.getElementById('pf-price').value = product ? product.base_price : '';
+        document.getElementById('pf-featured').checked = product ? !!product.is_featured : false;
+        // 分类下拉
+        var sel = document.getElementById('pf-category');
+        sel.innerHTML = '<option value="">未分类</option>' + categoriesCache.map(function (c) {
+          return '<option value="' + c.id + '"' + (product && product.category_id === c.id ? ' selected' : '') + '>' + (c.name_i18n.zh || c.code) + '</option>';
+        }).join('');
+        renderMainImage();
+        renderGallery();
+        document.getElementById('product-modal').classList.remove('hidden');
+      }
+
+      function closeProductModal() {
+        document.getElementById('product-modal').classList.add('hidden');
+      }
+
+      function renderMainImage() {
+        var img = document.getElementById('pf-main-image-preview');
+        var empty = document.getElementById('pf-main-image-empty');
+        var removeBtn = document.getElementById('pf-main-image-remove');
+        if (productForm.mainImage) {
+          img.src = productForm.mainImage;
+          img.style.display = '';
+          empty.style.display = 'none';
+          removeBtn.style.display = '';
+        } else {
+          img.style.display = 'none';
+          empty.style.display = '';
+          removeBtn.style.display = 'none';
+        }
+      }
+
+      function renderGallery() {
+        var wrap = document.getElementById('pf-gallery');
+        wrap.innerHTML = productForm.gallery.map(function (url, i) {
+          return '<div style="position:relative;width:86px;height:86px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'
+            + '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover">'
+            + '<button class="btn btn-danger btn-sm" style="position:absolute;top:4px;right:4px;padding:2px 6px;font-size:11px" onclick="Admin.removeGalleryImage(' + i + ')">✕</button>'
+            + '</div>';
+        }).join('');
+      }
+
+      function removeGalleryImage(idx) {
+        productForm.gallery.splice(idx, 1);
+        renderGallery();
+      }
+
+      function editProduct(id) {
+        location.href = '/admin-product-edit.html?id=' + encodeURIComponent(id);
+      }
+
+      function saveProduct() {
+        var sku = document.getElementById('pf-sku').value.trim();
+        var nameZh = document.getElementById('pf-name-zh').value.trim();
+        var nameEn = document.getElementById('pf-name-en').value.trim();
+        var descZh = document.getElementById('pf-desc-zh').value.trim();
+        var descEn = document.getElementById('pf-desc-en').value.trim();
+        var price = document.getElementById('pf-price').value;
+        var categoryId = document.getElementById('pf-category').value;
+        var featured = document.getElementById('pf-featured').checked;
+        if (!sku) { App.toast('请填写 SKU 编码', 'error'); return; }
+        if (!nameZh) { App.toast('请填写商品名称（中文）', 'error'); return; }
+        if (!price || Number(price) <= 0) { App.toast('请填写有效价格', 'error'); return; }
+
+        var body = {
+          sku_code: sku,
+          name_zh: nameZh,
+          name_en: nameEn,
+          description_zh: descZh,
+          description_en: descEn,
+          base_price: Number(price),
+          category_id: categoryId ? Number(categoryId) : null,
+          main_image: productForm.mainImage || null,
+          images: productForm.gallery,
+          is_featured: featured,
+        };
+        var req;
+        if (productForm.id) {
+          req = api('/api/admin/products/' + productForm.id, { method: 'PUT', body: body });
+        } else {
+          body.status = 'active';
+          body.skus = [{ sku_code: sku, price: Number(price), stock: 100, attributes: {} }];
+          req = api('/api/admin/products', { method: 'POST', body: body });
+        }
+        req.then(function () {
+          App.toast(productForm.id ? '商品已更新' : '商品已创建', 'success');
+          closeProductModal();
+          loadProducts(); loadDashboard();
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function viewOrder(orderNo) {
+        location.href = '/admin-order-detail.html?order_no=' + encodeURIComponent(orderNo);
+      }
+
+      // ---------- 用户管理操作 ----------
+      function toggleCustomer(id, active) {
+        api('/api/admin/customers/' + id + '/status', { method: 'PUT', body: { is_active: active } })
+          .then(function () { App.toast('操作成功', 'success'); loadCustomers(document.getElementById('customer-search').value); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delCustomer(id) {
+        if (!confirm('确认删除该用户？其购物车、收藏、地址、评价将一并删除，订单记录保留。')) return;
+        api('/api/admin/customers/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('用户已删除', 'success'); loadCustomers(document.getElementById('customer-search').value); loadDashboard(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 管理员管理操作 ----------
+      function addAdmin() {
+        var username = prompt('用户名');
+        if (!username) return;
+        var fullName = prompt('姓名', '');
+        var password = prompt('初始密码（至少 6 位）');
+        if (!password || password.length < 6) { App.toast('密码至少 6 位', 'error'); return; }
+        var role = prompt('角色（superadmin / operator / viewer）', 'operator');
+        if (role && !['superadmin', 'operator', 'viewer'].includes(role)) { App.toast('非法角色', 'error'); return; }
+        api('/api/admin/admins', {
+          method: 'POST',
+          body: { username: username, password: password, full_name: fullName, role: role || 'operator' },
+        }).then(function () { App.toast('管理员已创建', 'success'); loadAdmins(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function editAdmin(id) {
+        var role = prompt('设置角色（superadmin / operator / viewer）');
+        if (!role) return;
+        if (!['superadmin', 'operator', 'viewer'].includes(role)) { App.toast('非法角色', 'error'); return; }
+        api('/api/admin/admins/' + id, { method: 'PUT', body: { role: role } })
+          .then(function () { App.toast('已更新', 'success'); loadAdmins(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delAdmin(id) {
+        if (!confirm('确认删除该管理员？')) return;
+        api('/api/admin/admins/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('管理员已删除', 'success'); loadAdmins(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 订阅管理 ----------
+      function loadSubscribers() {
+        api('/api/admin/subscribers')
+          .then(function (list) {
+            document.getElementById('subscriber-count').textContent = '共 ' + (list.length || 0) + ' 位订阅者';
+            var rows = (list || []).map(function (s) {
+              var statusBadge = s.is_active
+                ? '<span class="badge" style="background:#dcfce7;color:#166534">正常</span>'
+                : '<span class="badge" style="background:#fee2e2;color:#991b1b">已退订</span>';
+              return '<tr><td>' + s.id + '</td><td>' + s.email + '</td><td>' + statusBadge + '</td>'
+                + '<td>' + (s.created_at || '') + '</td>'
+                + '<td class="actions-cell"><button class="btn btn-danger btn-sm" onclick="Admin.delSubscriber(' + s.id + ')">删除</button></td></tr>';
+            }).join('');
+            document.getElementById('subscriber-table').innerHTML =
+              '<table class="admin-table"><thead><tr><th>ID</th><th>邮箱</th><th>状态</th><th>订阅时间</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="5">暂无订阅者</td></tr>') + '</tbody></table>';
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delSubscriber(id) {
+        if (!confirm('确认删除该订阅者？')) return;
+        api('/api/admin/subscribers/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('已删除', 'success'); loadSubscribers(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function sendNewsletter() {
+        var subject = document.getElementById('newsletter-subject').value.trim();
+        var content = document.getElementById('newsletter-content').value.trim();
+        if (!subject) { App.toast('请输入邮件主题', 'error'); return; }
+        if (!content) { App.toast('请输入邮件内容', 'error'); return; }
+        if (!confirm('确认向所有订阅者群发该邮件？')) return;
+        api('/api/admin/subscribers/send', {
+          method: 'POST',
+          body: { subject: subject, content: content },
+        }).then(function (d) {
+          App.toast(d.message || '群发完成', 'success');
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 内容管理（品牌故事 / 首页轮播） ----------
+      // ---- 成长经历 / 品牌价值观：表格输入 ----
+      function cmsRowHtml(fields, values, timeField) {
+        var tds = fields.map(function (f) {
+          var v = values ? (values[f] || '') : '';
+          return '<td><input data-field="' + f + '" value="' + String(v).replace(/"/g, '&quot;') + '"></td>';
+        }).join('');
+        return '<tr>' + tds + '<td><button type="button" class="row-del-btn" onclick="Admin.delCmsRow(this)">删除</button></td></tr>';
+      }
+
+      function cmsMilestoneRowHtml(values) {
+        values = values || {};
+        var timeV = (values.time && (values.time.zh || values.time.en || '')) || '';
+        var titleZ = (values.title && values.title.zh) || '';
+        var titleE = (values.title && values.title.en) || '';
+        var descZ = (values.desc && values.desc.zh) || '';
+        var descE = (values.desc && values.desc.en) || '';
+        var esc = function (s) { return String(s).replace(/"/g, '&quot;'); };
+        return '<tr>'
+          + '<td><input data-field="time" value="' + esc(timeV) + '" placeholder="如 2020"></td>'
+          + '<td><input data-field="title-zh" value="' + esc(titleZ) + '"></td>'
+          + '<td><input data-field="title-en" value="' + esc(titleE) + '"></td>'
+          + '<td><input data-field="desc-zh" value="' + esc(descZ) + '"></td>'
+          + '<td><input data-field="desc-en" value="' + esc(descE) + '"></td>'
+          + '<td><button type="button" class="row-del-btn" onclick="Admin.delCmsRow(this)">删除</button></td>'
+          + '</tr>';
+      }
+
+      function cmsValueRowHtml(values) {
+        values = values || {};
+        var titleZ = (values.title && values.title.zh) || '';
+        var titleE = (values.title && values.title.en) || '';
+        var descZ = (values.desc && values.desc.zh) || '';
+        var descE = (values.desc && values.desc.en) || '';
+        var esc = function (s) { return String(s).replace(/"/g, '&quot;'); };
+        return '<tr>'
+          + '<td><input data-field="title-zh" value="' + esc(titleZ) + '"></td>'
+          + '<td><input data-field="title-en" value="' + esc(titleE) + '"></td>'
+          + '<td><input data-field="desc-zh" value="' + esc(descZ) + '"></td>'
+          + '<td><input data-field="desc-en" value="' + esc(descE) + '"></td>'
+          + '<td><button type="button" class="row-del-btn" onclick="Admin.delCmsRow(this)">删除</button></td>'
+          + '</tr>';
+      }
+
+      function renderCmsTables(milestones, values) {
+        var mRows = (milestones || []).map(cmsMilestoneRowHtml).join('');
+        document.getElementById('cms-milestones-rows').innerHTML = mRows || cmsMilestoneRowHtml();
+        var vRows = (values || []).map(cmsValueRowHtml).join('');
+        document.getElementById('cms-values-rows').innerHTML = vRows || cmsValueRowHtml();
+      }
+
+      function collectCmsMilestones() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#cms-milestones-rows tr'));
+        return rows.map(function (tr) {
+          var inputs = tr.querySelectorAll('input');
+          var get = function (f) { return (tr.querySelector('input[data-field="' + f + '"]') || {}).value || ''; };
+          var time = get('time').trim();
+          var titleZ = get('title-zh').trim();
+          var titleE = get('title-en').trim();
+          var descZ = get('desc-zh').trim();
+          var descE = get('desc-en').trim();
+          if (!titleZ && !titleE && !descZ && !descE && !time) return null; // 空行忽略
+          return {
+            time: { zh: time, en: time },
+            title: { zh: titleZ, en: titleE },
+            desc: { zh: descZ, en: descE },
+          };
+        }).filter(function (x) { return x !== null; });
+      }
+
+      function collectCmsValues() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#cms-values-rows tr'));
+        return rows.map(function (tr) {
+          var titleZ = (tr.querySelector('input[data-field="title-zh"]') || {}).value || '';
+          var titleE = (tr.querySelector('input[data-field="title-en"]') || {}).value || '';
+          var descZ = (tr.querySelector('input[data-field="desc-zh"]') || {}).value || '';
+          var descE = (tr.querySelector('input[data-field="desc-en"]') || {}).value || '';
+          if (!titleZ && !titleE && !descZ && !descE) return null;
+          return { title: { zh: titleZ, en: titleE }, desc: { zh: descZ, en: descE } };
+        }).filter(function (x) { return x !== null; });
+      }
+
+      function delCmsRow(btn) {
+        var tbody = btn.closest('tbody');
+        if (tbody && tbody.rows.length <= 1) {
+          // 最后一行：清空输入而不是删除（保证始终至少一行可编辑）
+          btn.closest('tr').querySelectorAll('input').forEach(function (i) { i.value = ''; });
+        } else {
+          btn.closest('tr').remove();
+        }
+      }
+
+      function addCmsMilestoneRow() {
+        document.getElementById('cms-milestones-rows').insertAdjacentHTML('beforeend', cmsMilestoneRowHtml());
+      }
+      function addCmsValueRow() {
+        document.getElementById('cms-values-rows').insertAdjacentHTML('beforeend', cmsValueRowHtml());
+      }
+      document.getElementById('cms-milestones-add').onclick = addCmsMilestoneRow;
+      document.getElementById('cms-values-add').onclick = addCmsValueRow;
+
+      function loadCmsContent() {
+        api('/api/admin/cms-content?page=about')
+          .then(function (d) {
+            var story = d.story || {};
+            document.getElementById('cms-story-title-zh').value = (d.story_title && d.story_title.zh) || '';
+            document.getElementById('cms-story-title-en').value = (d.story_title && d.story_title.en) || '';
+            document.getElementById('cms-story-content-zh').value = (d.story_content && d.story_content.zh) || '';
+            document.getElementById('cms-story-content-en').value = (d.story_content && d.story_content.en) || '';
+            // Hero 区
+            document.getElementById('cms-hero-tag-zh').value = (d.hero_tag && d.hero_tag.zh) || '';
+            document.getElementById('cms-hero-tag-en').value = (d.hero_tag && d.hero_tag.en) || '';
+            document.getElementById('cms-hero-title-zh').value = (d.hero_title && d.hero_title.zh) || '';
+            document.getElementById('cms-hero-title-en').value = (d.hero_title && d.hero_title.en) || '';
+            document.getElementById('cms-hero-sub-zh').value = (d.hero_subtitle && d.hero_subtitle.zh) || '';
+            document.getElementById('cms-hero-sub-en').value = (d.hero_subtitle && d.hero_subtitle.en) || '';
+            // 成长历程/价值观区块标题
+            document.getElementById('cms-milestones-kicker-zh').value = (d.milestones_kicker && d.milestones_kicker.zh) || 'MILESTONES';
+            document.getElementById('cms-milestones-kicker-en').value = (d.milestones_kicker && d.milestones_kicker.en) || 'MILESTONES';
+            document.getElementById('cms-milestones-title-zh').value = (d.milestones_title && d.milestones_title.zh) || '成长历程';
+            document.getElementById('cms-milestones-title-en').value = (d.milestones_title && d.milestones_title.en) || 'Milestones';
+            document.getElementById('cms-values-kicker-zh').value = (d.values_kicker && d.values_kicker.zh) || 'VALUES';
+            document.getElementById('cms-values-kicker-en').value = (d.values_kicker && d.values_kicker.en) || 'VALUES';
+            document.getElementById('cms-values-title-zh').value = (d.values_title && d.values_title.zh) || '我们的价值观';
+            document.getElementById('cms-values-title-en').value = (d.values_title && d.values_title.en) || 'Our Values';
+            var img = story.image || '';
+            renderCmsStoryImage(img);
+            renderCmsTables(d.milestones, d.values);
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+        loadBannerList();
+        loadUserStories();
+      }
+
+      var userStoryFilter = 'all';
+
+      function setStoryFilter(status) {
+        userStoryFilter = status;
+        var btns = document.querySelectorAll('[data-story-status]');
+        btns.forEach(function (b) { b.style.outline = 'none'; });
+        var active = document.querySelector('[data-story-status="' + status + '"]');
+        if (active) active.style.outline = '2px solid #64748b';
+        loadUserStories();
+      }
+
+      function loadUserStories() {
+        var q = userStoryFilter && userStoryFilter !== 'all' ? ('?status=' + userStoryFilter) : '';
+        api('/api/admin/user-stories' + q).then(function (list) {
+          var rows = (list || []).map(function (s) {
+            var state = '';
+            if (s.status === 'approved') state = '<span class="badge" style="background:#dcfce7;color:#166534">已发布</span>';
+            else if (s.status === 'rejected') state = '<span class="badge" style="background:#fee2e2;color:#b91c1c">已驳回</span>';
+            else state = '<span class="badge" style="background:#fef3c7;color:#92400e">待审核</span>';
+            var tagHtml = (s.tags || []).slice(0, 4).map(function (tg) { return '<span style="font-size:11px;background:#f1f5f9;border-radius:6px;padding:2px 8px;margin-right:4px;display:inline-block">' + tg + '</span>'; }).join('');
+            var action = '<a class="btn btn-outline btn-sm" href="/admin-story-review.html?id=' + s.id + '" style="text-decoration:none;display:inline-block">查看/审核</a> '
+              + '<button class="btn btn-danger btn-sm" onclick="Admin.delUserStory(' + s.id + ')">删除</button>';
+            return '<tr><td>' + s.id + '</td><td>' + (s.author || '-') + '</td><td>' + (s.title || '-') + '</td><td>' + (tagHtml || '-') + '</td><td style="max-width:260px">' + (s.content || '').substring(0, 80) + (s.content && s.content.length > 80 ? '…' : '') + '</td><td>' + state + '</td><td class="actions-cell">' + action + '</td></tr>';
+          }).join('');
+          document.getElementById('cms-user-story-list').innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>用户</th><th>标题</th><th>标签</th><th>内容</th><th>状态</th><th>操作</th></tr></thead><tbody>' + (rows || '<tr><td colspan="7">暂无用户投稿</td></tr>') + '</tbody></table>';
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // 查看/审核：跳转到独立审核页（发布/驳回/撤下/删除均在该页完成）
+      function delUserStory(id) {
+        if (!confirm('确认删除这条用户故事？')) return;
+        api('/api/admin/user-stories/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('用户故事已删除', 'success'); loadUserStories(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function renderCmsStoryImage(url) {
+        var img = document.getElementById('cms-story-image-preview');
+        var empty = document.getElementById('cms-story-image-empty');
+        var removeBtn = document.getElementById('cms-story-image-remove');
+        if (url) {
+          img.src = url; img.style.display = ''; empty.style.display = 'none'; removeBtn.style.display = '';
+        } else {
+          img.style.display = 'none'; empty.style.display = ''; removeBtn.style.display = 'none';
+        }
+      }
+
+      // 首页轮播管理
+      function loadBannerList() {
+        api('/api/admin/banners?placement=home_hero')
+          .then(function (list) {
+            var wrap = document.getElementById('cms-banner-list');
+            var rows = (list || []).map(function (b) {
+              var imgHtml = b.image_url
+                ? '<img src="' + b.image_url + '" style="width:64px;height:40px;object-fit:cover;border-radius:6px" onerror="this.style.display=\'none\'">'
+                : '<span style="color:#cbd5e1;font-size:12px">无图</span>';
+              var act = '<a class="btn btn-outline btn-sm" href="/admin-banner-edit.html?id=' + b.id + '" style="text-decoration:none;display:inline-block">编辑</a> '
+                + '<button class="btn btn-danger btn-sm" onclick="Admin.delBanner(' + b.id + ')">删除</button>';
+              return '<tr><td>' + b.id + '</td><td>' + imgHtml + '</td><td>' + (b.title || '-') + '</td>'
+                + '<td>' + (b.subtitle || '-') + '</td><td>' + (b.is_active ? '<span class="badge" style="background:#dcfce7;color:#166534">启用</span>' : '<span class="badge" style="background:#e2e8f0;color:#475569">停用</span>') + '</td>'
+                + '<td class="actions-cell">' + act + '</td></tr>';
+            }).join('');
+            wrap.innerHTML =
+              '<table class="admin-table"><thead><tr><th>ID</th><th>图</th><th>标题</th><th>副标题</th><th>状态</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="6">暂无轮播</td></tr>') + '</tbody></table>'
+              + '<a class="btn btn-primary btn-sm" style="margin-top:12px;text-decoration:none;display:inline-block" href="/admin-banner-edit.html?new=1">+ 新增轮播</a>';
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delBanner(id) {
+        if (!confirm('确认删除该轮播？')) return;
+        api('/api/admin/banners/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('轮播已删除', 'success'); loadBannerList(); })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function switchView(v) {
+        document.querySelectorAll('#admin-app [data-view]').forEach(function (a) {
+          a.classList.toggle('active', a.getAttribute('data-view') === v);
+        });
+        document.getElementById('view-dashboard').classList.toggle('hidden', v !== 'dashboard');
+        document.getElementById('view-products').classList.toggle('hidden', v !== 'products');
+        document.getElementById('view-categories').classList.toggle('hidden', v !== 'categories');
+        document.getElementById('view-orders').classList.toggle('hidden', v !== 'orders');
+        document.getElementById('view-customers').classList.toggle('hidden', v !== 'customers');
+        document.getElementById('view-newsletter').classList.toggle('hidden', v !== 'newsletter');
+        document.getElementById('view-cms').classList.toggle('hidden', v !== 'cms');
+        document.getElementById('view-admins').classList.toggle('hidden', v !== 'admins');
+        // 延迟加载
+        if (v === 'customers') loadCustomers(document.getElementById('customer-search').value);
+        if (v === 'categories') loadCategories();
+        if (v === 'newsletter') loadSubscribers();
+        if (v === 'cms') loadCmsContent();
+        if (v === 'admins') loadAdmins();
+      }
+
+      window.Admin = {
+        stock: stock, ship: ship, delProduct: delProduct, viewOrder: viewOrder,
+        toggleCustomer: toggleCustomer, delCustomer: delCustomer,
+        addAdmin: addAdmin, editAdmin: editAdmin, delAdmin: delAdmin,
+        delSubscriber: delSubscriber,
+        editProduct: editProduct, closeProductModal: closeProductModal,
+        removeGalleryImage: removeGalleryImage,
+        delBanner: delBanner,
+        editCategory: editCategory, delCategory: delCategory,
+        delUserStory: delUserStory, setStoryFilter: setStoryFilter,
+        delCmsRow: delCmsRow,
+      };
+
+      document.getElementById('admin-login-btn').onclick = login;
+      document.getElementById('add-product-btn').onclick = function () {
+        location.href = '/admin-product-edit.html?new=1';
+      };
+      document.getElementById('add-category-btn').onclick = addCategory;
+      document.getElementById('add-admin-btn').onclick = addAdmin;
+      document.getElementById('send-newsletter-btn').onclick = sendNewsletter;
+      document.getElementById('admin-logout').onclick = function () {
+        App.clearAdminToken(); adminToken = null; adminRole = '';
+        localStorage.removeItem('admin_role'); localStorage.removeItem('admin_username');
+        shoeLogin();
+      };
+      document.getElementById('customer-search').oninput = function () {
+        var v = this.value;
+        clearTimeout(this._t);
+        this._t = setTimeout(function () { loadCustomers(v); }, 400);
+      };
+      document.querySelectorAll('#admin-app [data-view]').forEach(function (a) {
+        a.onclick = function () { switchView(a.getAttribute('data-view')); };
+      });
+
+      // ---------- 商品模态框事件 ----------
+      document.getElementById('pf-save').onclick = saveProduct;
+      document.getElementById('pf-main-image-btn').onclick = function () {
+        document.getElementById('pf-main-image-file').click();
+      };
+      document.getElementById('pf-main-image-file').onchange = function () {
+        if (!this.files || !this.files[0]) return;
+        uploadImageFile(this.files[0]).then(function (url) {
+          productForm.mainImage = url;
+          renderMainImage();
+          App.toast('主图已上传', 'success');
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+        this.value = '';
+      };
+      document.getElementById('pf-main-image-remove').onclick = function () {
+        productForm.mainImage = '';
+        renderMainImage();
+      };
+      document.getElementById('pf-gallery-add').onclick = function () {
+        document.getElementById('pf-gallery-file').click();
+      };
+      document.getElementById('pf-gallery-file').onchange = function () {
+        var files = this.files || [];
+        var pending = Array.prototype.slice.call(files);
+        (function next() {
+          if (!pending.length) { renderGallery(); App.toast('图片已添加', 'success'); return; }
+          uploadImageFile(pending.shift()).then(function (url) {
+            productForm.gallery.push(url);
+            next();
+          }).catch(function (e) { App.toast(e.message, 'error'); next(); });
+        })();
+        this.value = '';
+      };
+
+      // ---------- 内容管理事件 ----------
+      var cmsStoryImage = '';
+      document.getElementById('cms-story-image-btn').onclick = function () {
+        document.getElementById('cms-story-image-file').click();
+      };
+      document.getElementById('cms-story-image-file').onchange = function () {
+        if (!this.files || !this.files[0]) return;
+        uploadImageFile(this.files[0]).then(function (url) {
+          cmsStoryImage = url;
+          renderCmsStoryImage(url);
+          App.toast('图片已上传', 'success');
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+        this.value = '';
+      };
+      document.getElementById('cms-story-image-remove').onclick = function () {
+        cmsStoryImage = '';
+        renderCmsStoryImage('');
+      };
+      document.getElementById('cms-story-save').onclick = function () {
+        var titleZh = document.getElementById('cms-story-title-zh').value.trim();
+        var titleEn = document.getElementById('cms-story-title-en').value.trim();
+        var contentZh = document.getElementById('cms-story-content-zh').value.trim();
+        var contentEn = document.getElementById('cms-story-content-en').value.trim();
+        // Hero 区
+        var heroTagZh = document.getElementById('cms-hero-tag-zh').value.trim();
+        var heroTagEn = document.getElementById('cms-hero-tag-en').value.trim();
+        var heroTitleZh = document.getElementById('cms-hero-title-zh').value.trim();
+        var heroTitleEn = document.getElementById('cms-hero-title-en').value.trim();
+        var heroSubZh = document.getElementById('cms-hero-sub-zh').value.trim();
+        var heroSubEn = document.getElementById('cms-hero-sub-en').value.trim();
+        // 仅发送非空字段组（避免空字符串覆盖默认文案）；组内单语言留空时以另一语言兜底
+        var content = { story: { image: cmsStoryImage } };
+        function pair(a, b, fa, fb) {
+          if (a || b) content[fa] = { zh: a, en: b };
+        }
+        pair(titleZh, titleEn, 'story_title');
+        pair(contentZh, contentEn, 'story_content');
+        pair(heroTagZh, heroTagEn, 'hero_tag');
+        pair(heroTitleZh, heroTitleEn, 'hero_title');
+        pair(heroSubZh, heroSubEn, 'hero_subtitle');
+        api('/api/admin/cms-content', {
+          method: 'PUT',
+          body: {
+            page: 'about',
+            content: content,
+          },
+        }).then(function () {
+          document.getElementById('cms-story-status').textContent = '已保存 ✓（前台 about 页实时生效）';
+          setTimeout(function () { document.getElementById('cms-story-status').textContent = ''; }, 3000);
+          App.toast('品牌故事已保存', 'success');
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      };
+      document.getElementById('cms-about-save').onclick = function () {
+        var milestones = collectCmsMilestones();
+        var values = collectCmsValues();
+        // 区块标题（成长历程/价值观 kicker + title），仅非空组发送
+        var content = { milestones: milestones, values: values };
+        var msKickerZh = document.getElementById('cms-milestones-kicker-zh').value.trim();
+        var msKickerEn = document.getElementById('cms-milestones-kicker-en').value.trim();
+        var msTitleZh = document.getElementById('cms-milestones-title-zh').value.trim();
+        var msTitleEn = document.getElementById('cms-milestones-title-en').value.trim();
+        var vKickerZh = document.getElementById('cms-values-kicker-zh').value.trim();
+        var vKickerEn = document.getElementById('cms-values-kicker-en').value.trim();
+        var vTitleZh = document.getElementById('cms-values-title-zh').value.trim();
+        var vTitleEn = document.getElementById('cms-values-title-en').value.trim();
+        if (msKickerZh || msKickerEn) content.milestones_kicker = { zh: msKickerZh, en: msKickerEn };
+        if (msTitleZh || msTitleEn) content.milestones_title = { zh: msTitleZh, en: msTitleEn };
+        if (vKickerZh || vKickerEn) content.values_kicker = { zh: vKickerZh, en: vKickerEn };
+        if (vTitleZh || vTitleEn) content.values_title = { zh: vTitleZh, en: vTitleEn };
+        api('/api/admin/cms-content', { method: 'PUT', body: { page: 'about', content: content } })
+          .then(function () {
+            document.getElementById('cms-about-status').textContent = '已保存 ✓';
+            App.toast('成长经历与价值观已保存', 'success');
+          }).catch(function (e) { App.toast(e.message, 'error'); });
+      };
+
+      // 分类缓存（登录后加载）
+      function loadCategoryOptions() {
+        api('/api/admin/categories')
+          .then(function (list) { categoriesCache = list || []; renderCategoryOptions(); })
+          .catch(function () {});
+      }
+
+      function renderCategoryOptions() {
+        var sel = document.getElementById('pf-category');
+        if (!sel) return;
+        var current = sel.value;
+        sel.innerHTML = '<option value="">未分类</option>' + categoriesCache.filter(function (c) { return c.is_active; }).map(function (c) {
+          return '<option value="' + c.id + '">' + (c.name_i18n.zh || c.code) + '</option>';
+        }).join('');
+        sel.value = current;
+      }
+
+      function loadCategories() {
+        api('/api/admin/categories').then(function (list) {
+          categoriesCache = list || [];
+          var rows = categoriesCache.map(function (c) {
+            var state = c.is_active ? '启用' : '停用';
+            var actions = (adminRole === 'superadmin' || adminRole === 'operator')
+              ? '<button class="btn btn-outline btn-sm" onclick="Admin.editCategory(' + c.id + ')">编辑</button> '
+                + '<button class="btn btn-danger btn-sm" onclick="Admin.delCategory(' + c.id + ')">删除</button>' : '-';
+            return '<tr><td>' + c.id + '</td><td>' + c.code + '</td><td>' + (c.name_i18n.zh || '') + '</td><td>' + (c.name_i18n.en || '') + '</td><td>' + state + '</td><td class="actions-cell">'
+              + actions + '</td></tr>';
+          }).join('');
+          document.getElementById('category-table').innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>编码</th><th>中文名称</th><th>英文名称</th><th>状态</th><th>操作</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6">暂无类目</td></tr>') + '</tbody></table>';
+          renderCategoryOptions();
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function addCategory() {
+        var code = prompt('类目编码（英文/数字/下划线）');
+        if (code === null) return;
+        var nameZh = prompt('中文名称');
+        if (nameZh === null) return;
+        var nameEn = prompt('英文名称', nameZh);
+        if (nameEn === null) return;
+        api('/api/admin/categories', { method: 'POST', body: { code: code, name_i18n: { zh: nameZh, en: nameEn }, sort_order: categoriesCache.length + 1, is_active: true } })
+          .then(function () { App.toast('类目已创建', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function editCategory(id) {
+        var c = categoriesCache.filter(function (x) { return x.id === id; })[0];
+        if (!c) return;
+        var nameZh = prompt('中文名称', c.name_i18n.zh || '');
+        if (nameZh === null) return;
+        var nameEn = prompt('英文名称', c.name_i18n.en || '');
+        if (nameEn === null) return;
+        api('/api/admin/categories/' + id, { method: 'PUT', body: { name_i18n: { zh: nameZh, en: nameEn } } })
+          .then(function () { App.toast('类目已更新', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function delCategory(id) {
+        if (!confirm('确认删除该类目？有关联商品时无法删除。')) return;
+        api('/api/admin/categories/' + id, { method: 'DELETE' })
+          .then(function () { App.toast('类目已删除', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      (function init() {
+        if (App.getAdminToken()) {
+          adminToken = App.getAdminToken();
+          showApp();
+          loadDashboard(); loadProducts(); loadOrders();
+          if (adminRole === 'superadmin') loadAdmins();
+          loadCategoryOptions();
+          applyRoleUI();
+          switchView(initialView);
+        } else {
+          shoeLogin();
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

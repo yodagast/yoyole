@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于 YOYOLE - 瑜伽与户外生活</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    /* ---------- About Us 品牌故事页样式 ---------- */
+    /* 标题字体：无衬线为主，融入一丝衬线衬出品牌人文感（Patagonia/Arc'teryx 风格） */
+    .about-hero h1,
+    .story-grid h2,
+    .milestones-header h2,
+    .values-header h2 {
+      font-family: var(--font);
+      font-feature-settings: "kern" 1;
+      text-rendering: optimizeLegibility;
+    }
+    .about-hero {
+      position: relative;
+      background: linear-gradient(135deg, var(--jjs-primary) 0%, #8e1240 100%);
+      color: #fff;
+      padding: 88px 20px 96px;
+      text-align: center;
+      overflow: hidden;
+    }
+    .about-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% 25%, rgba(255,255,255,0.12) 0%, transparent 38%),
+        radial-gradient(circle at 85% 70%, rgba(245,208,32,0.14) 0%, transparent 40%);
+      pointer-events: none;
+    }
+    .about-hero-inner {
+      position: relative;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .about-hero .hero-tag {
+      display: inline-block;
+      letter-spacing: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.32);
+      border-radius: 999px;
+      padding: 7px 22px;
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      text-indent: 5px;
+    }
+    .about-hero h1 {
+      font-size: clamp(30px, 5vw, 54px);
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+      text-shadow: 0 2px 24px rgba(0,0,0,0.18);
+    }
+    .about-hero p.sub {
+      font-size: clamp(15px, 1.7vw, 18px);
+      line-height: 2;
+      opacity: 0.94;
+      font-weight: 300;
+      max-width: 660px;
+      margin: 0 auto;
+    }
+
+    /* 品牌故事 */
+    .story-section {
+      padding: 76px 0 60px;
+    }
+    .story-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .story-grid .kicker {
+      color: var(--jjs-primary);
+      letter-spacing: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      text-indent: 5px;
+    }
+    .story-grid h2 {
+      font-size: clamp(26px, 3vw, 34px);
+      font-weight: 700;
+      letter-spacing: 1px;
+      line-height: 1.4;
+      margin-bottom: 22px;
+    }
+    .story-grid .story-p {
+      color: #3f3f3f;
+      line-height: 2.1;
+      margin-bottom: 18px;
+      font-size: 15.5px;
+      font-weight: 400;
+    }
+    .story-grid .story-p:last-child {
+      margin-bottom: 0;
+    }
+    .story-visual {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+    }
+    .story-visual img {
+      width: 100%;
+      height: 380px;
+      object-fit: cover;
+    }
+    .story-visual .sv-tag {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      background: rgba(255,255,255,0.92);
+      color: var(--jjs-primary);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 3px;
+      border-radius: 999px;
+      padding: 7px 16px;
+    }
+
+    /* 成长历程时间线 */
+    .milestones {
+      background: var(--jjs-dark);
+      color: #fff;
+      padding: 76px 0 68px;
+    }
+    .milestones-header {
+      text-align: center;
+      margin-bottom: 52px;
+    }
+    .milestones-header .kicker {
+      color: var(--jjs-accent);
+      letter-spacing: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      text-indent: 5px;
+    }
+    .milestones-header h2 {
+      font-size: clamp(24px, 2.8vw, 32px);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .milestones-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 22px;
+    }
+    .milestone-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-lg);
+      padding: 30px 24px;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+    .milestone-card:hover {
+      transform: translateY(-5px);
+    }
+    .milestone-card .ml-time {
+      color: var(--jjs-accent);
+      font-weight: 700;
+      font-size: 26px;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+      line-height: 1.2;
+    }
+    .milestone-card .ml-title {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .milestone-card .ml-desc {
+      color: rgba(255,255,255,0.66);
+      font-size: 13px;
+      line-height: 1.9;
+    }
+
+    /* 价值观 */
+    .values-section {
+      padding: 76px 0 68px;
+    }
+    .values-header {
+      text-align: center;
+      margin-bottom: 46px;
+    }
+    .values-header .kicker {
+      color: var(--jjs-primary);
+      letter-spacing: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      text-indent: 5px;
+    }
+    .values-header h2 {
+      font-size: clamp(24px, 2.8vw, 32px);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .values-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .value-card {
+      text-align: center;
+      padding: 40px 28px 36px;
+      border-radius: var(--radius-lg);
+      background: var(--jjs-bg-light);
+      border: 1px solid var(--jjs-border);
+    }
+    .value-card .v-ic {
+      font-size: 36px;
+      margin-bottom: 18px;
+      opacity: 0.9;
+    }
+    .value-card .v-title {
+      font-weight: 700;
+      font-size: 17px;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .value-card .v-desc {
+      color: var(--jjs-gray);
+      font-size: 13.5px;
+      line-height: 1.9;
+    }
+
+    @media (max-width: 900px) {
+      .story-grid { grid-template-columns: 1fr; gap: 28px; }
+      .milestones-grid { grid-template-columns: repeat(2, 1fr); }
+      .values-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <top-bar></top-bar>
+    <main-nav active="about"></main-nav>
+
+    <!-- Hero：品牌口号（后台「内容管理」可编辑） -->
+    <section class="about-hero">
+      <div class="about-hero-inner">
+        <span class="hero-tag">{{ heroTag }}</span>
+        <h1>{{ heroTitle }}</h1>
+        <p class="sub">{{ heroSub }}</p>
+      </div>
+    </section>
+
+    <!-- 品牌故事（内容由后台 ERP「内容管理」维护） -->
+    <section class="story-section">
+      <div class="container">
+        <div class="story-grid">
+          <div>
+            <div class="kicker">{{ t('our_story_kicker') }}</div>
+            <h2>{{ storyTitle }}</h2>
+            <p class="story-p" v-for="(para, i) in storyParagraphs" :key="i">{{ para }}</p>
+          </div>
+          <div class="story-visual">
+            <img v-if="storyImage" :src="storyImage" alt="Story">
+            <img v-else src="https://picsum.photos/seed/yoyole-nature/760/500" alt="YOYOLE yoga and outdoor life">
+            <span class="sv-tag">YOYOLE</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 成长历程 -->
+    <section class="milestones">
+      <div class="container">
+        <div class="milestones-header">
+          <div class="kicker">{{ milestonesKicker }}</div>
+          <h2>{{ milestonesTitle }}</h2>
+        </div>
+        <div class="milestones-grid">
+          <div class="milestone-card" v-for="item in milestones" :key="item.time">
+            <div class="ml-time">{{ item.time }}</div>
+            <div class="ml-title">{{ item.title }}</div>
+            <div class="ml-desc">{{ item.desc }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 价值观 -->
+    <section class="values-section">
+      <div class="container">
+        <div class="values-header">
+          <div class="kicker">{{ valuesKicker }}</div>
+          <h2>{{ valuesTitle }}</h2>
+        </div>
+        <div class="values-grid">
+          <div class="value-card" v-for="(item, index) in values" :key="item.title">
+            <div class="v-ic"><base-icon :name="index === 1 ? 'handshake' : (index === 2 ? 'globe' : 'bulb')" :size="24"></base-icon></div>
+            <div class="v-title">{{ item.title }}</div>
+            <div class="v-desc">{{ item.desc }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 邮箱订阅统一由页脚「订阅优惠信息」提供（SiteFooter 组件），此处不再重复展示 -->
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      window.mountPyMall({
+        setup() {
+          // 品牌故事内容（后台 ERP「内容管理」维护，前端实时展示）
+          var state = Vue.reactive({
+            heroTag: t('about_hero_tag'),
+            heroTitle: t('about_hero_title'),
+            heroSub: t('about_hero_sub'),
+            storyTitle: t('our_story'),
+            storyParagraphs: [t('our_story_p1'), t('our_story_p2')],
+            storyImage: '',
+            milestonesKicker: t('milestones_kicker'),
+            milestonesTitle: t('milestones_title'),
+            valuesKicker: t('values_kicker'),
+            valuesTitle: t('values_title'),
+            milestones: [],
+            values: [],
+          });
+
+          PyMall.api('/api/site-content?page=about', { noLang: true })
+            .then(function (d) {
+              if (!d) return;
+              var lang = PyMall.getLang();
+              // Hero 区（后台可编辑）
+              if (d.hero_tag) state.heroTag = d.hero_tag[lang] || d.hero_tag.zh || state.heroTag;
+              if (d.hero_title) state.heroTitle = d.hero_title[lang] || d.hero_title.zh || state.heroTitle;
+              if (d.hero_subtitle) state.heroSub = d.hero_subtitle[lang] || d.hero_subtitle.zh || state.heroSub;
+              // 品牌故事
+              if (d.story_title) state.storyTitle = d.story_title[lang] || d.story_title.zh || state.storyTitle;
+              if (d.story_content) {
+                var c = d.story_content[lang] || d.story_content.zh || '';
+                if (c) state.storyParagraphs = c.split('\n').filter(function (x) { return x.trim(); });
+              }
+              if (d.story) {
+                var si = d.story.image;
+                if (typeof si === 'object' && si) si = si.zh || si.en || '';
+                if (si) state.storyImage = si;
+              }
+              // 区块标题（成长历程/价值观，后台可编辑）
+              if (d.milestones_kicker) state.milestonesKicker = d.milestones_kicker[lang] || d.milestones_kicker.zh || state.milestonesKicker;
+              if (d.milestones_title) state.milestonesTitle = d.milestones_title[lang] || d.milestones_title.zh || state.milestonesTitle;
+              if (d.values_kicker) state.valuesKicker = d.values_kicker[lang] || d.values_kicker.zh || state.valuesKicker;
+              if (d.values_title) state.valuesTitle = d.values_title[lang] || d.values_title.zh || state.valuesTitle;
+              var lang = PyMall.getLang();
+              function localize(item, field) {
+                var value = item && item[field];
+                return value && typeof value === 'object' ? (value[lang] || value.zh || value.en || '') : (value || '');
+              }
+              state.milestones = (d.milestones || []).map(function (item) {
+                return { time: localize(item, 'time'), title: localize(item, 'title'), desc: localize(item, 'desc') };
+              });
+              state.values = (d.values || []).map(function (item) {
+                return { title: localize(item, 'title'), desc: localize(item, 'desc') };
+              });
+            })
+            .catch(function () { /* 保持默认文案 */ });
+
+          return {
+            t: t,
+            heroTag: Vue.computed(function () { return state.heroTag; }),
+            heroTitle: Vue.computed(function () { return state.heroTitle; }),
+            heroSub: Vue.computed(function () { return state.heroSub; }),
+            storyTitle: Vue.computed(function () { return state.storyTitle; }),
+            storyParagraphs: Vue.computed(function () { return state.storyParagraphs; }),
+            storyImage: Vue.computed(function () { return state.storyImage; }),
+            milestonesKicker: Vue.computed(function () { return state.milestonesKicker; }),
+            milestonesTitle: Vue.computed(function () { return state.milestonesTitle; }),
+            valuesKicker: Vue.computed(function () { return state.valuesKicker; }),
+            valuesTitle: Vue.computed(function () { return state.valuesTitle; }),
+            milestones: Vue.computed(function () { return state.milestones; }),
+            values: Vue.computed(function () { return state.values; }),
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

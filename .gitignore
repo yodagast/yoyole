@@ -1,0 +1,15 @@
+__pycache__/*
+__pycache__/
+./pytest_cache/*
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/*
+.venv/*
+.vscode/*
+.env
+*.log
+*.pid
+*.jpg
+*.png
+*.DS_Store

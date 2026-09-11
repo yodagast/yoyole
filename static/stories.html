@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户故事 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <style>
+    /* 探索板块（用户故事社区） */
+    .discover-section { padding: 72px 0 56px; }
+    .discover-header { text-align: center; margin-bottom: 40px; }
+    .discover-header .kicker { color: var(--jjs-primary); letter-spacing: 3px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
+    .discover-header h2 { font-size: 30px; font-weight: 800; }
+    .discover-header .discover-desc { color: var(--jjs-gray); font-size: 14px; margin-top: 10px; }
+    /* 标签墙 Tab（按用户标签聚合筛选） */
+    .discover-tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+    .discover-tabs button { border: 1px solid var(--jjs-border); background: #fff; color: var(--jjs-gray); border-radius: 999px; padding: 8px 22px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+    .discover-tabs button:hover { border-color: var(--jjs-primary); color: var(--jjs-primary); }
+    .discover-tabs button.active { background: var(--jjs-primary); border-color: var(--jjs-primary); color: #fff; }
+    /* 标签筛选提示行 */
+    .discover-tab-hint { text-align: center; color: var(--jjs-gray); font-size: 12.5px; margin-bottom: 26px; }
+    /* 双列卡片网格（故事展示） */
+    .discover-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px; }
+    .discover-card { border: 1px solid var(--jjs-border); border-radius: var(--radius-lg); overflow: hidden; background: #fff; transition: transform 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; width: 100%; text-decoration: none; color: inherit; }
+    .discover-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); text-decoration: none; }
+    .discover-card .dc-img { width: 100%; overflow: hidden; max-height: 340px; flex-shrink: 0; }
+    .discover-card .dc-img img { width: 100%; height: auto; display: block; object-fit: cover; transition: transform 0.5s ease; }
+    .discover-card:hover .dc-img img { transform: scale(1.06); }
+    .discover-card .dc-img-placeholder { height: 170px; display: flex; align-items: center; justify-content: center; background: var(--jjs-bg-light, #f7f7f7); color: #cbd5e1; }
+    .discover-card .dc-body { padding: 22px 22px 20px; display: flex; flex-direction: column; flex: 1; }
+    .discover-card .dc-title { font-weight: 800; font-size: 17px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .discover-card .dc-time { color: #a0aec0; font-size: 12px; margin: -2px 0 8px; display: flex; align-items: center; gap: 6px; }
+    .discover-card .dc-desc { color: var(--jjs-gray); font-size: 13.5px; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+    .discover-card .dc-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--jjs-border); }
+    .discover-card .dc-meta-left { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+    /* 卡片点赞 / 评论计数 */
+    .discover-card .dc-stats { display: inline-flex; align-items: center; gap: 12px; color: var(--jjs-gray, #64748b); font-size: 12px; font-weight: 600; }
+    .discover-card .dc-stat { display: inline-flex; align-items: center; gap: 4px; }
+    .discover-card .dc-stat svg { display: block; }
+    .discover-card .dc-stat.liked { color: var(--jjs-primary, #d81e53); }
+    .discover-card .dc-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 60%; }
+    .discover-card .dc-tag { font-size: 11px; font-weight: 700; color: var(--jjs-primary); background: rgba(216, 30, 83, 0.08); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+    .discover-card .dc-author { display: flex; align-items: center; gap: 7px; color: var(--jjs-gray); font-size: 12.5px; font-weight: 600; }
+    .discover-card .dc-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #f06b8a, var(--jjs-primary)); color: #fff; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .discover-empty { grid-column: 1 / -1; text-align: center; color: var(--jjs-gray); padding: 40px 0; background: #fafafa; border-radius: var(--radius-lg); border: 1px dashed var(--jjs-border); }
+    /* 页面头部提示（独立导航到故事详情） */
+    .stories-hint { text-align: center; color: var(--jjs-gray); font-size: 13px; margin-top: 8px; }
+    @media (max-width: 900px) {
+      .discover-grid { grid-template-columns: 1fr; gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <main-nav active="stories"></main-nav>
+
+    <!-- 用户故事社区 -->
+    <section class="discover-section" id="user-stories">
+      <div class="container">
+        <div class="discover-header">
+          <div class="kicker">{{ t('discover_kicker') }}</div>
+          <h2>{{ t('discover_title') }}</h2>
+          <p class="discover-desc">{{ t('discover_desc') }}</p>
+        </div>
+        <div class="stories-hint">{{ t('stories_hint') }}</div>
+        <!-- 标签墙筛选 -->
+        <div class="discover-tabs">
+          <button :class="{active: activeTag==='all'}" @click="activeTag='all'">{{ t('stories_all') }}</button>
+          <button v-for="t in allTags" :key="t.name" :class="{active: activeTag===t.name}" @click="activeTag=t.name">
+            {{ t.name }}<span v-if="t.count" style="font-size:10px;opacity:.7"> ({{ t.count }})</span>
+          </button>
+        </div>
+        <div class="discover-tab-hint" v-if="allTags.length">{{ t('stories_filter_hint') }}</div>
+        <div class="discover-grid">
+          <a class="discover-card" v-for="story in filteredStories" :key="story.id" :href="'/story-detail.html?id=' + story.id">
+            <div class="dc-img" v-if="story.image_url && !story.imgError"><img :src="story.image_url" alt="User story" loading="lazy" @error="story.imgError = true"></div>
+            <div class="dc-img dc-img-placeholder" v-else>
+              <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            </div>
+            <div class="dc-body">
+              <div class="dc-title"><base-icon name="review" :size="18"></base-icon> {{ story.title }}</div>
+              <div class="dc-time" v-if="story.created_at">{{ formatTime(story.created_at) }}</div>
+              <div class="dc-desc">{{ story.content }}</div>
+              <div class="dc-meta">
+                <span class="dc-meta-left">
+                  <span class="dc-author"><span class="dc-avatar">{{ (story.author || 'U').charAt(0).toUpperCase() }}</span> {{ story.author }}</span>
+                  <span class="dc-stats">
+                    <span class="dc-stat" :class="{liked: story.liked}">
+                      <svg viewBox="0 0 24 24" width="14" height="14" :fill="story.liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                      {{ story.like_count || 0 }}
+                    </span>
+                    <span class="dc-stat">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                      {{ story.comment_count || 0 }}
+                    </span>
+                  </span>
+                </span>
+                <span class="dc-tags">
+                  <span v-for="tg in (story.tags || []).slice(0, 3)" :key="tg" class="dc-tag">{{ tg }}</span>
+                </span>
+              </div>
+            </div>
+          </a>
+          <div class="discover-empty" v-if="!filteredStories.length">{{ t('stories_empty') }}</div>
+        </div>
+      </div>
+    </section>
+
+    <site-footer></site-footer>
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      // 跟随语言设置页面标题
+      document.title = t('discover_title') + ' - YOYOLE';
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            userStories: [],
+            allTags: [],           // 从公开故事聚合的标签墙 [{name, count}]
+            activeTag: 'all',      // 标签墙当前筛选
+          });
+
+          // 按标签筛选后的公开故事
+          var filteredStories = Vue.computed(function () {
+            if (!state.userStories) return [];
+            if (state.activeTag === 'all') return state.userStories;
+            return state.userStories.filter(function (s) {
+              var tags = s.tags || [];
+              return tags.indexOf(state.activeTag) > -1;
+            });
+          });
+
+          // 加载公开故事（兼容旧数组结构与新 {items, tags} 结构）
+          function loadStories() {
+            PyMall.api('/api/user-stories').then(function (data) {
+              if (Array.isArray(data)) {
+                // 旧结构（数组）：兼容处理
+                state.userStories = data;
+                var tagCount = {};
+                data.forEach(function (s) {
+                  (s.tags || []).forEach(function (tg) { tagCount[tg] = (tagCount[tg] || 0) + 1; });
+                });
+                state.allTags = Object.keys(tagCount).map(function (k) { return { name: k, count: tagCount[k] }; });
+              } else {
+                state.userStories = (data && data.items) || [];
+                state.allTags = (data && data.tags) || [];
+              }
+            }).catch(function () {});
+          }
+          loadStories();
+
+          // 用户故事发布时间格式化（ISO → “YYYY-MM-DD”）
+          function formatTime(iso) {
+            if (!iso) return '';
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return String(iso).replace('T', ' ').slice(0, 10);
+            var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+          }
+
+          return {
+            t: t,
+            userStories: Vue.computed(function () { return state.userStories; }),
+            filteredStories: filteredStories,
+            allTags: Vue.computed(function () { return state.allTags; }),
+            activeTag: Vue.computed({ get: function () { return state.activeTag; }, set: function (v) { state.activeTag = v; } }),
+            formatTime: formatTime,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

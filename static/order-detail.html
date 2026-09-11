@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>订单详情 - YOYOLE</title>
+  <link rel="stylesheet" href="/static/css/jjshouse.css">
+</head>
+<body>
+  <div id="app">
+    <main-nav active="account"></main-nav>
+
+    <div class="container" style="padding-bottom:40px">
+      <div class="loading" v-if="loading">
+        <div class="spinner"></div>{{ t('loading') }}
+      </div>
+
+      <!-- 未登录 -->
+      <div class="empty" v-else-if="notLoggedIn" style="padding-top:60px">
+        <base-icon name="lock" :size="52" style="color:#cbd5e1"></base-icon>
+        <div style="margin-top:12px">{{ t('need_login') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="doLogin">{{ t('login') }}</button>
+      </div>
+
+      <!-- 未找到 -->
+      <div class="empty" v-else-if="notFound" style="padding-top:60px">
+        <base-icon name="box" :size="52" style="color:#cbd5e1"></base-icon>
+        <div style="margin-top:12px">{{ t('no_orders') }}</div>
+        <button class="btn btn-primary" style="margin-top:18px" @click="back">{{ t('back') }}</button>
+      </div>
+
+      <!-- 详情主体 -->
+      <div v-else class="od-wrap">
+        <!-- 顶部状态卡 -->
+        <div class="od-header" :class="'od-' + order.status">
+          <div class="od-status-icon">
+            <base-icon v-if="order.status==='pending'" name="wallet" :size="30"></base-icon>
+            <base-icon v-else-if="order.status==='shipped'" name="truck" :size="30"></base-icon>
+            <base-icon v-else-if="order.status==='completed'" name="check" :size="30"></base-icon>
+            <base-icon v-else-if="order.status==='cancelled'" name="close" :size="30"></base-icon>
+            <base-icon v-else name="box" :size="30"></base-icon>
+          </div>
+          <div class="od-header-text">
+            <div class="od-status">{{ t(order.status) }}</div>
+            <div class="od-status-tip">{{ statusTip }}</div>
+          </div>
+          <div class="od-amount">
+            <div class="od-amount-label">{{ t('payment_amount') }}</div>
+            <div class="od-amount-value">{{ money(order.total_amount) }}</div>
+          </div>
+        </div>
+
+        <!-- 收货信息 -->
+        <div class="od-card">
+          <div class="od-card-title"><base-icon name="location" :size="18"></base-icon> {{ t('receive_info') }}</div>
+          <div class="od-receiver">
+            <div class="od-receiver-row">
+              <strong>{{ order.receiver_name }}</strong>
+              <span class="od-phone">{{ order.receiver_phone }}</span>
+            </div>
+            <div class="od-address">{{ order.receiver_address }}</div>
+            <div v-if="order.remark" class="od-remark">{{ order.remark }}</div>
+          </div>
+        </div>
+
+        <!-- 商品清单 -->
+        <div class="od-card">
+          <div class="od-card-title"><base-icon name="box" :size="18"></base-icon> {{ t('order_items') }}</div>
+          <div class="od-goods-list">
+            <div class="od-goods-item" v-for="(it, idx) in order.items" :key="idx">
+              <img :src="it.image || 'https://picsum.photos/seed/' + idx + '/200/200'">
+              <div class="od-goods-info">
+                <div class="od-goods-name">{{ it.product_name }}</div>
+                <div class="od-goods-spec">{{ it.sku_code }}</div>
+                <div class="od-goods-price">{{ money(it.unit_price) }}</div>
+              </div>
+              <div class="od-goods-qty">×{{ it.quantity }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 金额明细 -->
+        <div class="od-card">
+          <div class="od-card-title"><base-icon name="card" :size="18"></base-icon> {{ t('order_summary') }}</div>
+          <div class="od-summary">
+            <div class="od-sum-row"><span>{{ t('subtotal') }}</span><span>{{ money(order.subtotal) }}</span></div>
+            <div class="od-sum-row"><span>{{ t('shipping_fee_detail') }}</span><span>{{ money(order.shipping_fee) }}</span></div>
+            <div class="od-sum-row"><span>{{ t('discount_detail') }}</span><span>-{{ money(order.discount) }}</span></div>
+            <div class="od-sum-row total">
+              <span>{{ t('payment_amount') }}</span>
+              <span class="od-total-amt">{{ money(order.total_amount) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 订单信息 -->
+        <div class="od-card">
+          <div class="od-card-title"><base-icon name="clock" :size="18"></base-icon> {{ t('order_detail') }}</div>
+          <div class="od-info">
+            <div class="od-info-row"><span class="od-info-label">{{ t('order_no') }}</span><span class="od-info-val">{{ order.order_no }}</span></div>
+            <div class="od-info-row"><span class="od-info-label">{{ t('order_time') }}</span><span class="od-info-val">{{ formatTime(order.created_at) }}</span></div>
+            <div class="od-info-row" v-if="order.paid_at"><span class="od-info-label">{{ t('pay_time') }}</span><span class="od-info-val">{{ formatTime(order.paid_at) }}</span></div>
+            <div class="od-info-row" v-if="order.shipped_at"><span class="od-info-label">{{ t('ship_time') }}</span><span class="od-info-val">{{ formatTime(order.shipped_at) }}</span></div>
+            <div class="od-info-row" v-if="order.payments && order.payments.length">
+              <span class="od-info-label">{{ t('payment_method') }}</span>
+              <span class="od-info-val">{{ order.payments[0].method }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <div class="od-actions">
+          <button class="btn btn-outline" @click="back"><base-icon name="chevronRight" :size="16" style="transform:rotate(180deg)"></base-icon> {{ t('back') }}</button>
+          <template v-if="order.status === 'pending'">
+            <button class="btn btn-ghost" @click="cancel">{{ t('cancel_order') }}</button>
+            <button class="btn btn-primary" @click="pay"><base-icon name="card" :size="16"></base-icon> {{ t('pay_now') }}</button>
+          </template>
+          <template v-else-if="order.status === 'shipped'">
+            <button class="btn btn-primary" @click="confirmOrder"><base-icon name="check" :size="16"></base-icon> {{ t('confirm_receipt') }}</button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <auth-modal></auth-modal>
+  </div>
+
+  <script src="/static/js/vue.global.prod.js"></script>
+  <script src="/static/js/pymall.js?v=27"></script>
+  <script>
+    (function () {
+      var PyMall = window.PyMall;
+      var Vue = PyMall.Vue;
+      var t = PyMall.t;
+
+      window.mountPyMall({
+        setup() {
+          var state = Vue.reactive({
+            order: null,
+            loading: true,
+            notLoggedIn: false,
+            notFound: false,
+          });
+
+          function qs(name) {
+            var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+            return m ? decodeURIComponent(m[1]) : '';
+          }
+
+          function formatTime(s) {
+            if (!s) return '';
+            return String(s).replace('T', ' ').slice(0, 19);
+          }
+
+          function load() {
+            var orderNo = qs('order_no');
+            if (!PyMall.getToken()) {
+              state.notLoggedIn = true;
+              state.loading = false;
+              return;
+            }
+            if (!orderNo) {
+              state.notFound = true;
+              state.loading = false;
+              return;
+            }
+            PyMall.api('/api/orders/' + orderNo, { token: PyMall.getToken() })
+              .then(function (d) {
+                state.order = d || null;
+                if (!d) state.notFound = true;
+                state.loading = false;
+              })
+              .catch(function () {
+                state.notFound = true;
+                state.loading = false;
+              });
+          }
+
+          var statusTip = Vue.computed(function () {
+            if (!state.order) return '';
+            var map = {
+              pending: t('orders_login_tip'),
+            };
+            return map[state.order.status] || t('order_status');
+          });
+
+          function back() { history.back(); }
+          function doLogin() { PyMall.openAuth('login'); }
+          function reload() { load(); }
+
+          function pay() {
+            var o = state.order;
+            PyMall.api('/api/orders/' + o.order_no + '/pay', { method: 'POST', token: PyMall.getToken() })
+              .then(function (pay) {
+                if (pay.pay_url) return fetch(pay.pay_url).then(function (r) { return r.json(); });
+                throw new Error('no pay_url');
+              }).then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function cancel() {
+            var o = state.order;
+            PyMall.api('/api/orders/' + o.order_no + '/cancel', { method: 'POST', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+          function confirmOrder() {
+            var o = state.order;
+            PyMall.api('/api/orders/' + o.order_no + '/confirm', { method: 'POST', token: PyMall.getToken() })
+              .then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
+              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+          }
+
+          Vue.onMounted(load);
+
+          return {
+            t: t, money: PyMall.money,
+            order: Vue.computed(function () { return state.order; }),
+            loading: Vue.computed(function () { return state.loading; }),
+            notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
+            notFound: Vue.computed(function () { return state.notFound; }),
+            statusTip: statusTip,
+            formatTime: formatTime,
+            back: back, doLogin: doLogin, pay: pay, cancel: cancel, confirmOrder: confirmOrder,
+          };
+        },
+      });
+    })();
+  </script>
+</body>
+</html>
