@@ -29,8 +29,9 @@
       position: absolute;
       inset: 0;
       background:
-        radial-gradient(circle at 15% 25%, rgba(255,255,255,0.12) 0%, transparent 38%),
-        radial-gradient(circle at 85% 70%, rgba(245,208,32,0.14) 0%, transparent 40%);
+        radial-gradient(circle at 15% 25%, rgba(255,255,255,0.14) 0%, transparent 38%),
+        radial-gradient(circle at 85% 70%, rgba(255,143,178,0.16) 0%, transparent 42%),
+        radial-gradient(circle at 50% 110%, rgba(255,255,255,0.10) 0%, transparent 44%);
       pointer-events: none;
     }
     .about-hero-inner {
@@ -108,10 +109,24 @@
       overflow: hidden;
       box-shadow: var(--shadow-lg);
       position: relative;
+      isolation: isolate;
+    }
+    /* 层叠装饰边框：品牌玫红勾边，参考 Allbirds/On 品牌故事图排版 */
+    .story-visual::before {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: -16px;
+      bottom: -16px;
+      border: 1px solid rgba(216,30,83,0.28);
+      border-radius: var(--radius-lg);
+      z-index: -1;
+      pointer-events: none;
     }
     .story-visual img {
       width: 100%;
-      height: 380px;
+      aspect-ratio: 16 / 9;
       object-fit: cover;
     }
     .story-visual .sv-tag {
@@ -127,9 +142,12 @@
       padding: 7px 16px;
     }
 
-    /* 成长历程时间线 */
+    /* 成长历程时间线：深色底 + 玫红浅色变体点缀（lululemon 深区块配色手法） */
     .milestones {
-      background: var(--jjs-dark);
+      background:
+        radial-gradient(circle at 10% 15%, rgba(216,30,83,0.20) 0%, transparent 32%),
+        radial-gradient(circle at 90% 85%, rgba(216,30,83,0.14) 0%, transparent 34%),
+        var(--jjs-dark);
       color: #fff;
       padding: 76px 0 68px;
     }
@@ -138,7 +156,7 @@
       margin-bottom: 52px;
     }
     .milestones-header .kicker {
-      color: var(--jjs-accent);
+      color: #ff9dbd;
       letter-spacing: 5px;
       font-size: 13px;
       font-weight: 700;
@@ -161,13 +179,19 @@
       border-radius: var(--radius-lg);
       padding: 30px 24px;
       text-align: center;
-      transition: transform 0.3s ease;
+      transition: transform 0.3s ease, border-color 0.3s ease, background 0.3s ease;
     }
     .milestone-card:hover {
       transform: translateY(-5px);
+      border-color: rgba(255,157,189,0.45);
+      background: rgba(216,30,83,0.10);
     }
     .milestone-card .ml-time {
-      color: var(--jjs-accent);
+      /* 玫红渐变文字：品牌主色在深底上的浅色变体 */
+      background: linear-gradient(180deg, #ff9dbd 0%, #e8356b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
       font-weight: 700;
       font-size: 26px;
       margin-bottom: 12px;
@@ -218,17 +242,37 @@
       border-radius: var(--radius-lg);
       background: var(--jjs-bg-light);
       border: 1px solid var(--jjs-border);
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+    .value-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(216,30,83,0.35);
+      box-shadow: var(--shadow-md);
     }
     .value-card .v-ic {
-      font-size: 36px;
-      margin-bottom: 18px;
-      opacity: 0.9;
+      /* 玫红浅底圆形图标：Allbirds/On 价值观卡片统一图标底衬 */
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--jjs-primary-light);
+      color: var(--jjs-primary);
+      border: 1px solid rgba(216,30,83,0.16);
+      font-size: 30px;
+    }
+    .value-card:hover .v-ic {
+      background: var(--jjs-primary);
+      color: #fff;
     }
     .value-card .v-title {
       font-weight: 700;
       font-size: 17px;
       margin-bottom: 10px;
       letter-spacing: 0.5px;
+      color: var(--jjs-dark);
     }
     .value-card .v-desc {
       color: var(--jjs-gray);
@@ -236,10 +280,61 @@
       line-height: 1.9;
     }
 
+    /* 品牌名片：底部统一玫红品牌色 CTA（与 Hero/故事/价值观呼应） */
+    .brand-cta {
+      text-align: center;
+      padding: 64px 0 72px;
+    }
+    .brand-cta .bc-inner {
+      background:
+        radial-gradient(circle at 85% 20%, rgba(255,255,255,0.12) 0%, transparent 40%),
+        linear-gradient(135deg, var(--jjs-primary) 0%, #8e1240 100%);
+      color: #fff;
+      border-radius: var(--radius-lg);
+      padding: 52px 40px;
+      max-width: 860px;
+      margin: 0 auto;
+      box-shadow: var(--shadow-lg);
+    }
+    .brand-cta h2 {
+      font-size: clamp(24px, 2.8vw, 32px);
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+    .brand-cta p {
+      color: rgba(255,255,255,0.9);
+      font-size: 15px;
+      line-height: 1.9;
+      max-width: 560px;
+      margin: 0 auto 26px;
+    }
+    .brand-cta .bc-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      color: var(--jjs-primary);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.5px;
+      border-radius: 999px;
+      padding: 13px 34px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .brand-cta .bc-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    }
+
     @media (max-width: 900px) {
       .story-grid { grid-template-columns: 1fr; gap: 28px; }
       .milestones-grid { grid-template-columns: repeat(2, 1fr); }
       .values-grid { grid-template-columns: 1fr; }
+      .brand-cta .bc-inner { padding: 40px 24px; }
+    }
+    @media (max-width: 560px) {
+      .milestones-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -309,6 +404,20 @@
       </div>
     </section>
 
+    <!-- 品牌收尾 CTA：统一玫红品牌色，与 Hero 首尾呼应（参考 Shopify 优秀 About 页收尾惯例） -->
+    <section class="brand-cta">
+      <div class="container">
+        <div class="bc-inner">
+          <h2>{{ ctaTitle }}</h2>
+          <p>{{ ctaDesc }}</p>
+          <a href="/products.html" class="bc-btn">
+            {{ t('shop_now') }}
+            <base-icon name="arrowRight" :size="16"></base-icon>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <!-- 邮箱订阅统一由页脚「订阅优惠信息」提供（SiteFooter 组件），此处不再重复展示 -->
 
     <site-footer></site-footer>
@@ -316,7 +425,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=27"></script>
+  <script src="/static/js/pymall.js?v=31"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -337,6 +446,8 @@
             milestonesTitle: t('milestones_title'),
             valuesKicker: t('values_kicker'),
             valuesTitle: t('values_title'),
+            ctaTitle: t('about_cta_title'),
+            ctaDesc: t('about_cta_desc'),
             milestones: [],
             values: [],
           });
@@ -365,6 +476,9 @@
               if (d.milestones_title) state.milestonesTitle = d.milestones_title[lang] || d.milestones_title.zh || state.milestonesTitle;
               if (d.values_kicker) state.valuesKicker = d.values_kicker[lang] || d.values_kicker.zh || state.valuesKicker;
               if (d.values_title) state.valuesTitle = d.values_title[lang] || d.values_title.zh || state.valuesTitle;
+              // 品牌收尾 CTA（后台可编辑）
+              if (d.cta_title) state.ctaTitle = d.cta_title[lang] || d.cta_title.zh || state.ctaTitle;
+              if (d.cta_desc) state.ctaDesc = d.cta_desc[lang] || d.cta_desc.zh || state.ctaDesc;
               var lang = PyMall.getLang();
               function localize(item, field) {
                 var value = item && item[field];
@@ -391,6 +505,8 @@
             milestonesTitle: Vue.computed(function () { return state.milestonesTitle; }),
             valuesKicker: Vue.computed(function () { return state.valuesKicker; }),
             valuesTitle: Vue.computed(function () { return state.valuesTitle; }),
+            ctaTitle: Vue.computed(function () { return state.ctaTitle; }),
+            ctaDesc: Vue.computed(function () { return state.ctaDesc; }),
             milestones: Vue.computed(function () { return state.milestones; }),
             values: Vue.computed(function () { return state.values; }),
           };

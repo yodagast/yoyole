@@ -411,31 +411,50 @@
         api('/api/admin/products')
           .then(function (list) {
             var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
+            var catMap = {};
+            (categoriesCache || []).forEach(function (c) { catMap[c.id] = c.name_i18n.zh || c.code; });
             var rows = list.map(function (p) {
               var imgHtml = p.main_image
                 ? '<img src="' + p.main_image + '" style="width:44px;height:44px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'">'
                 : '<span style="color:#cbd5e1">无图</span>';
-              var skus = (p.skus || []).map(function (s) {
-                var stockInp = canWrite
-                  ? '<input type="number" value="' + s.stock + '" onchange="Admin.stock(' + s.id + ',this.value)" style="width:80px" data-need-write>'
-                  : s.stock;
-                return '<tr><td>' + s.sku_code + '</td><td>' + App.money(s.price) + '</td>'
-                  + '<td>' + stockInp + '</td>'
-                  + '<td>' + (s.available_stock) + '</td></tr>';
-              }).join('');
+              var skus = (p.skus || []);
+              var totalStock = skus.reduce(function (sum, s) { return sum + (s.stock || 0); }, 0);
+              var lowStockCount = skus.filter(function (s) { return (s.stock || 0) <= 10; }).length;
+              var skuText = skus.length
+                ? '<span>' + skus.length + ' 个规格</span><br>'
+                  + '<span style="color:' + (totalStock === 0 ? '#dc2626' : (lowStockCount ? '#d97706' : '#16a34a')) + '">' + (totalStock === 0 ? '无库存' : '总库存 ' + totalStock) + '</span>'
+                : '<span style="color:#999">无 SKU</span>';
               var editBtn = canWrite
-                ? '<button class="btn btn-outline btn-sm" onclick="Admin.editProduct(' + p.id + ')">编辑</button>' : '';
+                ? '<button class="btn btn-primary btn-sm" style="background:#e02e24;border-color:#e02e24;color:#fff" onclick="Admin.editProduct(' + p.id + ')">编辑</button>' : '';
               var delBtn = canWrite
-                ? '<button class="btn btn-danger btn-sm" onclick="Admin.delProduct(' + p.id + ')">删除</button>' : '';
+                ? '<button class="btn btn-outline btn-sm" onclick="Admin.delProduct(' + p.id + ')">删除</button>' : '';
+              var statusBadge = p.status === 'active'
+                ? '<span class="badge" style="background:#dcfce7;color:#166534">上架</span>'
+                : (p.status === 'draft'
+                  ? '<span class="badge" style="background:#fef9c3;color:#854d0e">草稿</span>'
+                  : '<span class="badge" style="background:#fee2e2;color:#991b1b">下架</span>');
               var featuredTag = p.is_featured ? '<span class="badge" style="background:#fef3c7;color:#92400e">推荐</span>' : '';
-              return '<tr><td>' + p.id + '</td><td>' + imgHtml + '</td><td>' + (p.name_i18n.zh || p.sku_code) + '</td>'
-                + '<td>' + App.money(p.base_price) + '</td>'
-                + '<td>' + p.status + ' ' + featuredTag + '</td><td><table class="admin-table" style="margin:0"><thead><tr><th>SKU</th><th>售价</th><th>调整库存</th><th>可售库存</th></tr></thead><tbody>' + skus + '</tbody></table></td>'
+              var skuPreview = skus.slice(0, 3).map(function (s) {
+                return '<div style="display:flex;gap:6px;align-items:center;font-size:12px;color:#64748b;padding:2px 0">'
+                  + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (s.sku_code || '-') + '</span>'
+                  + '<span style="color:#0f172a;font-weight:600">' + App.money(s.price) + '</span>'
+                  + '<span>库存 ' + (s.stock || 0) + '</span>'
+                  + '</div>';
+              }).join('');
+              return '<tr>'
+                + '<td style="color:#94a3b8">' + p.id + '</td>'
+                + '<td>' + imgHtml + '</td>'
+                + '<td><div style="font-weight:600;color:#0f172a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (p.name_i18n.en || '') + '">' + (p.name_i18n.zh || p.sku_code) + '</div>'
+                + '<div style="font-size:12px;color:#94a3b8">' + (catMap[p.category_id] || '未分类') + '</div></td>'
+                + '<td style="color:#e02e24;font-weight:700;white-space:nowrap">' + App.money(p.base_price) + '</td>'
+                + '<td>' + skuText + '</td>'
+                + '<td>' + statusBadge + ' ' + featuredTag + '</td>'
+                + '<td style="min-width:150px">' + skuPreview + (skus.length > 3 ? '<div style="font-size:12px;color:#94a3b8">等 ' + skus.length + ' 个</div>' : '') + '</td>'
                 + '<td class="actions-cell">' + editBtn + ' ' + delBtn + '</td></tr>';
             }).join('');
             document.getElementById('product-table').innerHTML =
-              '<table class="admin-table"><thead><tr><th>ID</th><th>图</th><th>名称</th><th>基础价</th><th>状态</th><th>SKU（售价 / 库存 / 可售）</th><th>操作</th></tr></thead><tbody>'
-              + (rows || '<tr><td colspan="7">暂无</td></tr>') + '</tbody></table>';
+              '<table class="admin-table"><thead><tr><th>ID</th><th>图</th><th>名称 / 分类</th><th>基础价</th><th>库存概况</th><th>状态</th><th>SKU 预览</th><th>操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:30px">暂无商品</td></tr>') + '</tbody></table>';
             applyRoleUI();
           })
           .catch(function (e) { App.toast(e.message, 'error'); });

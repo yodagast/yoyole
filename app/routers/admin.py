@@ -44,6 +44,7 @@ from app.schemas import (
     ProductOut,
     ProductUpdateIn,
     SKUIn,
+    SKUOut,
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.routers.orders import _order_to_out
@@ -261,6 +262,47 @@ async def admin_add_sku(
     db.add(sku)
     await db.commit()
     return {"id": sku.id, "sku_code": sku.sku_code}
+
+
+@router.put("/skus/{sku_id}", response_model=SKUOut)
+async def admin_update_sku(
+    sku_id: int,
+    payload: SKUIn,
+    admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新 SKU（价格/库存/规格属性等）"""
+    result = await db.execute(select(SKU).where(SKU.id == sku_id))
+    sku = result.scalar_one_or_none()
+    if not sku:
+        raise HTTPException(status_code=404, detail="SKU 不存在")
+
+    if payload.sku_code:
+        sku.sku_code = payload.sku_code
+    if payload.price is not None:
+        sku.price = payload.price
+    if payload.cost_price is not None:
+        sku.cost_price = payload.cost_price
+    if payload.stock is not None:
+        delta = payload.stock - sku.stock
+        sku.stock = payload.stock
+        if delta and payload.stock:
+            db.add(
+                StockMovement(
+                    sku_id=sku.id,
+                    change_qty=delta,
+                    balance_after=payload.stock,
+                    reason="admin_update_sku",
+                    reference="",
+                    operator=admin.username,
+                )
+            )
+    sku.attributes = payload.attributes
+    sku.is_active = payload.is_active
+
+    await db.commit()
+    await db.refresh(sku)
+    return sku
 
 
 @router.put("/skus/{sku_id}/stock")

@@ -55,6 +55,8 @@ DEFAULT_CMS_CONTENT = {
         "milestones_title": {"zh": "成长历程", "en": "Milestones"},
         "values_kicker": {"zh": "VALUES", "en": "VALUES"},
         "values_title": {"zh": "我们的价值观", "en": "Our Values"},
+        "cta_title": {"zh": "把每一次出发，变成更好的自己", "en": "Turn every departure into a better you"},
+        "cta_desc": {"zh": "从一块瑜伽垫到一座远山，YOYOLE 用认真设计的装备陪你练习、远行与日常。", "en": "From a yoga mat to a distant mountain, YOYOLE's thoughtfully designed gear accompanies your practice, travels, and everyday life."},
         "milestones": [
             {"time": {"zh": "2020", "en": "2020"}, "title": {"zh": "品牌创立", "en": "Brand Founded"}, "desc": {"zh": "从热爱潮流文化的小团队起步。", "en": "Started with a small team passionate about trend culture."}},
             {"time": {"zh": "2021", "en": "2021"}, "title": {"zh": "首次亮相", "en": "First Launch"}, "desc": {"zh": "用原创设计连接更多年轻用户。", "en": "Connected with more young users through original design."}},

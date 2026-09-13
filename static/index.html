@@ -20,7 +20,8 @@
     }
     .hero-slide-box {
       position: relative;
-      height: clamp(430px, 37vw, 560px);
+      /* 大屏：随视口比例成长（36vw≈2.78:1），不再过早封顶 560px 导致压扁 */
+      height: clamp(430px, 36vw, 70vh);
       overflow: hidden;
       margin: 0;
       background: #fff;
@@ -239,7 +240,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=28"></script>
+  <script src="/static/js/pymall.js?v=31"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;

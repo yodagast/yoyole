@@ -60,11 +60,11 @@ PAGE_ASSERTS = {
         "admin",                 # 后台
     ],
     "admin-product-edit.html": [
-        "商品图片",              # 商品媒体编辑
-        "详情描述（中文）",      # 商品详情编辑
-        "SKU 与库存",            # SKU 库存编辑
+        "基本信息",              # Tab1 基本信息
+        "商品图片",              # Tab2 商品媒体编辑
+        "SKU规格管理",           # Tab3 SKU 库存编辑
+        "商品详情",              # Tab4 商品详情编辑
         "saveProduct",           # 保存逻辑
-        "系统自动生成",          # SKU 不允许手动编辑
         "params.get('new')",     # 新增商品独立页面模式
     ],
     "about.html": [

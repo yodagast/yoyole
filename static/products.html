@@ -83,41 +83,85 @@
       </div>
     </div>
 
-    <!-- 商品详情模态 -->
+    <!-- 商品详情模态（PDD 风格） -->
     <div class="modal-mask" v-if="detail && detailOpen" @click.self="detailOpen=false">
-      <div class="modal" style="width:860px;max-width:94vw;max-height:88vh;overflow-y:auto">
+      <div class="modal product-modal" style="width:960px;max-width:96vw;max-height:90vh;overflow-y:auto">
         <button class="modal-close" @click="detailOpen=false">×</button>
-        <div class="detail-wrap" v-if="detail">
-          <div class="detail-gallery" style="position:static">
-            <div class="main-img-box">
-              <img :src="currentImg" :onerror="'this.src=&quot;https://picsum.photos/seed/' + detail.id + '/600/400&quot;'">
+        <div class="detail-wrap pdd" v-if="detail">
+
+          <!-- 左：商品轮播图 -->
+          <div class="detail-gallery pdd">
+            <div class="main-img-box pdd">
+              <img :src="currentImg" :onerror="'this.src=&quot;https://picsum.photos/seed/' + detail.id + '/600/600&quot;'">
+              <div class="pdd-img-tag" v-if="detail.is_featured">HOT</div>
+              <div class="pdd-img-count" v-if="galImgs.length > 1">
+                <span class="pdd-num-badge">{{ imgIdx + 1 }}</span> / {{ galImgs.length }}
+              </div>
             </div>
-            <div class="thumb-row" v-if="galImgs.length > 1">
+            <div class="thumb-row pdd" v-if="galImgs.length > 1">
               <div class="thumb" v-for="(im, i) in galImgs" :key="i"
                    :class="{active: i === imgIdx}" @click="imgIdx = i">
                 <img :src="im" :onerror="'this.src=&quot;https://picsum.photos/seed/' + detail.id + '/100/100&quot;'">
               </div>
             </div>
           </div>
-          <div class="detail-info">
-            <h1 class="detail-name">{{ detail.display_name || detail.sku_code }}</h1>
-            <div class="detail-meta">SKU: {{ detail.sku_code }}</div>
-            <div class="detail-price">
-              {{ money(selectedSku ? selectedSku.price : detail.base_price) }}
+
+          <!-- 右：商品信息（PDD 风格布局） -->
+          <div class="detail-info pdd">
+            <!-- 标题 + SKU 货号 -->
+            <div class="pdd-title-row">
+              <h1 class="detail-name">{{ detail.display_name || detail.sku_code }}</h1>
+              <div class="detail-meta pdd">SKU: {{ detail.sku_code }}</div>
             </div>
-            <div class="detail-desc">{{ detailDesc }}</div>
-            <div class="detail-block">
-              <div class="detail-label">{{ t('sku') }}</div>
-              <div class="sku-list">
-                <button class="sku-option" v-for="s in activeSkus" :key="s.id"
-                        :class="{active: selectedSku && selectedSku.id === s.id}"
-                        :disabled="!s.is_active" @click="selectedSku = s">
-                  <div class="spec">{{ specText(s.attributes) || s.sku_code }}</div>
-                  <div class="sprice">{{ money(s.price) }}</div>
-                  <div class="sstock">{{ t('stock') }}: {{ s.available_stock }}</div>
+
+            <!-- 价格 + 已售 -->
+            <div class="pdd-price-panel">
+              <div class="pdd-price-main">
+                <span class="pdd-multi-tag" v-if="detail.skus && detail.skus.length > 1">¥</span>
+                <span class="detail-price pdd">{{ money(selectedSku ? selectedSku.price : detail.base_price) }}</span>
+                <span class="pdd-price-origin" v-if="wasPrice">~~{{ money(wasPrice) }}~~</span>
+              </div>
+              <div class="pdd-sold">
+                <base-icon name="fire" :size="14"></base-icon> {{ t('sold_count') }} {{ detail.sales_count || 0 }} {{ t('pcs') }}
+              </div>
+            </div>
+
+            <!-- 服务保障条 -->
+            <div class="pdd-service-bar">
+              <span><base-icon name="shield" :size="14"></base-icon> {{ t('prod_service_guarantee') }}</span>
+              <span><base-icon name="box" :size="14"></base-icon> {{ t('prod_service_return') }}</span>
+              <span><base-icon name="refresh" :size="14"></base-icon> {{ t('prod_service_refund') }}</span>
+              <span><base-icon name="truck" :size="14"></base-icon> {{ t('prod_service_ship') }}</span>
+            </div>
+
+            <div class="detail-desc pdd">{{ detailDesc }}</div>
+
+            <!-- 颜色选择 -->
+            <div class="detail-block" v-if="colorObjs.length">
+              <div class="detail-label">{{ t('select_color') }} <span class="pdd-selected">{{ selectedColor || '' }}</span></div>
+              <div class="pdd-spec-row color-row">
+                <button class="pdd-color-chip" v-for="(c, i) in colorObjs" :key="c.name"
+                        :class="{active: currentColor === c.name}"
+                        @click="selectColor(c.name)">
+                  <span class="pdd-color-swatch" :style="'background:' + colorHex(c.name)"></span>
+                  <span class="pdd-color-name">{{ c.name }}</span>
                 </button>
               </div>
             </div>
+
+            <!-- 尺码选择 -->
+            <div class="detail-block" v-if="sizeOptions.length">
+              <div class="detail-label">{{ t('select_size') }} <span class="pdd-selected">{{ selectedSize || '' }}</span></div>
+              <div class="pdd-size-row">
+                <button class="pdd-size-chip" v-for="sz in sizeOptions" :key="sz"
+                        :class="{active: currentSize === sz, disabled: sizeDisabled(sz)}"
+                        :disabled="sizeDisabled(sz)" @click="selectSize(sz)">
+                  {{ sz }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 数量 -->
             <div class="detail-block">
               <div class="detail-label">{{ t('quantity') }}</div>
               <div class="qty-control">
@@ -125,7 +169,16 @@
                 <span>{{ qty }}</span>
                 <button @click="qty = Math.min(maxQty, qty + 1)">+</button>
               </div>
+              <span class="pdd-stock-hint" v-if="selectedSku">{{ t('stock') }} {{ selectedSku.available_stock }} {{ t('pcs') }}</span>
             </div>
+
+            <!-- 配送提示 -->
+            <div class="pdd-ship-tip">
+              <base-icon name="truck" :size="16"></base-icon>
+              <span>{{ t('ship_tip') }}</span>
+            </div>
+
+            <!-- 收藏 + 操作按钮 -->
             <div class="detail-fav-row">
               <button class="btn btn-sm btn-block" :class="isWished(detail.id) ? 'btn-primary' : 'btn-outline'"
                       @click="toggleWish(detail)">
@@ -134,57 +187,82 @@
               </button>
             </div>
             <div class="detail-actions">
-              <button class="btn btn-primary btn-lg" @click="addToCart"><base-icon name="cart" :size="18"></base-icon> {{ t('add_to_cart') }}</button>
-              <button class="btn btn-outline btn-lg" @click="buyNow"><base-icon name="zap" :size="18"></base-icon> {{ t('buy_now') }}</button>
+              <button class="btn btn-primary btn-lg pdd-buy" @click="buyNow"><base-icon name="zap" :size="18"></base-icon> {{ t('buy_now') }}</button>
+              <button class="btn btn-outline btn-lg pdd-cart" @click="addToCart"><base-icon name="cart" :size="18"></base-icon> {{ t('add_to_cart') }}</button>
             </div>
           </div>
         </div>
 
-        <!-- 评价区（评论未加载时显示骨架） -->
-        <div class="review-section" style="margin-top:30px;padding-top:26px;border-top:1px solid #eee">
-          <h3 style="font-size:18px;font-weight:700;margin-bottom:14px">
-            {{ t('reviews') }}（{{ reviewCount }}）
-          </h3>
+        <!-- 下方的规格参数 + 图文详情（PDD 风格） -->
+        <div class="detail-below" v-if="detail">
+          <!-- 规格参数表 -->
+          <div class="pdd-section">
+            <h3 class="pdd-section-title"><base-icon name="tag" :size="16"></base-icon> {{ t('specifications') }}</h3>
+            <table class="pdd-spec-table">
+              <tbody>
+                <tr v-for="(val, k) in specRows" :key="k">
+                  <td class="pdd-spec-k">{{ specKeyName(k) }}</td>
+                  <td class="pdd-spec-v">{{ val }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-          <!-- 写评价表单（仅登录） -->
-          <div class="review-form" v-if="canReview" style="background:var(--jjs-bg-light);padding:16px;border-radius:12px;margin-bottom:18px">
-            <div class="star-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-              <span>{{ t('review_rating') }}:</span>
-              <button v-for="n in 5" :key="n"
-                      style="font-size:22px;background:none;border:none;cursor:pointer;color:#ccc;padding:0 2px"
-                      @click="reviewForm.rating = n"><base-icon name="star" :size="20" :fill="n <= (reviewForm.rating||0)" :style="n <= (reviewForm.rating||0) ? 'color:#f5a623' : 'color:#ccc'"></base-icon></button>
+          <!-- 图文详情 -->
+          <div class="pdd-section" v-if="detailImgs.length">
+            <h3 class="pdd-section-title"><base-icon name="bag" :size="16"></base-icon> {{ t('detail_desc_long') }}</h3>
+            <div class="pdd-detail-imgs">
+              <img v-for="(im, i) in detailImgs" :key="i" :src="im"
+                   :onerror="'this.style.display=&quot;none&quot;'" loading="lazy">
             </div>
-            <input v-model="reviewForm.title" class="form-input"
-                   :placeholder="t('review_title')" style="margin-bottom:10px" maxlength="80">
-            <textarea v-model="reviewForm.content" class="form-input"
-                      :placeholder="t('review_placeholder')" rows="3"
-                      style="margin-bottom:10px;resize:vertical"></textarea>
-            <button class="btn btn-primary" :disabled="reviewSubmitting"
-                    @click="submitReview"><base-icon name="pencil" :size="15"></base-icon> {{ t('review_submit') }}</button>
-          </div>
-          <div v-else class="review-login-tip"
-               style="font-size:13px;color:#999;margin-bottom:16px">
-            {{ alreadyReviewed ? t('already_reviewed') : t('login_to_review') }}
           </div>
 
-          <!-- 评价列表 -->
-          <div class="review-list" v-if="reviews.length">
-            <div class="review-item" v-for="(r, i) in reviews" :key="i"
-                 style="padding:14px 0;border-bottom:1px dashed #eee">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-                <div style="font-size:14px;font-weight:600;color:var(--jjs-primary)">
-                  {{ r.customer_name }}
-                </div>
-                <div class="stars" style="color:var(--jjs-gold);font-size:14px">
-                  <base-icon name="star" :size="14" fill v-for="n in r.rating" :key="n" style="color:#f5a623"></base-icon>
-                </div>
+          <!-- 评价区 -->
+          <div class="review-section pdd" style="margin-top:30px;padding-top:26px;border-top:none">
+            <h3 style="font-size:18px;font-weight:700;margin-bottom:14px">
+              <base-icon name="review" :size="18"></base-icon> {{ t('reviews') }}{{ reviewCountLabel }}
+            </h3>
+
+            <!-- 写评价表单（仅登录） -->
+            <div class="review-form" v-if="canReview" style="background:var(--jjs-bg-light);padding:16px;border-radius:12px;margin-bottom:18px">
+              <div class="star-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span>{{ t('review_rating') }}:</span>
+                <button v-for="n in 5" :key="n"
+                        style="font-size:22px;background:none;border:none;cursor:pointer;color:#ccc;padding:0 2px"
+                        @click="reviewForm.rating = n"><base-icon name="star" :size="20" :fill="n <= (reviewForm.rating||0)" :style="n <= (reviewForm.rating||0) ? 'color:#f5a623' : 'color:#ccc'"></base-icon></button>
               </div>
-              <div v-if="r.title" style="font-size:14px;font-weight:600;margin-bottom:4px">{{ r.title }}</div>
-              <div style="font-size:14px;line-height:1.7;color:#444">{{ r.content }}</div>
+              <input v-model="reviewForm.title" class="form-input"
+                     :placeholder="t('review_title')" style="margin-bottom:10px" maxlength="80">
+              <textarea v-model="reviewForm.content" class="form-input"
+                        :placeholder="t('review_placeholder')" rows="3"
+                        style="margin-bottom:10px;resize:vertical"></textarea>
+              <button class="btn btn-primary" :disabled="reviewSubmitting"
+                      @click="submitReview"><base-icon name="pencil" :size="15"></base-icon> {{ t('review_submit') }}</button>
             </div>
-          </div>
-          <div v-else-if="reviewsLoaded" style="font-size:13px;color:#999;padding:20px 0;text-align:center">
-            {{ t('no_reviews') }}
+            <div v-else class="review-login-tip"
+                 style="font-size:13px;color:#999;margin-bottom:16px">
+              {{ alreadyReviewed ? t('already_reviewed') : t('login_to_review') }}
+            </div>
+
+            <!-- 评价列表 -->
+            <div class="review-list" v-if="reviews.length">
+              <div class="review-item" v-for="(r, i) in reviews" :key="i"
+                   style="padding:14px 0;border-bottom:1px dashed #eee">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                  <div style="font-size:14px;font-weight:600;color:var(--jjs-primary)">
+                    {{ r.customer_name }}
+                  </div>
+                  <div class="stars" style="color:var(--jjs-gold);font-size:14px">
+                    <base-icon name="star" :size="14" fill v-for="n in r.rating" :key="n" style="color:#f5a623"></base-icon>
+                  </div>
+                </div>
+                <div v-if="r.title" style="font-size:14px;font-weight:600;margin-bottom:4px">{{ r.title }}</div>
+                <div style="font-size:14px;line-height:1.7;color:#444">{{ r.content }}</div>
+              </div>
+            </div>
+            <div v-else-if="reviewsLoaded" style="font-size:13px;color:#999;padding:20px 0;text-align:center">
+              {{ t('no_reviews') }}
+            </div>
           </div>
         </div>
       </div>
@@ -195,7 +273,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=27"></script>
+  <script src="/static/js/pymall.js?v=31"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -220,6 +298,8 @@
             imgIdx: 0,
             selectedSku: null,
             qty: 1,
+            currentColor: '', // PDD 已选颜色
+            currentSize: '',  // PDD 已选尺码
             wishIds: [],
             // 评价
             reviews: [],
@@ -396,6 +476,22 @@
               state.qty = 1;
               var skus = (detail.skus || []).filter(function (s) { return s.is_active; });
               state.selectedSku = skus.length ? skus[0] : null;
+              // 重置 PDD 规格选择
+              state.currentColor = '';
+              state.currentSize = '';
+              // 默认选中第一个颜色（若存在），再选第一个尺码 → 匹配首选 SKU
+              Vue.nextTick(function () {
+                var cols = colorObjs.value;
+                var sizes = sizeOptions.value;
+                if (cols.length) {
+                  selectColor(cols[0].name);
+                }
+                if (sizes.length) {
+                  selectSize(sizes[0]);
+                } else if (!cols.length) {
+                  state.selectedSku = skus.length ? skus[0] : null;
+                }
+              });
               loadReviews(p.id);
             }).catch(function (e) {
               PyMall.toast(e.message, 'error');
@@ -426,6 +522,185 @@
 
           var maxQty = Vue.computed(function () {
             return state.selectedSku ? Math.max(state.selectedSku.available_stock, 1) : 99;
+          });
+
+          // ---------- PDD 规格选择 ----------
+          // 从详情 SKU 中解析出唯一的颜色列表
+          var colorObjs = Vue.computed(function () {
+            var d = state.detail;
+            if (!d || !d.skus) return [];
+            var seen = {};
+            var list = [];
+            (d.skus || []).forEach(function (s) {
+              if (!s.is_active) return;
+              var attrs = s.attributes || {};
+              var c = attrs['颜色'] || attrs.color || attrs.Color || '';
+              if (!c || seen[c]) return;
+              seen[c] = true;
+              list.push({ name: c });
+            });
+            return list;
+          });
+
+          // 已选颜色对应的可购尺码（含库存汇总）
+          var sizeOptions = Vue.computed(function () {
+            var d = state.detail;
+            if (!d || !d.skus) return [];
+            var col = state.currentColor || (colorObjs.value.length ? colorObjs.value[0].name : '');
+            var seen = {};
+            var list = [];
+            (d.skus || []).forEach(function (s) {
+              if (!s.is_active) return;
+              var attrs = s.attributes || {};
+              var c = attrs['颜色'] || attrs.color || attrs.Color || '';
+              if (col && c !== col) return;
+              var sz = attrs['尺码'] || attrs.size || attrs.Size || '';
+              if (!sz || seen[sz]) return;
+              seen[sz] = true;
+              list.push(sz);
+            });
+            return list;
+          });
+
+          // 尝试根据当前规格组合匹配出唯一 SKU（颜色+尺码）
+          function matchSku() {
+            var d = state.detail;
+            if (!d || !d.skus) return null;
+            var skus = d.skus.filter(function (s) { return s.is_active; });
+            if (!state.currentColor && !state.currentSize) return skus.length ? skus[0] : null;
+            var found = skus.filter(function (s) {
+              var attrs = s.attributes || {};
+              var c = attrs['颜色'] || attrs.color || attrs.Color || '';
+              var sz = attrs['尺码'] || attrs.size || attrs.Size || '';
+              if (state.currentColor && c !== state.currentColor) return false;
+              if (state.currentSize && sz !== state.currentSize) return false;
+              return true;
+            });
+            return found.length ? found[0] : null;
+          }
+
+          function selectColor(name) {
+            state.currentColor = name;
+            // 若当前选的尺码在新颜色下不可用，则重置尺码
+            var avail = (state.detail.skus || []).filter(function (s) {
+              if (!s.is_active) return false;
+              var attrs = s.attributes || {};
+              var c = attrs['颜色'] || attrs.color || attrs.Color || '';
+              var sz = attrs['尺码'] || attrs.size || attrs.Size || '';
+              return c === name && sz === state.currentSize;
+            });
+            if (state.currentSize && !avail.length) state.currentSize = '';
+            setSelected();
+          }
+
+          function selectSize(sz) {
+            state.currentSize = sz;
+            setSelected();
+          }
+
+          function setSelected() {
+            var s = matchSku();
+            // 只有同时选了颜色（或唯一颜色）和尺码才确定 SKU；否则展示 base 价格
+            var cNeeded = colorObjs.value.length > 0;
+            var sNeeded = sizeOptions.value.length > 0;
+            var complete = (!cNeeded || state.currentColor) && (!sNeeded || state.currentSize);
+            var sku = (complete && s) ? s : null;
+            state.selectedSku = sku || null;
+          }
+
+          function updateImgForColor(color) {
+            // 数据层颜色→主图无可靠映射，保持当前主图不变
+          }
+
+          function sizeDisabled(sz) {
+            // 当已选颜色时，只允许有库存的尺码
+            if (!state.currentColor) return false;
+            var d = state.detail;
+            if (!d || !d.skus) return false;
+            var has = (d.skus || []).some(function (s) {
+              if (!s.is_active) return false;
+              var attrs = s.attributes || {};
+              return (attrs['颜色'] || attrs.color || attrs.Color || '') === state.currentColor &&
+                     (attrs['尺码'] || attrs.size || attrs.Size || '') === sz &&
+                     s.available_stock > 0;
+            });
+            return !has;
+          }
+
+          // 规格参数表：品牌/货号/面料/尺码/颜色（尺码与颜色从 SKU attributes 提取最可靠）
+          var specRows = Vue.computed(function () {
+            var d = state.detail;
+            if (!d) return {};
+            var rows = {};
+            rows['品牌'] = d.brand || 'YOYOLE';
+            rows['货号'] = d.sku_code || '';
+            var desc = d.description_i18n ? (d.description_i18n.zh || d.description_i18n[PyMall.getLang()] || '') : '';
+            // 面料成分（中文描述里保留“面料：”）
+            var fabMatch = desc.match(/面料[:：]\s*([^，。;；,]+)/);
+            if (fabMatch) rows['面料成分'] = fabMatch[1].trim();
+            // 尺码 / 颜色：直接从 SKU attributes 聚合（避免中英文描述差异）
+            var sizes = [];
+            var colors = [];
+            (d.skus || []).forEach(function (s) {
+              var attrs = s.attributes || {};
+              var sz = attrs['尺码'] || attrs.size || attrs.Size;
+              var c = attrs['颜色'] || attrs.color || attrs.Color;
+              if (sz && sizes.indexOf(sz) === -1) sizes.push(sz);
+              if (c && colors.indexOf(c) === -1) colors.push(c);
+            });
+            if (sizes.length) rows['尺码'] = sizes.join(' / ');
+            if (colors.length) rows['颜色'] = colors.join(' / ');
+            if (d.weight_kg) rows['重量'] = (Number(d.weight_kg) * 1000).toFixed(0) + ' g';
+            return rows;
+          });
+
+          function specKeyName(k) {
+            var map = { '品牌': 'spec_brand', '货号': 'spec_code', '面料成分': 'spec_fabric', '尺码': 'spec_size', '颜色': 'spec_color', '重量': 'spec_weight' };
+            return map[k] ? t(map[k]) : k;
+          }
+
+          // 常见颜色名称 → 近似色值（用于色块展示，无法穷尽时回退为品牌浅色）
+          var COLOR_HEX = {
+            '黑色': '#2b2b2b', '白色': '#f5f5f5', '灰色': '#9a9a9a', '深灰': '#5a5a5a',
+            '牛仔蓝': '#3d6f9c', '蓝色': '#3d7ec2', '浅蓝': '#a8c9e8', '天蓝': '#6cb6e8',
+            '粉色': '#f2a8c2', '浅粉': '#fad0dd', '柔纱粉': '#f7c8d4', '豆沙粉': '#e8a2b4',
+            '红色': '#d8324a', '玫红': '#d81e53', '酒红': '#8e1f3d', '朱红': '#d34b3e',
+            '绿色': '#4c9a5e', '浅绿': '#b3d9a8', '军绿': '#6b7048', '墨绿': '#2f5d50',
+            '黄色': '#f5d020', '浅黄': '#f7e8a0', '姜黄': '#d9a020', '柠檬黄': '#f2e23e',
+            '紫色': '#8a6cc9', '浅紫': '#cfc0ee', '香芋紫': '#c9aede',
+            '橙色': '#f08a3c', '橘色': '#f0803c', '杏色': '#f4d0a0', '裸色': '#e8c4a8',
+            '咖啡色': '#7a5230', '棕色': '#8a6a48', '驼色': '#c09a70', '卡其': '#c7b18a',
+            '米色': '#efe0c8', '米白': '#f5ead6', '奶油': '#f7edd8', '燕麦': '#e8dcc8',
+            '灰色系': '#9a9a9a', '花色': '#e8d8d0',
+          };
+
+          function colorHex(name) {
+            if (!name) return '#fdeef3';
+            return COLOR_HEX[name] || '#fdeef3';
+          }
+
+          // 原价（当有 SKU 价格差异时展示最低/最高范围）
+          var wasPrice = Vue.computed(function () {
+            var d = state.detail;
+            if (!d || !d.skus || d.skus.length < 2) return null;
+            var prices = d.skus.map(function (s) { return Number(s.price); });
+            var min = Math.min.apply(null, prices);
+            var max = Math.max.apply(null, prices);
+            // 返回不等的另一端价（形成 “¥119 ~~¥169~~” 区间感）
+            return (max !== min) ? max : null;
+          });
+
+          // 图文详情：取 images 中以 /d/ 结尾的详情图
+          var detailImgs = Vue.computed(function () {
+            var d = state.detail;
+            if (!d || !d.images) return [];
+            return (d.images || []).filter(function (x) { return x && x.indexOf('/d/') > -1; });
+          });
+
+          var reviewCountLabel = Vue.computed(function () {
+            var lang = PyMall.getLang();
+            if (lang === 'en') return ' (' + state.reviewCount + ')';
+            return '（' + state.reviewCount + '）';
           });
 
           function specText(attrs) {
@@ -526,6 +801,26 @@
             }),
             maxQty: maxQty,
             detailDesc: detailDesc,
+            // PDD 规格扩展
+            colorObjs: colorObjs,
+            sizeOptions: sizeOptions,
+            currentColor: Vue.computed({
+              get: function () { return state.currentColor; },
+              set: function (v) { state.currentColor = v; },
+            }),
+            currentSize: Vue.computed({
+              get: function () { return state.currentSize; },
+              set: function (v) { state.currentSize = v; },
+            }),
+            selectColor: selectColor,
+            selectSize: selectSize,
+            sizeDisabled: sizeDisabled,
+            colorHex: colorHex,
+            specRows: specRows,
+            specKeyName: specKeyName,
+            wasPrice: wasPrice,
+            detailImgs: detailImgs,
+            reviewCountLabel: reviewCountLabel,
             catName: catName,
             selectCat: selectCat,
             resetFilter: resetFilter,

@@ -404,7 +404,8 @@ class TestCatalogFilter:
         assert all("id" in x and "name_zh" in x for x in results)
 
     def test_autocomplete_en(self):
-        r = requests.get(f"{BASE}/api/products/autocomplete", params={"q": "yoga"}, headers=H)
+        # 真实种子商品英文名含 bra/tank/top，不含 yoga
+        r = requests.get(f"{BASE}/api/products/autocomplete", params={"q": "bra"}, headers=H)
         assert r.status_code == 200
         assert len(r.json()) > 0
 
@@ -762,9 +763,9 @@ class TestUserStories:
         # 空评论 400
         assert requests.post(f"{BASE}/api/user-stories/{story_id}/comments", json={"content": "  "}, headers=buyer_token).status_code == 400
 
-        # 评论列表
+        # 评论列表（author 是注册时填的 full_name）
         cl = requests.get(f"{BASE}/api/user-stories/{story_id}/comments").json()
-        assert len(cl) == 1 and cl[0]["author"] == "买家"
+        assert len(cl) == 1 and cl[0]["author"] == "测试用户"
 
         # 详情带计数与 liked 状态（带 token 时 liked 应为 True）
         detail = requests.get(f"{BASE}/api/user-stories/{story_id}").json()
@@ -986,7 +987,8 @@ class TestAdmin:
         r = requests.get(f"{BASE}/api/admin/categories", headers=admin_token)
         assert r.status_code == 200
         names = {c["name_i18n"].get("zh") for c in r.json()}
-        assert {"瑜伽套装", "裤子", "上衣", "其他"}.issubset(names)
+        # 真实种子分类（无 demo 的瑜伽套装/上衣）
+        assert {"文胸", "背心", "短袖", "长袖", "外套", "短裤", "长裤", "裙子", "其他"}.issubset(names)
 
     def test_admin_stock_movements(self, admin_token):
         r = requests.get(f"{BASE}/api/admin/stock-movements", headers=admin_token)

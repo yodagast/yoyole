@@ -23,10 +23,10 @@
     .discover-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px; }
     .discover-card { border: 1px solid var(--jjs-border); border-radius: var(--radius-lg); overflow: hidden; background: #fff; transition: transform 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; width: 100%; text-decoration: none; color: inherit; }
     .discover-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); text-decoration: none; }
-    .discover-card .dc-img { width: 100%; overflow: hidden; max-height: 340px; flex-shrink: 0; }
-    .discover-card .dc-img img { width: 100%; height: auto; display: block; object-fit: cover; transition: transform 0.5s ease; }
+    .discover-card .dc-img { width: 100%; overflow: hidden; aspect-ratio: 16 / 10; flex-shrink: 0; }
+    .discover-card .dc-img img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 0.5s ease; }
     .discover-card:hover .dc-img img { transform: scale(1.06); }
-    .discover-card .dc-img-placeholder { height: 170px; display: flex; align-items: center; justify-content: center; background: var(--jjs-bg-light, #f7f7f7); color: #cbd5e1; }
+    .discover-card .dc-img-placeholder { aspect-ratio: 16 / 10; height: auto; display: flex; align-items: center; justify-content: center; background: var(--jjs-bg-light, #f7f7f7); color: #cbd5e1; }
     .discover-card .dc-body { padding: 22px 22px 20px; display: flex; flex-direction: column; flex: 1; }
     .discover-card .dc-title { font-weight: 800; font-size: 17px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
     .discover-card .dc-time { color: #a0aec0; font-size: 12px; margin: -2px 0 8px; display: flex; align-items: center; gap: 6px; }
@@ -111,7 +111,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=27"></script>
+  <script src="/static/js/pymall.js?v=31"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
