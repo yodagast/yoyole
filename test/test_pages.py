@@ -315,6 +315,56 @@ def test_about_has_no_legacy_classnames():
         assert legacy not in html, f"残留旧类名：{legacy}"
 
 
+def _css_rule(html, selector):
+    """粗略截取内联 <style> 里某个选择器的声明块，用于断言设计细节"""
+    idx = html.index(selector)
+    return html[idx:html.index('}', idx)]
+
+
+def test_about_timeline_cards_are_dark_with_light_text():
+    """时间线卡片为黑底，卡片内文字必须整体翻转为浅色
+
+    只把 background 改黑、不改文字是最容易掉进去的坑：
+    年份原本是深玫红 `--ab-accent-deep`、正文原本是 `--ab-text-soft`(#5c5751)，
+    留在黑底上会整片看不见。
+    """
+    r = requests.get(f"{BASE}/about.html")
+    assert r.status_code == 200
+    html = r.text
+
+    card = _css_rule(html, '.ab-tl-card {')
+    assert 'background: var(--ab-ink)' in card, "时间线卡片应为深色底"
+    assert 'background: #fff' not in card
+
+    assert 'color: #ff9dbd' in _css_rule(html, '.ab-tl-year {'), \
+        "黑底年份需改用亮玫红（深玫红在黑底上对比度不足）"
+    assert 'color: #fff' in _css_rule(html, '.ab-tl-title {')
+    assert 'rgba(255,255,255,0.62)' in _css_rule(html, '.ab-tl-desc {')
+
+
+def test_about_story_sits_on_page_background():
+    """「我们的故事」必须与页面底色一致，不做白色卡片
+
+    参考模板通篇一个底色，故事文字直接落在页面上。
+    若给它加回白底 + 边框，奶油底色上会浮出一块突兀的白色面板。
+
+    另外卡片的横向内边距必须一起去掉：留着会让故事文字比其它区块内缩一截，
+    与整页左基线对不齐（图文间距改由 grid gap 承担）。
+    """
+    r = requests.get(f"{BASE}/about.html")
+    assert r.status_code == 200
+    html = r.text
+
+    grid = _css_rule(html, '.ab-story-grid {')
+    assert 'background: #fff' not in grid, "故事区块不应再有白色底"
+    assert 'border: 1px' not in grid, "故事区块不应再有边框"
+    assert 'gap:' in grid, "图文间距应由 gap 承担"
+
+    copy = _css_rule(html, '.ab-story-copy {')
+    assert 'clamp(4px, 1.2vw, 12px) 0' in copy, \
+        "故事文字应去掉横向内边距，否则与容器左基线对不齐"
+
+
 def test_about_dark_blocks_merge_with_footer():
     """收尾 CTA 必须与页脚无缝相接
 

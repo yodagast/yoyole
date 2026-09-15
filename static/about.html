@@ -153,15 +153,17 @@
     .ab-head-center .ab-sub { max-width: 560px; margin: 0 auto; }
 
     /* ================= 我们的故事：图文双栏 + 引文 ================= */
+    /* 文字直接落在页面底色上，不做白色卡片（对齐模板的处理，通篇一个底色）。
+       卡片原有的横向内边距必须一同去掉，否则文字会比其它区块内缩一截、
+       与整页的左基线对不齐；图文之间的呼吸改由 gap 承担。 */
     .ab-story-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       align-items: stretch;
-      background: #fff;
-      border: 1px solid var(--ab-line);
+      gap: clamp(28px, 4vw, 56px);
     }
     .ab-story-copy {
-      padding: clamp(30px, 4vw, 60px) clamp(26px, 3.6vw, 54px);
+      padding: clamp(4px, 1.2vw, 12px) 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -282,24 +284,27 @@
       padding: 0 0 30px 46px;
       text-align: left;
     }
+    /* 时间线卡片：黑底，与价值观/收尾 CTA 同一深色令牌。
+       卡片内文字必须整体翻转为浅色，否则原来的深色文字会在黑底上看不见。 */
     .ab-tl-card {
       display: inline-block;
       width: 100%;
-      background: #fff;
-      border: 1px solid var(--ab-line);
+      background: var(--ab-ink);
+      border: 1px solid var(--ab-line-dark);
       padding: 28px 30px;
       transition: box-shadow 0.35s ease, transform 0.35s ease;
     }
     .ab-tl-item:hover .ab-tl-card {
       transform: translateY(-4px);
-      box-shadow: 0 16px 40px rgba(28,28,28,0.10);
+      box-shadow: 0 16px 40px rgba(28,28,28,0.16);
     }
     .ab-tl-year {
       font-family: var(--ab-serif);
       font-size: clamp(26px, 2.6vw, 34px);
       font-weight: 700;
       line-height: 1.1;
-      color: var(--ab-accent-deep);
+      /* 黑底上用亮玫红：深玫红（--ab-accent-deep 对白底）在黑底上对比度不足 */
+      color: #ff9dbd;
       margin-bottom: 10px;
       letter-spacing: 0.03em;
     }
@@ -307,12 +312,13 @@
       font-family: var(--ab-serif);
       font-size: 17px;
       font-weight: 700;
+      color: #fff;
       margin-bottom: 8px;
     }
     .ab-tl-desc {
       font-size: 13.5px;
       line-height: 1.9;
-      color: var(--ab-text-soft);
+      color: rgba(255,255,255,0.62);
     }
     /* 轴线上的圆点（外圈用页面底色描边，遮挡住轴线） */
     .ab-tl-dot {
