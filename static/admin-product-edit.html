@@ -254,6 +254,14 @@
     .sku-col-price { min-width: 120px; }
     .sku-col-stock { min-width: 140px; }
 
+    /* SKU 停用行：灰显 */
+    .sku-edit-table tr.sku-inactive td { background: #fafbfc; color: #999; opacity: .75; }
+    .sku-edit-table .sku-status-btn { cursor: pointer; font-size: 12px; padding: 2px 10px; border-radius: 4px; border: 1px solid transparent; }
+    .sku-edit-table .sku-status-btn.on { color: #16a34a; background: #f0fdf4; border-color: #bbf7d0; }
+    .sku-edit-table .sku-status-btn.off { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+    .sku-edit-table .sku-status-btn:hover { opacity: .8; }
+    .sku-edit-table .sku-status-new { font-size: 12px; color: #999; }
+
     .btn-add-spec {
       border: 1px dashed var(--pdd-border);
       border-radius: 16px;
@@ -539,7 +547,7 @@
     </section>
   </main>
 
-  <script src="/static/js/common.js?v=7"></script>
+  <script src="/static/js/common.js?v=8"></script>
   <script>
     (function () {
       var App = window.App;
@@ -556,6 +564,7 @@
         colors: [],
         sizes: [],
         skus: [],
+        removedSkus: [],   // 被删除规格的 SKU，保存时统一停用（is_active=false）
         dirty: false,
         savedProductId: null,
       };
@@ -572,10 +581,11 @@
         return App.api(path, Object.assign({}, options, { token: token, includeLang: false }));
       }
 
-      function uploadImage(file) {
+      function uploadImage(file, kind) {
         var form = new FormData();
         form.append('file', file);
-        return fetch('/api/upload?kind=image', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form })
+        // kind=detail 时后端返回 /d/static/uploads/...（带图文详情标记）
+        return fetch('/api/upload?kind=' + (kind || 'image'), { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form })
           .then(function (res) { return res.json().then(function (data) { if (!res.ok) throw new Error(data.detail || '图片上传失败'); return data.url; }); });
       }
 
@@ -695,26 +705,68 @@
           var key = (attrs['颜色'] || '') + '\u0001' + (attrs['尺码'] || '');
           oldMap[key] = sku;
         });
+        // 待停用列表也参与匹配：用户删掉规格后又把同名规格加回来时，
+        // 复用原 SKU（恢复启用），避免新建同编码 SKU 触发唯一约束冲突
+        var removedMap = {};
+        state.removedSkus.forEach(function (sku) {
+          var attrs = sku.attributes || {};
+          var key = (attrs['颜色'] || '') + '\u0001' + (attrs['尺码'] || '');
+          removedMap[key] = sku;
+        });
+
+        function pick(key, attrs) {
+          var found = oldMap[key] || removedMap[key];
+          if (found) {
+            // 从「待停用」转回启用
+            found.is_active = true;
+            return found;
+          }
+          return { id: null, sku_code: '', attributes: attrs, price: '', stock: 0, is_active: true };
+        }
+
         var hasColor = state.colors.length > 0;
         var hasSize = state.sizes.length > 0;
         var newSkus = [];
         if (!hasColor && !hasSize) {
-          newSkus.push(oldMap['\u0001'] || { id: null, sku_code: '', attributes: {}, price: '', stock: 0, is_active: true });
+          newSkus.push(pick('\u0001', {}));
         } else if (hasColor && !hasSize) {
           state.colors.forEach(function (color) {
-            newSkus.push(oldMap[color + '\u0001'] || { id: null, sku_code: '', attributes: { '颜色': color }, price: '', stock: 0, is_active: true });
+            newSkus.push(pick(color + '\u0001', { '颜色': color }));
           });
         } else if (!hasColor && hasSize) {
           state.sizes.forEach(function (size) {
-            newSkus.push(oldMap['\u0001' + size] || { id: null, sku_code: '', attributes: { '尺码': size }, price: '', stock: 0, is_active: true });
+            newSkus.push(pick('\u0001' + size, { '尺码': size }));
           });
         } else {
           state.colors.forEach(function (color) {
             state.sizes.forEach(function (size) {
-              newSkus.push(oldMap[color + '\u0001' + size] || { id: null, sku_code: '', attributes: { '颜色': color, '尺码': size }, price: '', stock: 0, is_active: true });
+              newSkus.push(pick(color + '\u0001' + size, { '颜色': color, '尺码': size }));
             });
           });
         }
+
+        // 被移除规格组合的旧 SKU：从明细中移出，记录为「待停用」，保存时统一 is_active=false
+        var activeKeys = {};
+        newSkus.forEach(function (s) {
+          var a = s.attributes || {};
+          activeKeys[(a['颜色'] || '') + '\u0001' + (a['尺码'] || '')] = true;
+        });
+        Object.keys(oldMap).forEach(function (key) {
+          var old = oldMap[key];
+          if (activeKeys[key] || !old || !old.id) return;
+          var already = state.removedSkus.some(function (r) { return r.id === old.id; });
+          if (!already) state.removedSkus.push({
+            id: old.id,
+            sku_code: old.sku_code,
+            attributes: old.attributes || {},
+            price: old.price !== '' && old.price !== undefined ? old.price : (Number(document.getElementById('price').value) || 0),
+            stock: old.stock || 0,
+          });
+        });
+        // 已被复用（重新启用）的从待停用列表移除
+        var reusedIds = {};
+        newSkus.forEach(function (s) { if (s.id) reusedIds[s.id] = true; });
+        state.removedSkus = state.removedSkus.filter(function (r) { return !reusedIds[r.id]; });
         state.skus = newSkus;
       }
 
@@ -728,12 +780,17 @@
           if (attrs['尺码']) specLabel.push(attrs['尺码']);
           var price = sku.price !== '' && sku.price !== undefined ? sku.price : basePrice;
           var code = sku.sku_code || buildSkuCode(specLabel);
-          return '<tr>'
+          var statusBtn = sku.id
+            ? (sku.is_active !== false
+                ? '<span class="sku-status-btn on" data-index="' + i + '" title="点击停用该规格">启用</span>'
+                : '<span class="sku-status-btn off" data-index="' + i + '" title="点击启用该规格">停用</span>')
+            : '<span class="sku-status-new">新增</span>';
+          return '<tr' + (sku.is_active === false ? ' class="sku-inactive"' : '') + '>'
             + '<td class="sku-col-spec">' + (specLabel.join(' / ') || '<span style="color:#bbb">默认规格</span>') + '</td>'
             + '<td class="sku-col-price"><input class="pdd-input" type="number" min="0.01" step="0.01" value="' + price + '" data-field="price" data-index="' + i + '"></td>'
             + '<td class="sku-col-stock"><input class="pdd-input" type="number" min="0" step="1" value="' + (sku.stock || 0) + '" data-field="stock" data-index="' + i + '"></td>'
             + '<td>' + code + '</td>'
-            + '<td>' + (sku.id ? '已有' : '新增') + '</td>'
+            + '<td>' + statusBtn + '</td>'
             + '</tr>';
         }).join('') || '<tr><td colspan="5" style="color:#bbb;text-align:center;padding:22px">加载中...</td></tr>';
         tbody.querySelectorAll('input[data-field]').forEach(function (input) {
@@ -742,6 +799,14 @@
             var field = input.dataset.field;
             state.skus[i][field] = field === 'stock' ? Math.max(0, Math.floor(Number(input.value) || 0)) : Number(input.value);
             setDirty();
+          };
+        });
+        // 状态列：点击切换单个 SKU 启用 / 停用
+        tbody.querySelectorAll('.sku-status-btn').forEach(function (btn) {
+          btn.onclick = function () {
+            var i = Number(btn.dataset.index);
+            state.skus[i].is_active = state.skus[i].is_active === false;
+            renderSkuRows(); setDirty();
           };
         });
       }
@@ -844,6 +909,7 @@
         state.mainImage = product.main_image || '';
         state.gallery = (product.images || []).filter(function (u) { return u && u.indexOf('/d/') < 0; });
         state.detailImages = (product.images || []).filter(function (u) { return u && u.indexOf('/d/') >= 0; });
+        state.removedSkus = [];   // 每次从数据库加载时重置「待停用」列表
 
         // 从 SKU 属性聚合规格
         state.colors = [];
@@ -914,6 +980,20 @@
           }
           return api('/api/admin/products/' + pid + '/skus', { method: 'POST', body: body });
         });
+        // 被移除规格的 SKU：统一停用（is_active=false），前台与购物车不再可选
+        state.removedSkus.forEach(function (rs) {
+          jobs.push(api('/api/admin/skus/' + rs.id, {
+            method: 'PUT',
+            body: {
+              sku_code: rs.sku_code,
+              attributes: rs.attributes || {},
+              price: Number(rs.price) || 0,
+              stock: Number(rs.stock) || 0,
+              is_active: false,
+            },
+          }));
+        });
+        state.removedSkus = [];   // 提交后清空
         return Promise.all(jobs);
       }
 
@@ -959,9 +1039,9 @@
               isCreate = false;
               productId = saved.id;
               document.getElementById('page-title').textContent = '编辑商品 #' + saved.id;
-              // 新建时 SKU 已一并创建，直接刷新列表
-              return api('/api/admin/products').then(function (list) {
-                product = (list || []).filter(function (item) { return item.id === saved.id; })[0] || product;
+              // 新建时 SKU 已一并创建，直接刷新列表（按 ID 精确回查，避免翻到第一页之外丢失）
+              return api('/api/admin/products?product_id=' + saved.id + '&limit=1').then(function (list) {
+                product = (list || [])[0] || product;
                 // 刷新 SKU 表格 id
                 state.skus = (product.skus || []).map(function (sku) {
                   return { id: sku.id, sku_code: sku.sku_code, attributes: sku.attributes, price: sku.price, stock: sku.stock, is_active: sku.is_active };
@@ -1026,7 +1106,7 @@
         var files = Array.prototype.slice.call(this.files || []);
         var next = function () {
           if (!files.length) { renderDetailImgs(); setDirty(); return; }
-          uploadImage(files.shift()).then(function (url) { state.detailImages.push(url); next(); }).catch(function (error) { App.toast(error.message, 'error'); next(); });
+          uploadImage(files.shift(), 'detail').then(function (url) { state.detailImages.push(url); next(); }).catch(function (error) { App.toast(error.message, 'error'); next(); });
         };
         next();
         this.value = '';
@@ -1060,7 +1140,7 @@
       if (!token) { showError('登录已失效，请先登录 ERP 后台。'); }
       else if (!isCreate && !productId) { showError('缺少商品 ID。'); }
       else {
-        var productRequest = isCreate ? Promise.resolve([]) : api('/api/admin/products');
+        var productRequest = isCreate ? Promise.resolve(null) : api('/api/admin/products/' + productId);
         Promise.all([productRequest, loadCategories()])
           .then(function (results) {
             if (isCreate) {
@@ -1079,7 +1159,8 @@
                 skus: [],
               };
             } else {
-              product = (results[0] || []).filter(function (item) { return item.id === productId; })[0];
+              // 后台单商品详情接口：不限状态（草稿/下架/待审/回收站均可在编辑页打开）
+              product = results[0] || null;
               if (!product) throw new Error('商品不存在');
             }
             fillForm();

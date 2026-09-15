@@ -179,6 +179,172 @@
     setTimeout(function () { el.remove(); }, 2500);
   }
 
+  // ---------- 页面内弹窗（替代浏览器原生 alert / confirm / prompt）----------
+  // 设计对齐前台商品详情弹窗：圆角卡片 + 悬浮关闭 + 入场动画 + 居中图标。
+  // 原生 confirm/prompt 样式不可控、在移动端体验差，且会阻塞渲染，统一改用此组件。
+  var UI_TONE_ICON = { danger: '!', warn: '!', info: 'i' };
+  var uiResolve = null;
+  var uiField = null;
+  var uiReady = false;
+
+  var UI_CSS = ''
+    + '.ask-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;'
+    + 'align-items:center;justify-content:center;z-index:3000;padding:24px;overflow-y:auto}'
+    + '.ask-mask.hidden{display:none}'
+    + '.ask-card{position:relative;background:#fff;border-radius:16px;width:440px;max-width:92vw;'
+    + 'padding:28px 28px 22px;box-shadow:0 24px 64px rgba(15,23,42,.28);text-align:center;'
+    + 'animation:askIn .25s ease both;font-family:inherit}'
+    + '@keyframes askIn{from{opacity:0;transform:translateY(16px) scale(.98)}'
+    + 'to{opacity:1;transform:translateY(0) scale(1)}}'
+    + '.ask-x{position:absolute;top:10px;right:14px;font-size:24px;line-height:1;color:#cbd5e1;'
+    + 'background:none;border:none;cursor:pointer;padding:4px}'
+    + '.ask-x:hover{color:#e02e24}'
+    + '.ask-icon{width:52px;height:52px;border-radius:50%;margin:2px auto 14px;display:flex;'
+    + 'align-items:center;justify-content:center;font-size:24px;font-weight:700}'
+    + '.ask-icon.danger{background:#fee2e2;color:#dc2626}'
+    + '.ask-icon.warn{background:#fef3c7;color:#d97706}'
+    + '.ask-icon.info{background:#dbeafe;color:#2563eb}'
+    + '.ask-title{font-size:18px;font-weight:800;margin:0 0 10px;color:#0f172a}'
+    + '.ask-msg{font-size:14px;color:#475569;line-height:1.75;word-break:break-word}'
+    + '.ask-field{margin-top:18px;text-align:left}'
+    + '.ask-field>label{display:block;font-size:13px;color:#475569;margin-bottom:6px}'
+    + '.ask-field input,.ask-field textarea{width:100%;box-sizing:border-box;padding:9px 12px;'
+    + 'border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical}'
+    + '.ask-field input:focus,.ask-field textarea:focus{outline:none;border-color:#e02e24;'
+    + 'box-shadow:0 0 0 3px rgba(224,46,36,.12)}'
+    + '.ask-hint{font-size:12px;color:#94a3b8;margin-top:6px}'
+    + '.ask-actions{display:flex;gap:10px;margin-top:22px}'
+    + '.ask-actions .btn{flex:1}';
+
+  function ensureAskDom() {
+    if (uiReady) return;
+    uiReady = true;
+    var style = document.createElement('style');
+    style.textContent = UI_CSS;
+    document.head.appendChild(style);
+
+    var wrap = document.createElement('div');
+    wrap.id = 'ask-mask';
+    wrap.className = 'ask-mask hidden';
+    wrap.innerHTML =
+      '<div class="ask-card" role="dialog" aria-modal="true">'
+      + '<button class="ask-x" id="ask-x" title="关闭">×</button>'
+      + '<div class="ask-icon" id="ask-icon">!</div>'
+      + '<h3 class="ask-title" id="ask-title"></h3>'
+      + '<div class="ask-msg" id="ask-msg"></div>'
+      + '<div class="ask-field hidden" id="ask-field">'
+      + '<label id="ask-label" for="ask-input"></label>'
+      + '<input type="text" id="ask-input"><textarea id="ask-ta" rows="3"></textarea>'
+      + '<div class="ask-hint" id="ask-hint"></div></div>'
+      + '<div class="ask-actions">'
+      + '<button class="btn btn-outline" id="ask-cancel">取消</button>'
+      + '<button class="btn btn-primary" id="ask-ok">确认</button>'
+      + '</div></div>';
+    document.body.appendChild(wrap);
+
+    var $ = function (id) { return document.getElementById(id); };
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) settleAsk(null); });
+    $('ask-x').onclick = function () { settleAsk(null); };
+    $('ask-cancel').onclick = function () { settleAsk(null); };
+    $('ask-ok').onclick = submitAsk;
+    $('ask-input').onkeydown = function (e) { if (e.key === 'Enter') submitAsk(); };
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !wrap.classList.contains('hidden')) settleAsk(null);
+    });
+  }
+
+  function settleAsk(value) {
+    var el = document.getElementById('ask-mask');
+    if (el) el.classList.add('hidden');
+    var r = uiResolve;
+    uiResolve = null;
+    uiField = null;
+    if (r) r(value);
+  }
+
+  function submitAsk() {
+    if (!uiField) { settleAsk(true); return; }
+    var el = document.getElementById(uiField.multiline ? 'ask-ta' : 'ask-input');
+    var v = (el.value || '').trim();
+    if (uiField.required && !v) {
+      toast(uiField.requiredMsg || '此项为必填', 'error');
+      el.focus();
+      return;
+    }
+    settleAsk(v);
+  }
+
+  /**
+   * 打开页面内弹窗，返回 Promise。
+   *  - 无 field → resolve true（确认）/ false（取消）
+   *  - 有 field → resolve 输入字符串 / null（取消）
+   * opts: { title, message, tone:'danger'|'warn'|'info', okText, cancelText, field }
+   * field: { label, value, placeholder, multiline, hint, required, requiredMsg }
+   */
+  function dialog(opts) {
+    ensureAskDom();
+    var o = opts || {};
+    var tone = o.tone || 'info';
+    return new Promise(function (resolve) {
+      uiResolve = resolve;
+      uiField = o.field || null;
+      var $ = function (id) { return document.getElementById(id); };
+
+      $('ask-icon').className = 'ask-icon ' + tone;
+      $('ask-icon').textContent = UI_TONE_ICON[tone] || 'i';
+      $('ask-title').textContent = o.title || '操作确认';
+      $('ask-msg').innerHTML = o.message
+        ? String(o.message).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+        : '';
+      $('ask-ok').textContent = o.okText || '确认';
+      $('ask-cancel').textContent = o.cancelText || '取消';
+
+      var box = $('ask-field');
+      box.classList.toggle('hidden', !uiField);
+      if (uiField) {
+        $('ask-label').textContent = uiField.label || '请输入';
+        var inp = $('ask-input'), ta = $('ask-ta'), hint = $('ask-hint');
+        hint.textContent = uiField.hint || '';
+        hint.classList.toggle('hidden', !uiField.hint);
+        if (uiField.multiline) {
+          ta.value = uiField.value || '';
+          ta.placeholder = uiField.placeholder || '';
+          ta.classList.remove('hidden');
+          inp.classList.add('hidden');
+        } else {
+          inp.value = uiField.value || '';
+          inp.placeholder = uiField.placeholder || '';
+          inp.classList.remove('hidden');
+          ta.classList.add('hidden');
+        }
+      }
+
+      $('ask-mask').classList.remove('hidden');
+      setTimeout(function () {
+        if (uiField) $(uiField.multiline ? 'ask-ta' : 'ask-input').focus();
+        else $('ask-ok').focus();
+      }, 30);
+    });
+  }
+
+  /** 确认弹窗：resolve true / false */
+  function confirmDialog(message, opts) {
+    var o = {};
+    for (var k in (opts || {})) o[k] = opts[k];
+    o.message = message;
+    if (!o.title) o.title = '操作确认';
+    return dialog(o).then(function (v) { return v === true; });
+  }
+
+  /** 输入弹窗：resolve 字符串 / null（取消） */
+  function promptDialog(opts) {
+    var o = {};
+    for (var k in (opts || {})) o[k] = opts[k];
+    if (!o.title) o.title = '请输入';
+    return dialog(o);
+  }
+
   // ---------- 状态徽章 ----------
   function badge(status) {
     return '<span class="badge badge-' + status + '">' + t(status) + '</span>';
@@ -462,6 +628,7 @@
     getToken: getToken, setToken: setToken, clearToken: clearToken,
     getAdminToken: getAdminToken, setAdminToken: setAdminToken, clearAdminToken: clearAdminToken,
     api: api, toast: toast, badge: badge, money: money,
+    dialog: dialog, confirmDialog: confirmDialog, promptDialog: promptDialog,
     renderNav: renderNav, loadCartBadge: loadCartBadge,
     openAuth: openAuth, closeAuth: closeAuth, logout: logout,
   };

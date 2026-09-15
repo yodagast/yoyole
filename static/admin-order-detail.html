@@ -20,6 +20,26 @@
       gap: 4px; font-size: 14px; text-decoration: none;
     }
     .erp-top .back:hover { color: #fff; }
+
+    /* 订单进度时间轴 */
+    .od-timeline { padding: 4px 4px 4px 6px; }
+    .od-tl-item { display: flex; gap: 12px; position: relative; padding-bottom: 18px; }
+    .od-tl-item:last-child { padding-bottom: 0; }
+    .od-tl-item::before {
+      content: ''; position: absolute; left: 5px; top: 14px; bottom: 0;
+      width: 1px; background: #e2e8f0;
+    }
+    .od-tl-item:last-child::before { display: none; }
+    .od-tl-dot {
+      width: 11px; height: 11px; border-radius: 50%; background: #cbd5e1;
+      flex: 0 0 auto; margin-top: 3px; position: relative; z-index: 1;
+    }
+    .od-tl-item.current .od-tl-dot { background: #16a34a; box-shadow: 0 0 0 3px #dcfce7; }
+    .od-tl-item.danger .od-tl-dot { background: #dc2626; box-shadow: 0 0 0 3px #fee2e2; }
+    .od-tl-title { font-size: 13px; color: #0f172a; font-weight: 600; }
+    .od-tl-item:not(.current) .od-tl-title { color: #64748b; font-weight: 400; }
+    .od-tl-time { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .od-empty-line { color: #94a3b8; font-size: 13px; padding: 4px 0; }
   </style>
 </head>
 <body>
@@ -47,7 +67,7 @@
     </div>
   </div>
 
-  <script src="/static/js/common.js?v=6"></script>
+  <script src="/static/js/common.js?v=8"></script>
   <script>
     (function () {
       var App = window.App;
@@ -58,6 +78,19 @@
       }
 
       function fmt(s) { if (!s) return ''; return String(s).replace('T', ' ').slice(0, 19); }
+
+      /** HTML 转义（商品名/地址等来自用户输入） */
+      function esc(v) {
+        return String(v === null || v === undefined ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      /** 订单状态文案：优先用后端的订单域标签（待发货/待收货…），
+          避免 common.js 的通用翻译把 paid 显示成「已支付」与列表页口径不一致 */
+      function statusText(o) {
+        return o.status_label || App.t(o.status);
+      }
 
       function badge(status) {
         return '<span class="badge badge-' + status + '">' + App.t(status) + '</span>';
@@ -80,11 +113,15 @@
 
       function render(o) {
         var items = (o.items || []).map(function (it, idx) {
+          var spec = Object.keys(it.sku_spec || {}).map(function (k) {
+            return k + ': ' + it.sku_spec[k];
+          }).join(' / ');
           return '<div class="od-goods-item">'
             + '<img src="' + (it.image || 'https://picsum.photos/seed/' + idx + '/200/200') + '">'
             + '<div class="od-goods-info">'
-            + '<div class="od-goods-name">' + it.product_name + '</div>'
-            + '<div class="od-goods-spec">' + it.sku_code + '</div>'
+            + '<div class="od-goods-name">' + esc(it.product_name) + '</div>'
+            + '<div class="od-goods-spec">' + esc(spec || it.sku_code) + '</div>'
+            + '<div class="od-goods-spec">' + esc(it.sku_code) + '</div>'
             + '<div class="od-goods-price">' + App.money(it.unit_price) + '</div>'
             + '</div>'
             + '<div class="od-goods-qty">×' + it.quantity + '</div>'
@@ -92,55 +129,210 @@
         }).join('');
 
         var pays = (o.payments || []).map(function (p) {
-          return '<div class="od-info-row"><span class="od-info-label">支付单号</span><span class="od-info-val">' + p.transaction_no + '</span></div>'
-            + '<div class="od-info-row"><span class="od-info-label">支付方式</span><span class="od-info-val">' + p.method + '</span></div>';
+          return '<div class="od-info-row"><span class="od-info-label">支付单号</span><span class="od-info-val">' + esc(p.transaction_no) + '</span></div>'
+            + '<div class="od-info-row"><span class="od-info-label">支付方式</span><span class="od-info-val">'
+            + esc(p.method_label || p.method) + ' · ' + esc(p.status_label || p.status) + '</span></div>';
         }).join('');
 
+        // 操作按钮：按状态给出可用动作（admin.html 登录后写入 localStorage.admin_role）
         var actions = '';
-        if (o.status === 'paid') {
-          actions = '<button class="btn btn-primary" id="od-ship">发货</button>';
+        var role = localStorage.getItem('admin_role') || '';
+        var canWrite = role === 'superadmin' || role === 'operator';
+        if (canWrite) {
+          if (o.status === 'pending') {
+            actions += '<button class="btn btn-primary" id="od-confirm-pay">确认收款</button>';
+            actions += '<button class="btn btn-danger" id="od-cancel">取消订单</button>';
+          }
+          if (o.status === 'paid') {
+            actions += '<button class="btn btn-primary" id="od-ship">发货</button>';
+            actions += '<button class="btn btn-danger" id="od-cancel">退款</button>';
+          }
+          if (o.status === 'shipped') {
+            actions += '<button class="btn btn-primary" id="od-complete">确认完成</button>';
+            actions += '<button class="btn btn-danger" id="od-cancel">退款</button>';
+          }
         }
+        var noteBtn = canWrite
+          ? '<button class="btn btn-outline" id="od-note">' + (o.admin_note ? '修改备注' : '添加备注') + '</button>'
+          : '';
 
         document.getElementById('od-body').innerHTML =
           '<div class="od-header ' + statusClass(o.status) + '">'
           + '<div class="od-status-icon">' + statusIcon(o.status) + '</div>'
-          + '<div class="od-header-text"><div class="od-status">' + App.t(o.status) + '</div>'
-          + '<div class="od-status-tip">订单号：' + o.order_no + '</div></div>'
+          + '<div class="od-header-text"><div class="od-status">' + esc(statusText(o)) + '</div>'
+          + '<div class="od-status-tip">订单号：' + esc(o.order_no) + '</div></div>'
           + '<div class="od-amount"><div class="od-amount-label">订单金额</div><div class="od-amount-value">' + App.money(o.total_amount) + '</div></div>'
           + '</div>'
+
+          // 时间轴
+          + '<div class="od-card"><div class="od-card-title">订单进度</div>'
+          + '<div class="od-timeline">' + timelineHtml(o) + '</div></div>'
+
+          // 物流
+          + '<div class="od-card"><div class="od-card-title">物流信息</div>'
+          + (o.carrier || o.tracking_no
+              ? '<div class="od-info">'
+                + '<div class="od-info-row"><span class="od-info-label">快递公司</span><span class="od-info-val">' + esc(o.carrier || '-') + '</span></div>'
+                + '<div class="od-info-row"><span class="od-info-label">快递单号</span><span class="od-info-val">'
+                + esc(o.tracking_no || '-') + ' <a href="javascript:void(0)" id="od-copy-tracking" style="color:#2563eb;font-size:12px">复制</a></span></div>'
+                + '</div>'
+              : '<div class="od-empty-line">暂无物流信息' + (o.status === 'paid' ? '，请尽快发货' : '') + '</div>')
+          + '</div>'
+
           + '<div class="od-card"><div class="od-card-title">收货信息</div>'
-          + '<div class="od-receiver"><div class="od-receiver-row"><strong>' + o.receiver_name + '</strong><span class="od-phone">' + o.receiver_phone + '</span></div>'
-          + '<div class="od-address">' + o.receiver_address + '</div>'
-          + (o.remark ? '<div class="od-remark">备注：' + o.remark + '</div>' : '')
+          + '<div class="od-receiver"><div class="od-receiver-row"><strong>' + esc(o.receiver_name || '-') + '</strong><span class="od-phone">' + esc(o.receiver_phone || '') + '</span></div>'
+          + '<div class="od-address">' + esc(o.receiver_address || '') + '</div>'
+          + (o.remark ? '<div class="od-remark">买家备注：' + esc(o.remark) + '</div>' : '')
+          + (o.admin_note ? '<div class="od-remark" style="color:#b45309">商家备注：' + esc(o.admin_note) + '</div>' : '')
+          + (o.cancel_reason ? '<div class="od-remark" style="color:#b91c1c">取消/退款原因：' + esc(o.cancel_reason) + '</div>' : '')
           + '</div></div>'
           + '<div class="od-card"><div class="od-card-title">订单商品</div><div class="od-goods-list">' + items + '</div></div>'
           + '<div class="od-card"><div class="od-card-title">金额明细</div><div class="od-summary">'
-          + '<div class="od-sum-row"><span>商品小计</span><span>' + App.money(o.subtotal) + '</span></div>'
+          + '<div class="od-sum-row"><span>商品小计</span><span>' + App.money(o.goods_amount || o.subtotal) + '</span></div>'
           + '<div class="od-sum-row"><span>运费</span><span>' + App.money(o.shipping_fee) + '</span></div>'
           + '<div class="od-sum-row"><span>优惠</span><span>-' + App.money(o.discount) + '</span></div>'
           + '<div class="od-sum-row total"><span>实付款</span><span class="od-total-amt">' + App.money(o.total_amount) + '</span></div>'
           + '</div></div>'
           + '<div class="od-card"><div class="od-card-title">订单信息</div><div class="od-info">'
-          + '<div class="od-info-row"><span class="od-info-label">订单号</span><span class="od-info-val">' + o.order_no + '</span></div>'
+          + '<div class="od-info-row"><span class="od-info-label">订单号</span><span class="od-info-val">' + esc(o.order_no) + '</span></div>'
+          + '<div class="od-info-row"><span class="od-info-label">买家</span><span class="od-info-val">' + esc(o.customer_name || o.customer_email || '-') + '</span></div>'
+          + '<div class="od-info-row"><span class="od-info-label">商品件数</span><span class="od-info-val">' + (o.total_quantity || 0) + ' 件 / ' + (o.item_count || 0) + ' 个规格</span></div>'
           + '<div class="od-info-row"><span class="od-info-label">下单时间</span><span class="od-info-val">' + fmt(o.created_at) + '</span></div>'
           + (o.paid_at ? '<div class="od-info-row"><span class="od-info-label">支付时间</span><span class="od-info-val">' + fmt(o.paid_at) + '</span></div>' : '')
           + (o.shipped_at ? '<div class="od-info-row"><span class="od-info-label">发货时间</span><span class="od-info-val">' + fmt(o.shipped_at) + '</span></div>' : '')
+          + (o.completed_at ? '<div class="od-info-row"><span class="od-info-label">完成时间</span><span class="od-info-val">' + fmt(o.completed_at) + '</span></div>' : '')
+          + (o.cancelled_at ? '<div class="od-info-row"><span class="od-info-label">关闭时间</span><span class="od-info-val">' + fmt(o.cancelled_at) + '</span></div>' : '')
           + pays
           + '</div></div>'
-          + (actions ? '<div class="od-actions">' + actions + '</div>' : '');
+          + ((actions || noteBtn) ? '<div class="od-actions">' + noteBtn + actions + '</div>' : '');
 
         document.getElementById('od-body').style.display = '';
         document.getElementById('od-loading').style.display = 'none';
 
-        var shipBtn = document.getElementById('od-ship');
-        if (shipBtn) {
-          shipBtn.onclick = function () {
-            if (!confirm('确认对该订单发货？')) return;
-            App.api('/api/admin/orders/' + o.order_no + '/ship', { method: 'POST', token: App.getAdminToken() })
-              .then(function () { App.toast('已发货', 'success'); location.reload(); })
-              .catch(function (e) { App.toast(e.message, 'error'); });
+        bindActions(o);
+      }
+
+      /** 订单进度时间轴 */
+      function timelineHtml(o) {
+        var steps = [{ t: '下单成功', v: o.created_at, on: true }];
+        var paidLike = ['paid', 'shipped', 'completed'].indexOf(o.status) > -1;
+        steps.push({ t: '买家付款', v: o.paid_at, on: paidLike || o.status === 'refunded' });
+        steps.push({ t: '商家发货', v: o.shipped_at, on: ['shipped', 'completed'].indexOf(o.status) > -1 });
+        steps.push({ t: '交易完成', v: o.completed_at, on: o.status === 'completed' });
+        if (o.status === 'cancelled' || o.status === 'refunded') {
+          steps.push({
+            t: o.status === 'refunded' ? '退款完成' : '订单关闭',
+            v: o.cancelled_at, on: true, danger: true,
+          });
+        }
+        // 只保留已发生的节点，最后一个高亮
+        var visible = steps.filter(function (s) { return s.on; });
+        return visible.map(function (s, i) {
+          var isLast = i === visible.length - 1;
+          return '<div class="od-tl-item' + (isLast ? ' current' : '')
+            + (s.danger ? ' danger' : '') + '">'
+            + '<span class="od-tl-dot"></span>'
+            + '<div class="od-tl-body"><div class="od-tl-title">' + s.t + '</div>'
+            + '<div class="od-tl-time">' + (s.v ? fmt(s.v) : '—') + '</div></div></div>';
+        }).join('');
+      }
+
+      function bindActions(o) {
+        function act(id, fn) {
+          var el = document.getElementById(id);
+          if (el) el.onclick = fn;
+        }
+        act('od-ship', function () { doShip(o); });
+        act('od-note', function () { doNote(o); });
+        act('od-cancel', function () { doCancel(o); });
+        act('od-complete', function () { doComplete(o); });
+        act('od-confirm-pay', function () { doConfirmPay(o); });
+
+        var copy = document.getElementById('od-copy-tracking');
+        if (copy) {
+          copy.onclick = function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(o.tracking_no || '').then(function () {
+                App.toast('已复制快递单号', 'success');
+              }).catch(function () { App.toast('复制失败', 'error'); });
+            } else { App.toast(o.tracking_no || '', 'success'); }
           };
         }
+      }
+
+      function post(path, body) {
+        return App.api('/api/admin' + path, {
+          method: 'POST', token: App.getAdminToken(), body: body || {},
+        });
+      }
+
+      function doShip(o) {
+        App.dialog({
+          title: '订单发货', tone: 'info', okText: '确认发货',
+          message: '订单号：' + o.order_no,
+          field: {
+            label: '快递公司 / 快递单号（用空格或逗号分隔）',
+            value: [o.carrier, o.tracking_no].filter(Boolean).join(' '),
+            placeholder: '如：顺丰速运 SF1234567890',
+          },
+        }).then(function (v) {
+          if (v === null) return;
+          var parts = String(v || '').split(/[\s,，]+/).filter(Boolean);
+          var carrier = parts.shift() || '';
+          return post('/orders-search/' + o.order_no + '/ship',
+                      { carrier: carrier, tracking_no: parts.join('') })
+            .then(function () { App.toast('已发货', 'success'); location.reload(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function doNote(o) {
+        App.promptDialog({
+          title: '商家备注', tone: 'info', okText: '保存备注',
+          message: '备注仅在后台可见。',
+          field: { label: '备注内容', value: o.admin_note || '', placeholder: '如：客户要求顺丰' },
+        }).then(function (v) {
+          if (v === null) return;
+          return post('/orders-search/' + o.order_no + '/note', { note: v })
+            .then(function () { App.toast('备注已保存', 'success'); location.reload(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function doConfirmPay(o) {
+        App.confirmDialog('确认已收到该订单款项？确认后订单将转为「待发货」。', {
+          title: '确认收款', tone: 'info', okText: '确认收款',
+        }).then(function (ok) {
+          if (!ok) return;
+          return post('/orders-search/' + o.order_no + '/confirm-payment')
+            .then(function () { App.toast('已确认收款', 'success'); location.reload(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function doComplete(o) {
+        App.confirmDialog('确认该订单已送达并完成？', {
+          title: '确认完成', tone: 'info', okText: '确认完成',
+        }).then(function (ok) {
+          if (!ok) return;
+          return post('/orders-search/' + o.order_no + '/complete')
+            .then(function () { App.toast('订单已完成', 'success'); location.reload(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function doCancel(o) {
+        var isPaidLike = o.status === 'paid' || o.status === 'shipped';
+        App.dialog({
+          title: isPaidLike ? '订单退款' : '取消订单',
+          tone: 'danger',
+          okText: isPaidLike ? '确认退款' : '确认取消',
+          message: isPaidLike
+            ? '将把订单置为「退款/售后」并把商品库存加回，不可撤销。'
+            : '将取消该订单并释放已锁定的库存，不可撤销。',
+          field: { label: '原因（可留空）', placeholder: '如：买家拍错 / 缺货' },
+        }).then(function (v) {
+          if (v === null) return;
+          return post('/orders-search/' + o.order_no + '/cancel',
+                      { reason: v || '', refund: isPaidLike })
+            .then(function () { App.toast(isPaidLike ? '已退款' : '订单已取消', 'success'); location.reload(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function load() {
@@ -157,12 +349,17 @@
           document.getElementById('od-error-msg').textContent = '缺少订单号';
           return;
         }
-        App.api('/api/admin/orders/' + orderNo, { token: App.getAdminToken() })
+        App.api('/api/admin/orders-search/' + orderNo, { token: App.getAdminToken() })
           .then(function (o) { render(o); })
           .catch(function (e) {
-            document.getElementById('od-loading').style.display = 'none';
-            document.getElementById('od-error').style.display = '';
-            document.getElementById('od-error-msg').textContent = e.message || '订单不存在';
+            // 兼容：旧接口无 orders-search 时回退
+            return App.api('/api/admin/orders/' + orderNo, { token: App.getAdminToken() })
+              .then(function (o) { render(o); })
+              .catch(function () {
+                document.getElementById('od-loading').style.display = 'none';
+                document.getElementById('od-error').style.display = '';
+                document.getElementById('od-error-msg').textContent = e.message || '订单不存在';
+              });
           });
       }
 

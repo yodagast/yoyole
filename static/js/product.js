@@ -50,7 +50,10 @@
         + '</button>';
     }).join('');
 
-    var images = (p.images && p.images.length) ? p.images : [mainImg];
+    var images = (p.images && p.images.length)
+      ? p.images.filter(function (x) { return x && x.indexOf('/d/') < 0; })  // 过滤图文详情图
+      : [];
+    images = images.length ? images : [mainImg];
     var thumbHtml = images.map(function (src, i) {
       return '<div class="thumb ' + (i === 0 ? 'active' : '') + '" onclick="window.__switchImg(this, \'' + esc(src) + '\')">'
         + '<img src="' + esc(src) + '" onerror="this.src=\'https://picsum.photos/seed/' + p.id + '/100/100\'"></div>';

@@ -59,6 +59,36 @@ _MIGRATIONS: list[tuple[str, str, str]] = [
     ("user_stories", "category", "VARCHAR(30) DEFAULT 'life'"),
     ("user_stories", "reject_reason", "VARCHAR(500) NULL"),
     ("user_stories", "tags", "JSON DEFAULT '[]'::json"),
+    # 商品审核与来源（人工管理与审核功能）
+    ("products", "review_status", "VARCHAR(20) DEFAULT 'approved'"),
+    ("products", "review_note", "VARCHAR(500) NULL"),
+    ("products", "reviewed_by", "VARCHAR(50) NULL"),
+    ("products", "reviewed_at", "TIMESTAMP NULL"),
+    ("products", "source", "VARCHAR(20) DEFAULT 'manual'"),
+    # 软删除（回收站）与状态留痕
+    ("products", "deleted_at", "TIMESTAMP NULL"),
+    ("products", "off_shelf_reason", "VARCHAR(200) NULL"),
+    ("products", "last_status_at", "TIMESTAMP NULL"),
+    # 订单管理增强：商家备注 / 物流 / 完成与取消时间
+    ("orders", "admin_note", "VARCHAR(500) NULL"),
+    ("orders", "carrier", "VARCHAR(50) NULL"),
+    ("orders", "tracking_no", "VARCHAR(60) NULL"),
+    ("orders", "cancel_reason", "VARCHAR(200) NULL"),
+    ("orders", "completed_at", "TIMESTAMP NULL"),
+    ("orders", "cancelled_at", "TIMESTAMP NULL"),
+]
+
+# 补充列后需要回填默认值的语句（幂等）
+_BACKFILLS: list[str] = [
+    # 历史商品视为已审核通过，否则加了审核门槛后前台会全部消失
+    "UPDATE products SET review_status = 'approved' WHERE review_status IS NULL",
+    "UPDATE products SET source = 'manual' WHERE source IS NULL",
+    # 历史 jyt 导入的图文详情图 URL 统一补 /d/ 前缀标记
+    # （仅匹配 detail_ 详情图，主图 main.jpg 不动；重复执行幂等——已被替换的不再匹配）
+    "UPDATE products SET images = ("
+    "  regexp_replace(images::text, '\"/static/uploads/jyt/(s[0-9]+/detail_)', '\"/d/static/uploads/jyt/\\1', 'g')"
+    ")::json"
+    " WHERE images::text LIKE '%/detail_%' AND images::text NOT LIKE '%\"/d/static/uploads/jyt/%'",
 ]
 
 
@@ -80,3 +110,10 @@ async def run_light_migrations() -> None:
                     text(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{column}" {column_def}')
                 )
                 logger.info("[migrate] 已为 %s.%s 补充列 %s", table, column, column_def)
+
+        # 回填默认值（表不存在时忽略）
+        for sql in _BACKFILLS:
+            try:
+                await conn.execute(text(sql))
+            except Exception:  # noqa: BLE001  表尚未创建时跳过
+                logger.debug("[migrate] 回填跳过：%s", sql)

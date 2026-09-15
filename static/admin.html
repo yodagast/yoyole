@@ -14,6 +14,264 @@
     .admin-table input:focus { outline: none; border-color: #e02e24; }
     .row-del-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; color: #e02e24; cursor: pointer; font-size: 13px; padding: 4px 10px; }
     .row-del-btn:hover { background: #fee2e2; }
+
+    /* ===== 商品管理（参考 PDD 卖家后台）===== */
+    .pd-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid #e2e8f0; margin-bottom: 14px; scrollbar-width: none; }
+    .pd-tabs::-webkit-scrollbar { display: none; }
+    .pd-tab { flex: 0 0 auto; padding: 10px 16px; font-size: 14px; color: #475569; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .pd-tab:hover { color: #e02e24; }
+    .pd-tab.active { color: #e02e24; font-weight: 700; border-bottom-color: #e02e24; }
+    .pd-tab .cnt { color: #94a3b8; font-weight: 400; }
+    .pd-tab.active .cnt { color: #e02e24; }
+
+    .pd-search { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px 12px; margin-bottom: 12px; }
+    .pd-search-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 18px; }
+    .pd-search-grid label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; }
+    .pd-search-grid label > input, .pd-search-grid label > select {
+      flex: 1; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; min-width: 0;
+    }
+    .pd-search-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
+
+    .pd-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .pd-more-select { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: #fff; }
+
+    .pd-pager { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #64748b; }
+    .pd-pager button { padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; }
+    .pd-pager button:disabled { color: #cbd5e1; cursor: not-allowed; }
+    .pd-pager button:not(:disabled):hover { border-color: #e02e24; color: #e02e24; }
+
+    .pd-link { color: #2563eb; cursor: pointer; font-size: 13px; text-decoration: none; }
+    .pd-link:hover { text-decoration: underline; }
+    .pd-link.danger { color: #dc2626; }
+    .pd-link.warn { color: #d97706; }
+    .pd-inline-edit { cursor: pointer; border-bottom: 1px dashed #cbd5e1; }
+    .pd-inline-edit:hover { color: #2563eb; border-bottom-color: #2563eb; }
+    .pd-thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 6px; background: #f1f5f9; }
+    .admin-table td.pd-mid { vertical-align: middle; }
+    .pd-row-actions { display: flex; flex-wrap: wrap; gap: 8px 10px; max-width: 200px; }
+
+    /* ===== 规格级改价 / 改库存弹窗（参考 PDD 卖家后台）===== */
+    .pd-sku-modal { max-width: 1040px; }
+    .pd-sku-head { display: flex; gap: 12px; align-items: flex-start; background: #f8fafc;
+      border: 1px solid #eef2f7; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .pd-sku-head img, .pd-sku-head .ph { width: 64px; height: 64px; border-radius: 8px;
+      object-fit: cover; background: #e2e8f0; flex: 0 0 auto; }
+    .pd-sku-title { font-size: 13px; font-weight: 600; color: #0f172a; line-height: 1.45; }
+    .pd-sku-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .pd-sku-alert { display: flex; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa;
+      color: #b45309; font-size: 12px; line-height: 1.7; border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 12px; }
+    .pd-batch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      padding: 10px 12px; background: #f8fafc; border: 1px solid #eef2f7;
+      border-radius: 10px; margin-bottom: 12px; font-size: 13px; color: #475569; }
+    .pd-batch-bar select, .pd-batch-bar input { padding: 6px 8px; border: 1px solid #e2e8f0;
+      border-radius: 6px; font-size: 13px; background: #fff; }
+    .pd-batch-bar input { width: 96px; }
+    .pd-batch-bar .lbl { color: #0f172a; font-weight: 600; }
+    .pd-sku-scroll { max-height: 44vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .pd-sku-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .pd-sku-table th { position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #475569;
+      font-weight: 600; text-align: left; padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap; }
+    .pd-sku-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .pd-sku-info { display: flex; gap: 10px; align-items: center; }
+    .pd-sku-info img, .pd-sku-info .ph { width: 40px; height: 40px; border-radius: 6px;
+      object-fit: cover; background: #f1f5f9; flex: 0 0 auto; }
+    .pd-sku-code { font-size: 12px; color: #64748b; }
+    .pd-sku-spec { font-size: 12px; color: #0f172a; font-weight: 600; margin-top: 2px; }
+    .pd-sku-off { display: inline-block; background: #f1f5f9; color: #94a3b8; border-radius: 4px;
+      padding: 0 4px; font-size: 11px; margin-left: 4px; }
+    .pd-sku-table input[type=number] { width: 104px; padding: 6px 8px; border: 1px solid #e2e8f0;
+      border-radius: 6px; font-size: 13px; }
+    .pd-sku-table input[type=number]:focus { outline: none; border-color: #e02e24; }
+    .pd-sku-table input[type=number].changed { border-color: #e02e24; background: #fff5f5; font-weight: 600; }
+    .pd-step { display: inline-flex; align-items: center; gap: 4px; }
+    .pd-step button { width: 28px; height: 28px; border: 1px solid #e2e8f0; background: #fff;
+      border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1; color: #475569; }
+    .pd-step button:hover { border-color: #e02e24; color: #e02e24; }
+    .pd-step button.active { background: #e02e24; border-color: #e02e24; color: #fff; font-weight: 700; }
+    .pd-newstock { font-weight: 600; color: #0f172a; }
+    .pd-newstock.up { color: #16a34a; }
+    .pd-newstock.down { color: #dc2626; }
+    .pd-sku-foot { display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .pd-muted { color: #94a3b8; font-size: 12px; }
+    .pd-record-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .pd-record-table th { background: #f8fafc; text-align: left; padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0; color: #475569; white-space: nowrap; }
+    .pd-record-table td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; }
+    .pd-delta-up { color: #16a34a; font-weight: 600; }
+    .pd-delta-down { color: #dc2626; font-weight: 600; }
+
+    /* ===== 订单查询（参考 PDD 商家后台）===== */
+    .od-page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .od-page-head h2 { margin: 0; }
+    .od-log-link { font-size: 13px; color: #2563eb; cursor: pointer; }
+    .od-log-link:hover { text-decoration: underline; }
+    .od-alert { display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+      background: #fff7ed; border: 1px solid #fed7aa; color: #b45309;
+      border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+    .od-alert-icon { font-size: 15px; }
+    .od-alert-act { margin-left: auto; color: #2563eb; cursor: pointer; white-space: nowrap; }
+    .od-alert-act:hover { text-decoration: underline; }
+
+    .od-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 12px; scrollbar-width: none; }
+    .od-tabs::-webkit-scrollbar { display: none; }
+    .od-tab { flex: 0 0 auto; padding: 10px 16px; font-size: 14px; color: #475569;
+      cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .od-tab:hover { color: #e02e24; }
+    .od-tab.active { color: #e02e24; font-weight: 700; border-bottom-color: #e02e24; }
+    .od-tab .cnt { color: #94a3b8; font-weight: 400; }
+    .od-tab.active .cnt { color: #e02e24; }
+
+    .od-search { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 14px 16px 12px; margin-bottom: 12px; }
+    .od-search-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px 18px; }
+    .od-search-grid label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; }
+    .od-search-grid label > input { flex: 1; padding: 7px 10px; border: 1px solid #e2e8f0;
+      border-radius: 6px; font-size: 13px; min-width: 0; }
+    .od-search-extra { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+    .od-quick-range { margin-top: 10px; font-size: 13px; color: #64748b; display: flex;
+      align-items: center; gap: 10px; flex-wrap: wrap; }
+    .od-quick-range a { color: #2563eb; cursor: pointer; padding: 2px 8px; border-radius: 4px; }
+    .od-quick-range a:hover { background: #eff6ff; }
+    .od-quick-range a.active { background: #e02e24; color: #fff; }
+    .od-search-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px;
+      padding-top: 12px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
+    .od-search-actions .od-total-hint { margin-left: auto; font-size: 13px; color: #94a3b8; }
+
+    .od-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 10px 14px; margin-bottom: 12px; background: #fff;
+      border: 1px solid #e2e8f0; border-radius: 10px; }
+    .od-selected { font-size: 13px; color: #475569; }
+    .od-selected b { color: #e02e24; }
+    .od-muted { font-size: 13px; color: #94a3b8; }
+
+    .od-order-card { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px;
+      background: #fff; overflow: hidden; }
+    .od-order-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    .od-order-head .no { font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums; }
+    .od-copy { font-size: 12px; color: #2563eb; cursor: pointer; }
+    .od-copy:hover { text-decoration: underline; }
+    .od-order-head .time { color: #94a3b8; }
+    .od-order-head .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .od-status-badge { font-size: 12px; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+    .od-st-pending { background: #fef3c7; color: #92400e; }
+    .od-st-paid { background: #dbeafe; color: #1d4ed8; }
+    .od-st-shipped { background: #e0e7ff; color: #4338ca; }
+    .od-st-completed { background: #dcfce7; color: #166534; }
+    .od-st-cancelled { background: #f1f5f9; color: #64748b; }
+    .od-st-refunded { background: #fee2e2; color: #b91c1c; }
+
+    .od-order-body { display: flex; gap: 16px; padding: 12px 14px; align-items: flex-start;
+      flex-wrap: wrap; }
+    .od-goods-col { flex: 1 1 340px; min-width: 280px; }
+    .od-goods-row { display: flex; gap: 10px; padding: 8px 0; align-items: flex-start;
+      border-bottom: 1px dashed #f1f5f9; }
+    .od-goods-row:last-child { border-bottom: 0; }
+    .od-goods-row img, .od-goods-row .ph { width: 54px; height: 54px; border-radius: 6px;
+      object-fit: cover; background: #f1f5f9; flex: 0 0 auto; }
+    .od-goods-name { font-size: 13px; color: #0f172a; line-height: 1.4; font-weight: 500; }
+    .od-goods-meta { font-size: 12px; color: #94a3b8; margin-top: 3px; }
+    .od-qty { margin-left: auto; font-size: 13px; color: #475569; white-space: nowrap; }
+    .od-info-col { flex: 0 0 auto; min-width: 200px; font-size: 13px; color: #475569; line-height: 1.9; }
+    .od-info-col .muted { color: #94a3b8; }
+    .od-amount-col { flex: 0 0 auto; min-width: 140px; text-align: right; font-size: 13px; }
+    .od-amount-col .main { font-size: 16px; font-weight: 700; color: #e02e24; }
+    .od-amount-col .sub { color: #94a3b8; font-size: 12px; margin-top: 4px; }
+    .od-order-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 10px 14px; border-top: 1px solid #f1f5f9; background: #fcfdff; font-size: 13px; }
+    .od-order-foot .acts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    .od-note { color: #b45309; background: #fffbeb; border-radius: 4px; padding: 2px 8px;
+      font-size: 12px; }
+    .od-logi { color: #475569; font-size: 12px; }
+
+    .od-pager { display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+      margin-top: 14px; font-size: 13px; color: #64748b; }
+    .od-pager button { padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+      background: #fff; cursor: pointer; font-size: 13px; }
+    .od-pager button:disabled { color: #cbd5e1; cursor: not-allowed; }
+    .od-pager button:not(:disabled):hover { border-color: #e02e24; color: #e02e24; }
+
+    .od-empty { text-align: center; color: #94a3b8; padding: 44px 0; font-size: 14px; }
+
+    /* ===== 后台弹窗外壳 =====
+       style.css 只定义了 .modal-mask / .modal，admin.html 的弹窗用的是 .modal-panel，
+       缺省会导致面板透明（能看到背后页面）——此处补齐不透明卡片样式。 */
+    .modal-mask { padding: 40px 20px; overflow-y: auto; z-index: 2000; }
+    .modal-panel {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 860px;
+      margin: auto;                     /* 内容超高时也可滚动，顶部不会被裁掉 */
+      box-shadow: 0 24px 64px rgba(15, 23, 42, .28);
+      animation: uiModalIn .22s ease both;
+    }
+    .modal-panel.modal-sm { max-width: 520px; }
+
+    /* ===== 操作日志弹窗 ===== */
+    @keyframes uiModalIn {
+      from { opacity: 0; transform: translateY(16px) scale(.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .pd-log-panel { max-width: 1120px; width: 94vw; display: flex; flex-direction: column;
+      /* 遮罩上下各留 40px，正好占满可视高度，避免日志区被挤成两行 */
+      height: calc(100vh - 80px); max-height: 880px; padding: 0; overflow: hidden;
+      position: relative; border-radius: 16px; animation: uiModalIn .25s ease both; }
+    .pd-log-head { display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; padding: 18px 56px 14px 24px; border-bottom: 1px solid #eef2f7; }
+    .pd-log-head h3 { margin: 0; font-size: 18px; font-weight: 800; }
+    .pd-log-sub { margin-top: 5px; font-size: 12.5px; color: #94a3b8; }
+    .pd-log-x { position: absolute; top: 12px; right: 16px; font-size: 24px; line-height: 1;
+      color: #cbd5e1; background: none; border: none; cursor: pointer; padding: 4px;
+      z-index: 3; }
+    .pd-log-x:hover { color: #e02e24; }
+    .pd-log-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      padding: 12px 24px; background: #fbfdff; border-bottom: 1px solid #eef2f7; }
+    .pd-log-filters input, .pd-log-filters select {
+      padding: 7px 11px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: #fff; }
+    .pd-log-filters input { width: 200px; }
+    .pd-log-filters input:focus, .pd-log-filters select:focus {
+      outline: none; border-color: #e02e24; box-shadow: 0 0 0 3px rgba(224, 46, 36, .1); }
+    .pd-log-body { flex: 1; overflow: auto; padding: 0 24px; }
+    .pd-log-foot { display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; padding: 12px 24px; border-top: 1px solid #eef2f7; background: #fbfdff; font-size: 13px; color: #64748b; }
+
+    .pd-log-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .pd-log-table th { position: sticky; top: 0; z-index: 2; text-align: left;
+      padding: 10px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      color: #64748b; font-weight: 600; font-size: 12px; white-space: nowrap; }
+    .pd-log-table td { padding: 11px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .pd-log-table tbody tr:hover { background: #fcfdff; }
+    .pd-log-table tbody tr:last-child td { border-bottom: none; }
+
+    .pd-log-time { white-space: nowrap; color: #334155; font-variant-numeric: tabular-nums; }
+    .pd-log-time small { display: block; color: #b6c2d2; font-size: 11px; }
+    .pd-log-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+      border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .pd-log-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .pd-log-badge.green { background: #dcfce7; color: #15803d; }
+    .pd-log-badge.blue  { background: #dbeafe; color: #1d4ed8; }
+    .pd-log-badge.orange{ background: #fef3c7; color: #b45309; }
+    .pd-log-badge.red   { background: #fee2e2; color: #b91c1c; }
+    .pd-log-badge.gray  { background: #f1f5f9; color: #475569; }
+    .pd-log-badge code { font-size: 11px; font-weight: 400; color: #94a3b8; }
+
+    .pd-log-sum { color: #1e293b; line-height: 1.6; word-break: break-word; }
+    .pd-log-sum .hl { color: #b45309; font-weight: 600; }
+    .pd-log-sum .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .pd-json-toggle { display: inline-block; margin-top: 4px; font-size: 11px; color: #94a3b8;
+      cursor: pointer; border-bottom: 1px dashed #cbd5e1; }
+    .pd-json-toggle:hover { color: #2563eb; border-bottom-color: #2563eb; }
+    .pd-json-box { margin-top: 6px; padding: 8px 10px; background: #0f172a; color: #cbd5e1;
+      border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
+    .pd-log-empty { padding: 46px 0; text-align: center; color: #94a3b8; font-size: 13px; }
+    .pd-log-empty svg { display: block; margin: 0 auto 10px; opacity: .5; }
   </style>
 </head>
 <body>
@@ -35,8 +293,11 @@
       <a href="javascript:void(0)" data-view="orders"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>订单管理</a>
       <a href="javascript:void(0)" data-view="customers"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>用户管理</a>
       <a href="javascript:void(0)" data-view="newsletter"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>订阅管理</a>
-      <a href="javascript:void(0)" data-view="cms"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>内容管理</a>
+      <a href="javascript:void(0)" data-view="brand"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>品牌管理</a>
+      <a href="javascript:void(0)" data-view="home"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M10 21v-6h4v6"/></svg>首页和用户管理</a>
       <a href="javascript:void(0)" data-view="admins" id="nav-admins" class="hidden"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>管理员权限</a>
+      <a href="javascript:void(0)" data-view="apidocs"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>接口文档</a>
+      <a href="javascript:void(0)" id="admin-change-pwd"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>修改密码</a>
       <a href="javascript:void(0)" id="admin-logout" class="nav-logout"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>退出登录</a>
     </aside>
     <main class="admin-main">
@@ -45,11 +306,101 @@
         <div id="low-stock"></div>
       </div>
       <div id="view-products" class="hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2>商品管理</h2>
-          <button class="btn btn-primary" id="add-product-btn">新增商品</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <h2 style="margin:0">商品管理</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-outline" id="audit-log-btn">商品操作记录</button>
+            <button class="btn btn-primary" id="add-product-btn" data-need-write>发布新商品</button>
+          </div>
         </div>
+
+        <!-- 状态标签页 -->
+        <div id="product-tabs" class="pd-tabs"></div>
+
+        <!-- 搜索筛选区 -->
+        <div class="pd-search">
+          <div class="pd-search-grid">
+            <label>商品ID
+              <input type="text" id="f-product-id" placeholder="多个查询请空格或逗号隔开">
+            </label>
+            <label>商品编码
+              <input type="text" id="f-sku-code" placeholder="请输入商品编码">
+            </label>
+            <label>规格编码
+              <input type="text" id="f-spec-code" placeholder="请输入完整的规格编码">
+            </label>
+            <label>商品名称
+              <input type="text" id="f-name" placeholder="请输入商品名称">
+            </label>
+          </div>
+          <div class="pd-search-grid pd-search-extra hidden" id="search-extra">
+            <label>分类
+              <select id="f-category"><option value="">全部分类</option></select>
+            </label>
+            <label>来源
+              <select id="f-source">
+                <option value="">全部来源</option>
+                <option value="import">产品册导入</option>
+                <option value="manual">人工录入</option>
+              </select>
+            </label>
+            <label>上架状态
+              <select id="f-status">
+                <option value="">全部</option>
+                <option value="active">上架</option>
+                <option value="draft">草稿</option>
+                <option value="off_shelf">下架</option>
+              </select>
+            </label>
+            <label>审核状态
+              <select id="f-review">
+                <option value="">全部</option>
+                <option value="pending">待审核</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+          </div>
+          <div class="pd-search-actions">
+            <button class="btn btn-primary" id="search-btn">查询</button>
+            <button class="btn btn-outline" id="reset-btn">重置</button>
+            <a href="javascript:void(0)" id="toggle-extra" style="font-size:13px;color:#2563eb;margin-left:8px">展开所有筛选项 ▾</a>
+            <span id="product-total-hint" style="font-size:13px;color:#94a3b8;margin-left:auto"></span>
+          </div>
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="pd-toolbar">
+          <button class="btn btn-outline btn-sm" id="bulk-publish-btn" data-need-write>批量上架</button>
+          <button class="btn btn-outline btn-sm" id="bulk-unpublish-btn" data-need-write>批量下架</button>
+          <button class="btn btn-outline btn-sm" id="bulk-approve-all-btn" data-need-write>一键通过待审核</button>
+          <select id="bulk-action" class="pd-more-select">
+            <option value="">更多批量操作 ▾</option>
+            <option value="status:active">批量上架（不体检）</option>
+            <option value="status:draft">批量转为草稿</option>
+            <option value="status:off_shelf">批量下架（不体检）</option>
+            <option value="review:approve">批量审核通过</option>
+            <option value="review:reject">批量审核驳回</option>
+            <option value="review:pending">批量重置为待审核</option>
+            <option value="featured:true">批量设为推荐</option>
+            <option value="featured:false">批量取消推荐</option>
+            <option value="category">批量修改分类</option>
+            <option value="restore">批量从回收站恢复</option>
+            <option value="delete">批量移入回收站</option>
+            <option value="purge">批量彻底删除（超管）</option>
+          </select>
+          <select id="bulk-category" class="hidden" style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px">
+            <option value="">未分类</option>
+          </select>
+          <input type="text" id="bulk-note" class="hidden" placeholder="驳回理由 / 下架原因"
+                 style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;width:190px">
+          <button class="btn btn-primary btn-sm" id="bulk-apply-btn" data-need-write>执行</button>
+          <span style="font-size:13px;color:#9a3412">已选 <b id="bulk-count">0</b> 项</span>
+          <button class="btn btn-outline btn-sm" id="bulk-clear-btn">清空选择</button>
+        </div>
+
         <div id="product-table"></div>
+        <div id="product-pager" class="pd-pager"></div>
       </div>
       <div id="view-categories" class="hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -126,8 +477,80 @@
         </div>
       </div>
       <div id="view-orders" class="hidden">
-        <h2 style="margin-bottom:16px">订单管理</h2>
+        <div class="od-page-head">
+          <h2>订单查询</h2>
+          <a class="od-log-link" onclick="Admin.orderOpenLog()">订单操作记录</a>
+        </div>
+
+        <!-- 待发货提醒 -->
+        <div class="od-alert hidden" id="od-alert">
+          <span class="od-alert-icon">⚠</span>
+          <span id="od-alert-text"></span>
+          <a class="od-alert-act" onclick="Admin.odGotoPending()">立即处理</a>
+        </div>
+
+        <!-- 状态标签页 -->
+        <div class="od-tabs" id="od-tabs"></div>
+
+        <!-- 筛选区 -->
+        <div class="od-search">
+          <div class="od-search-grid">
+            <label>订单编号
+              <input type="text" id="of-order-no" placeholder="支持多个，逗号或空格分隔">
+            </label>
+            <label>商品ID / 规格编码
+              <input type="text" id="of-product-id" placeholder="请输入商品ID或规格编码">
+            </label>
+            <label>收件人姓名
+              <input type="text" id="of-receiver" placeholder="请输入完整姓名">
+            </label>
+            <label>收件人手机号
+              <input type="text" id="of-phone" placeholder="请输入手机号">
+            </label>
+            <label>快递单号
+              <input type="text" id="of-tracking" placeholder="请输入快递单号">
+            </label>
+            <label>通用关键词
+              <input type="text" id="of-keyword" placeholder="订单号 / 收件人 / 手机号">
+            </label>
+          </div>
+          <div class="od-search-extra hidden" id="od-search-extra">
+            <div class="od-search-grid">
+              <label>下单开始
+                <input type="date" id="of-date-from">
+              </label>
+              <label>下单结束
+                <input type="date" id="of-date-to">
+              </label>
+            </div>
+            <div class="od-quick-range" id="od-quick-range">
+              <span>快捷时间：</span>
+              <a data-days="7">近 7 天</a>
+              <a data-days="30">近 30 天</a>
+              <a data-days="90">近 90 天</a>
+              <a data-days="0">全部</a>
+            </div>
+          </div>
+          <div class="od-search-actions">
+            <button class="btn btn-primary" id="od-search-btn">查询</button>
+            <button class="btn btn-outline" id="od-reset-btn">重置</button>
+            <button class="btn btn-outline" data-need-write id="od-export-btn">批量导出</button>
+            <a href="javascript:void(0)" id="od-toggle-extra">展开所有筛选项 ▾</a>
+            <span class="od-total-hint" id="od-total-hint"></span>
+          </div>
+        </div>
+
+        <!-- 批量工具栏 -->
+        <div class="od-toolbar">
+          <button class="btn btn-outline btn-sm" data-need-write id="od-batch-note-btn">批量备注</button>
+          <button class="btn btn-outline btn-sm" data-need-write id="od-batch-ship-btn">批量发货</button>
+          <span class="od-selected">已选 <b id="od-selected-count">0</b> 项</span>
+          <button class="btn btn-outline btn-sm" id="od-clear-btn">清空选择</button>
+          <span class="od-muted" id="od-order-hint"></span>
+        </div>
+
         <div id="order-table"></div>
+        <div class="od-pager" id="od-pager"></div>
       </div>
       <div id="view-customers" class="hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -159,10 +582,10 @@
         <!-- 订阅者列表 -->
         <div id="subscriber-table"></div>
       </div>
-      <div id="view-cms" class="hidden">
+      <div id="view-brand" class="hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-          <h2>内容管理</h2>
-          <span style="font-size:13px;color:#64748b">编辑品牌故事标题、正文与配图，保存后前台「关于我们」页实时生效</span>
+          <h2>品牌管理</h2>
+          <span style="font-size:13px;color:#64748b">维护品牌故事与成长经历 / 品牌价值观，保存后前台「关于我们」页实时生效</span>
         </div>
         <!-- 品牌故事编辑 -->
         <div class="card" style="padding:20px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
@@ -299,6 +722,12 @@
             <span id="cms-about-status" style="font-size:13px;color:#64748b"></span>
           </div>
         </div>
+      </div>
+      <div id="view-home" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2>首页和用户管理</h2>
+          <span style="font-size:13px;color:#64748b">审核用户投稿的故事、维护首页 Hero 轮播</span>
+        </div>
         <div class="card" style="padding:20px;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
           <h3 style="margin-bottom:8px">用户故事审核</h3>
           <p style="font-size:13px;color:#64748b;margin-bottom:14px">用户投稿默认待审核，发布后会展示在前台关于我们页；驳回时请填写理由（用户可见）。点击「查看/审核」进入独立审核页。</p>
@@ -318,16 +747,203 @@
         </div>
       </div>
       <div id="view-admins" class="hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2>管理员权限</h2>
-          <button class="btn btn-primary" id="add-admin-btn">新增管理员</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2 style="margin:0">管理员权限</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline" id="my-pwd-btn">修改我的密码</button>
+            <button class="btn btn-primary" id="add-admin-btn">新增管理员</button>
+          </div>
         </div>
         <div id="admin-table"></div>
+      </div>
+      <div id="view-apidocs" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2 style="margin:0">商品管理接口文档</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline" id="apidocs-reload-btn">刷新</button>
+            <button class="btn btn-outline" id="apidocs-open-swagger-btn">打开 Swagger</button>
+          </div>
+        </div>
+        <div id="apidocs-body"><div style="color:#94a3b8;padding:20px">加载中...</div></div>
       </div>
     </main>
   </div>
 
-  <script src="/static/js/common.js?v=6"></script>
+  <!-- 修改价格（按规格批量改价，参考 PDD 卖家后台；不含拼单价） -->
+  <div id="pd-price-modal" class="modal-mask hidden">
+    <div class="modal-panel pd-sku-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3>修改价格</h3>
+        <button class="btn btn-outline btn-sm" id="pd-price-close">✕</button>
+      </div>
+      <div id="pd-price-head" class="pd-sku-head"></div>
+      <div id="pd-price-batch" class="pd-batch-bar"></div>
+      <div class="pd-sku-scroll">
+        <table class="pd-sku-table">
+          <thead><tr>
+            <th style="min-width:280px">规格信息</th>
+            <th style="width:150px">当前价格(元)</th>
+            <th style="width:190px">改后价格(元)</th>
+          </tr></thead>
+          <tbody id="pd-price-body"></tbody>
+        </table>
+      </div>
+      <div class="pd-sku-foot">
+        <span class="pd-muted" id="pd-price-hint"></span>
+        <span class="pd-muted" id="pd-price-summary"></span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" id="pd-price-save" data-need-write>提交改价</button>
+        <button class="btn btn-outline" id="pd-price-cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改库存（按规格批量改库存，参考 PDD 卖家后台） -->
+  <div id="pd-stock-modal" class="modal-mask hidden">
+    <div class="modal-panel pd-sku-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3>修改库存</h3>
+        <button class="btn btn-outline btn-sm" id="pd-stock-close">✕</button>
+      </div>
+      <div class="pd-sku-alert">
+        <span>⚠</span>
+        <span>修改成功后，若商品列表无法正确显示库存，请检查 ERP 软件是否设置库存同步功能，
+          如有设置请关闭；请如实填写库存，确保在承诺发货时间内发出。</span>
+      </div>
+      <div id="pd-stock-head" class="pd-sku-head"></div>
+      <div id="pd-stock-batch" class="pd-batch-bar"></div>
+      <div class="pd-sku-scroll">
+        <table class="pd-sku-table">
+          <thead><tr>
+            <th style="min-width:250px">规格信息</th>
+            <th style="width:120px">价格(元)</th>
+            <th style="width:110px">当前库存</th>
+            <th style="width:230px">库存加减</th>
+            <th style="width:120px">改后库存</th>
+          </tr></thead>
+          <tbody id="pd-stock-body"></tbody>
+        </table>
+      </div>
+      <div class="pd-sku-foot">
+        <a class="pd-link" onclick="Admin.pdShowStockRecords()">查看修改记录</a>
+        <span class="pd-muted" id="pd-stock-summary"></span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" id="pd-stock-save" data-need-write>提交</button>
+        <button class="btn btn-outline" id="pd-stock-cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 库存修改记录（库存流水） -->
+  <div id="pd-record-modal" class="modal-mask hidden">
+    <div class="modal-panel" style="max-width:760px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3>库存修改记录</h3>
+        <button class="btn btn-outline btn-sm" id="pd-record-close">✕</button>
+      </div>
+      <div id="pd-record-sub" class="pd-muted" style="margin-bottom:10px"></div>
+      <div class="pd-sku-scroll" style="max-height:52vh">
+        <table class="pd-record-table">
+          <thead><tr>
+            <th style="width:150px">时间</th><th>规格</th>
+            <th style="width:90px">变动</th><th style="width:90px">变动后</th>
+            <th style="width:120px">原因</th><th style="width:90px">操作人</th>
+          </tr></thead>
+          <tbody id="pd-record-body"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-outline" id="pd-record-cancel">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 审核备注 / 驳回理由模态框 -->
+  <div id="review-modal" class="modal-mask hidden">
+    <div class="modal-panel" style="max-width:460px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 id="review-modal-title">审核商品</h3>
+        <button class="btn btn-outline btn-sm" id="review-modal-close">✕</button>
+      </div>
+      <div id="review-modal-target" style="font-size:13px;color:#64748b;margin-bottom:12px"></div>
+      <div class="form-group">
+        <label>审核意见 / 驳回理由</label>
+        <textarea id="review-note" rows="3" placeholder="驳回时必填，例如：图片不清晰，请重新上传"
+                  style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="review-approve-btn" data-need-write
+                style="background:#16a34a;border-color:#16a34a">通过</button>
+        <button class="btn btn-danger" id="review-reject-btn" data-need-write>驳回</button>
+        <button class="btn btn-outline" id="review-pending-btn" data-need-write>重置为待审核</button>
+        <button class="btn btn-outline" id="review-cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作日志模态框 -->
+  <div id="audit-modal" class="modal-mask hidden">
+    <div class="modal-panel pd-log-panel">
+      <button class="pd-log-x" id="audit-modal-close" title="关闭">×</button>
+      <div class="pd-log-head">
+        <div>
+          <h3 id="audit-modal-title">商品操作日志</h3>
+          <div class="pd-log-sub" id="audit-modal-sub">加载中…</div>
+        </div>
+      </div>
+
+      <div class="pd-log-filters">
+        <input type="text" id="audit-search" placeholder="搜索货号 / 商品名称 / 操作人">
+        <select id="audit-action-filter">
+          <option value="">全部动作</option>
+        </select>
+        <select id="audit-operator-filter">
+          <option value="">全部操作人</option>
+        </select>
+        <button class="btn btn-outline btn-sm" id="audit-reload-btn">刷新</button>
+        <label style="margin-left:auto;font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="audit-only-mine" style="width:auto"> 只看我的操作
+        </label>
+      </div>
+
+      <div class="pd-log-body" id="audit-body"></div>
+
+      <div class="pd-log-foot">
+        <span id="audit-count-hint">—</span>
+        <button class="btn btn-outline btn-sm" id="audit-more-btn" style="display:none">加载更多</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改 / 重置密码弹窗 -->
+  <div id="pwd-modal" class="modal-mask hidden">
+    <div class="modal-panel modal-sm" style="padding:26px 26px 22px">
+      <button class="modal-close" id="pwd-modal-close" title="关闭">×</button>
+      <h3 style="margin:0 0 6px;font-size:18px" id="pwd-title">修改密码</h3>
+      <p style="font-size:13px;color:#64748b;margin:0 0 18px" id="pwd-tip"></p>
+      <div class="form-group" id="pwd-old-group">
+        <label>当前密码</label>
+        <input type="password" id="pwd-old" autocomplete="current-password" placeholder="请输入当前登录密码">
+      </div>
+      <div class="form-group">
+        <label>新密码</label>
+        <input type="password" id="pwd-new" autocomplete="new-password" placeholder="至少 6 位">
+      </div>
+      <div class="form-group">
+        <label>确认新密码</label>
+        <input type="password" id="pwd-confirm" autocomplete="new-password" placeholder="再次输入新密码">
+      </div>
+      <div id="pwd-err" style="font-size:13px;color:#dc2626;min-height:20px"></div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" style="flex:1" id="pwd-save">保存</button>
+        <button class="btn btn-outline" style="flex:1" id="pwd-cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/common.js?v=8"></script>
   <script>
     (function () {
       var App = window.App;
@@ -368,6 +984,9 @@
             loadOrders();
             loadCustomers();
             loadCategoryOptions();
+            // 深链（如 admin.html?view=orders）在「先登录」场景下也要生效，
+            // 否则登录成功后停在仪表盘，用户需再点一次侧边栏
+            switchView(initialView);
           })
           .catch(function (e) { App.toast(e.message, 'error'); });
       }
@@ -407,77 +1026,1887 @@
           .catch(function (e) { App.toast(e.message, 'error'); });
       }
 
+      // ---------- 商品列表（参考 PDD 卖家后台：状态标签页 + 多字段搜索 + 行内编辑）----------
+      var selectedProducts = {};   // { id: true } 跨刷新保留勾选
+      var productCache = [];       // 当前页商品
+
+      // 状态标签页定义（顺序与后端 TABS 对应）
+      var PD_TABS = [
+        { key: 'all', label: '全部' },
+        { key: 'on_sale', label: '在售中' },
+        { key: 'off_shelf', label: '已下架' },
+        { key: 'sold_out', label: '已售罄' },
+        { key: 'pending', label: '发布中' },
+        { key: 'rejected', label: '已驳回' },
+        { key: 'draft', label: '草稿箱' },
+        { key: 'deleted', label: '已删除商品' }
+      ];
+
+      var pdState = {
+        tab: 'all',
+        page: 1,
+        pageSize: 20,
+        counts: {},
+        loaded: false,
+        total: 0
+      };
+
+      // 派生的商品状态 → 徽章样式
+      var PD_STATUS_BADGE = {
+        on_sale:   ['在售中', '#dcfce7', '#166534'],
+        off_shelf: ['已下架', '#fee2e2', '#991b1b'],
+        sold_out:  ['已售罄', '#e2e8f0', '#475569'],
+        pending:   ['发布中', '#fef3c7', '#92400e'],
+        rejected:  ['已驳回', '#fee2e2', '#b91c1c'],
+        draft:     ['草稿箱', '#fef9c3', '#854d0e'],
+        deleted:   ['已删除', '#f1f5f9', '#64748b']
+      };
+
+      function escHtml(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function pdStatusBadge(status, label) {
+        var b = PD_STATUS_BADGE[status] || ['未知', '#f1f5f9', '#475569'];
+        return '<span class="badge" style="background:' + b[1] + ';color:' + b[2] + '">'
+          + escHtml(label || b[0]) + '</span>';
+      }
+
+      // ---------- 标签页 ----------
+      function renderTabs() {
+        document.getElementById('product-tabs').innerHTML = PD_TABS.map(function (tab) {
+          var n = pdState.counts[tab.key];
+          var cnt = (n === undefined || n === null) ? '' : ' <span class="cnt">(' + n + ')</span>';
+          return '<div class="pd-tab' + (pdState.tab === tab.key ? ' active' : '') + '"'
+            + ' onclick="Admin.pdSwitchTab(\'' + tab.key + '\')">'
+            + escHtml(tab.label) + cnt + '</div>';
+        }).join('');
+      }
+
+      function pdSwitchTab(tab) {
+        if (pdState.tab === tab) return;
+        pdState.tab = tab;
+        pdState.page = 1;
+        clearSelection();
+        renderTabs();
+        loadProducts();
+      }
+
+      function loadStatusCounts() {
+        return api('/api/admin/products-status-counts')
+          .then(function (d) { pdState.counts = d || {}; renderTabs(); })
+          .catch(function () {});
+      }
+
+      // ---------- 筛选 ----------
+      function pdVal(id) {
+        var el = document.getElementById(id);
+        return el ? (el.value || '').trim() : '';
+      }
+
+      function buildProductQuery() {
+        var params = ['tab=' + encodeURIComponent(pdState.tab)];
+        var pid = pdVal('f-product-id');
+        var sku = pdVal('f-sku-code');
+        var spec = pdVal('f-spec-code');
+        var name = pdVal('f-name');
+        var cat = pdVal('f-category');
+        var src = pdVal('f-source');
+        var st = pdVal('f-status');
+        var rv = pdVal('f-review');
+        if (pid) params.push('product_id=' + encodeURIComponent(pid));
+        if (sku) params.push('q=' + encodeURIComponent(sku));
+        if (spec) params.push('sku_code=' + encodeURIComponent(spec));
+        if (name) params.push('q=' + encodeURIComponent(name));
+        if (cat) params.push('category_id=' + encodeURIComponent(cat));
+        if (src) params.push('source=' + encodeURIComponent(src));
+        if (st) params.push('status=' + encodeURIComponent(st));
+        if (rv) params.push('review_status=' + encodeURIComponent(rv));
+        params.push('page=' + pdState.page);
+        params.push('page_size=' + pdState.pageSize);
+        return '?' + params.join('&');
+      }
+
+      function pdSearch() {
+        pdState.page = 1;
+        clearSelection();
+        loadProducts();
+      }
+
+      function pdReset() {
+        ['f-product-id', 'f-sku-code', 'f-spec-code', 'f-name'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        ['f-category', 'f-source', 'f-status', 'f-review'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        pdSearch();
+      }
+
+      function pdToggleExtra() {
+        var box = document.getElementById('search-extra');
+        var link = document.getElementById('toggle-extra');
+        var open = box.classList.toggle('hidden');
+        link.textContent = open ? '展开所有筛选项 ▾' : '收起筛选项 ▴';
+      }
+
+      function pdFillCategoryOptions() {
+        var sel = document.getElementById('f-category');
+        if (!sel) return;
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">全部分类</option>' + (categoriesCache || []).map(function (c) {
+          return '<option value="' + c.id + '">' + escHtml(c.name_i18n.zh || c.code) + '</option>';
+        }).join('');
+        sel.value = cur;
+      }
+
+      // ---------- 列表 ----------
       function loadProducts() {
-        api('/api/admin/products')
-          .then(function (list) {
+        var ready = categoriesCache.length ? Promise.resolve() : loadCategoryOptions();
+        loadStatusCounts();
+        var query = buildProductQuery();
+        return ready
+          .then(function () {
+            pdFillCategoryOptions();
+            // 列表与「筛选后总数」并行请求：总数必须与筛选口径一致，
+            // 否则带筛选时会显示标签页总数（分页也会算错）
+            return Promise.all([
+              api('/api/admin/products' + query),
+              api('/api/admin/products-count' + query).catch(function () { return null; }),
+            ]);
+          })
+          .then(function (results) {
+            var list = results[0] || [];
+            var countRes = results[1];
+            productCache = list;
+            pdState.loaded = true;
+            // 带筛选时用精确计数；计数接口异常时回退到标签页数量
+            pdState.total = (countRes && typeof countRes.total === 'number')
+              ? countRes.total
+              : ((pdState.counts && pdState.counts[pdState.tab]) || 0);
             var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
-            var catMap = {};
-            (categoriesCache || []).forEach(function (c) { catMap[c.id] = c.name_i18n.zh || c.code; });
-            var rows = list.map(function (p) {
-              var imgHtml = p.main_image
-                ? '<img src="' + p.main_image + '" style="width:44px;height:44px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'">'
-                : '<span style="color:#cbd5e1">无图</span>';
-              var skus = (p.skus || []);
-              var totalStock = skus.reduce(function (sum, s) { return sum + (s.stock || 0); }, 0);
-              var lowStockCount = skus.filter(function (s) { return (s.stock || 0) <= 10; }).length;
-              var skuText = skus.length
-                ? '<span>' + skus.length + ' 个规格</span><br>'
-                  + '<span style="color:' + (totalStock === 0 ? '#dc2626' : (lowStockCount ? '#d97706' : '#16a34a')) + '">' + (totalStock === 0 ? '无库存' : '总库存 ' + totalStock) + '</span>'
-                : '<span style="color:#999">无 SKU</span>';
-              var editBtn = canWrite
-                ? '<button class="btn btn-primary btn-sm" style="background:#e02e24;border-color:#e02e24;color:#fff" onclick="Admin.editProduct(' + p.id + ')">编辑</button>' : '';
-              var delBtn = canWrite
-                ? '<button class="btn btn-outline btn-sm" onclick="Admin.delProduct(' + p.id + ')">删除</button>' : '';
-              var statusBadge = p.status === 'active'
-                ? '<span class="badge" style="background:#dcfce7;color:#166534">上架</span>'
-                : (p.status === 'draft'
-                  ? '<span class="badge" style="background:#fef9c3;color:#854d0e">草稿</span>'
-                  : '<span class="badge" style="background:#fee2e2;color:#991b1b">下架</span>');
-              var featuredTag = p.is_featured ? '<span class="badge" style="background:#fef3c7;color:#92400e">推荐</span>' : '';
-              var skuPreview = skus.slice(0, 3).map(function (s) {
-                return '<div style="display:flex;gap:6px;align-items:center;font-size:12px;color:#64748b;padding:2px 0">'
-                  + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (s.sku_code || '-') + '</span>'
-                  + '<span style="color:#0f172a;font-weight:600">' + App.money(s.price) + '</span>'
-                  + '<span>库存 ' + (s.stock || 0) + '</span>'
-                  + '</div>';
-              }).join('');
-              return '<tr>'
-                + '<td style="color:#94a3b8">' + p.id + '</td>'
-                + '<td>' + imgHtml + '</td>'
-                + '<td><div style="font-weight:600;color:#0f172a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (p.name_i18n.en || '') + '">' + (p.name_i18n.zh || p.sku_code) + '</div>'
-                + '<div style="font-size:12px;color:#94a3b8">' + (catMap[p.category_id] || '未分类') + '</div></td>'
-                + '<td style="color:#e02e24;font-weight:700;white-space:nowrap">' + App.money(p.base_price) + '</td>'
-                + '<td>' + skuText + '</td>'
-                + '<td>' + statusBadge + ' ' + featuredTag + '</td>'
-                + '<td style="min-width:150px">' + skuPreview + (skus.length > 3 ? '<div style="font-size:12px;color:#94a3b8">等 ' + skus.length + ' 个</div>' : '') + '</td>'
-                + '<td class="actions-cell">' + editBtn + ' ' + delBtn + '</td></tr>';
-            }).join('');
+            var isSuper = adminRole === 'superadmin';
+            var rows = productCache.map(function (p) { return pdRow(p, canWrite, isSuper); }).join('');
+
             document.getElementById('product-table').innerHTML =
-              '<table class="admin-table"><thead><tr><th>ID</th><th>图</th><th>名称 / 分类</th><th>基础价</th><th>库存概况</th><th>状态</th><th>SKU 预览</th><th>操作</th></tr></thead><tbody>'
-              + (rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:30px">暂无商品</td></tr>') + '</tbody></table>';
+              '<table class="admin-table"><thead><tr>'
+              + '<th style="width:34px;text-align:center"><input type="checkbox" id="product-check-all" onclick="Admin.toggleSelectAll(this.checked)"></th>'
+              + '<th>商品信息</th><th style="width:130px">价格(元)</th><th style="width:120px">总库存</th>'
+              + '<th style="width:70px">收藏</th><th style="width:70px">销量</th>'
+              + '<th style="width:110px">状态</th><th style="width:120px">创建时间</th>'
+              + '<th style="width:190px">操作</th></tr></thead><tbody>'
+              + (rows || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:36px">'
+                  + (pdState.tab === 'deleted' ? '回收站是空的' : '没有符合条件的商品') + '</td></tr>')
+              + '</tbody></table>';
+
+            document.getElementById('product-total-hint').textContent =
+              '共 ' + pdState.total + ' 条' + (pdState.total ? '，第 ' + pdState.page
+                + ' / ' + Math.max(1, Math.ceil(pdState.total / pdState.pageSize)) + ' 页' : '');
+            renderPager();
+            renderBulkBar();
             applyRoleUI();
           })
           .catch(function (e) { App.toast(e.message, 'error'); });
       }
 
-      function loadOrders() {
-        api('/api/admin/orders')
-          .then(function (list) {
-            var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
-            var rows = list.map(function (o) {
-              var shipBtn = o.status === 'paid' && canWrite
-                ? '<button class="btn btn-primary btn-sm" onclick="Admin.ship(\'' + o.order_no + '\')">发货</button>' : '';
-              return '<tr><td>' + o.order_no + '</td><td>' + o.receiver_name + '</td>'
-                + '<td>' + App.money(o.total_amount) + '</td><td>' + App.badge(o.status) + '</td>'
-                + '<td>' + o.created_at + '</td><td class="actions-cell">'
-                + '<button class="btn btn-outline btn-sm" onclick="Admin.viewOrder(\'' + o.order_no + '\')">详情</button>'
-                + shipBtn + '</td></tr>';
-            }).join('');
-            document.getElementById('order-table').innerHTML =
-              '<table class="admin-table"><thead><tr><th>订单号</th><th>收货人</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr></thead><tbody>'
-              + (rows || '<tr><td colspan="6">暂无订单</td></tr>') + '</tbody></table>';
+      function pdRow(p, canWrite, isSuper) {
+        var name = p.name_i18n.zh || p.sku_code;
+        var catMap = {};
+        (categoriesCache || []).forEach(function (c) { catMap[c.id] = c.name_i18n.zh || c.code; });
+
+        var thumb = p.main_image
+          ? '<img class="pd-thumb" src="' + escHtml(p.main_image) + '" onerror="this.style.visibility=\'hidden\'">'
+          : '<div class="pd-thumb" style="display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:11px">无图</div>';
+
+        var priceCell = canWrite
+          ? '<span class="pd-inline-edit" onclick="Admin.pdEditPrice(' + p.id + ')" title="点击修改价格">'
+              + App.money(p.base_price) + '</span>'
+              + '<div style="font-size:12px"><a class="pd-link" onclick="Admin.pdEditPrice(' + p.id + ')">修改价格</a></div>'
+          : App.money(p.base_price);
+
+        var stockColor = p.total_stock === 0 ? '#dc2626' : (p.total_stock < 50 ? '#d97706' : '#16a34a');
+        var stockCell = canWrite
+          ? '<span class="pd-inline-edit" style="color:' + stockColor + '" onclick="Admin.pdEditStock(' + p.id + ')" title="点击修改库存">'
+              + p.total_stock + '</span>'
+              + '<div style="font-size:12px"><a class="pd-link" onclick="Admin.pdEditStock(' + p.id + ')">修改库存</a></div>'
+          : '<span style="color:' + stockColor + '">' + p.total_stock + '</span>';
+
+        var meta = 'ID: ' + p.id + ' · 编码: ' + escHtml(p.sku_code)
+          + '<div style="font-size:12px;color:#94a3b8">' + escHtml(catMap[p.category_id] || '未分类')
+          + ' · ' + (p.skus || []).length + ' 个规格'
+          + (p.source === 'import' ? ' · 产品册导入' : ' · 人工录入')
+          + (p.is_featured ? ' · <span style="color:#b45309">推荐</span>' : '') + '</div>';
+
+        var note = p.review_note
+          ? '<div style="font-size:12px;color:#b91c1c;margin-top:2px">理由：' + escHtml(p.review_note) + '</div>'
+          : (p.off_shelf_reason
+            ? '<div style="font-size:12px;color:#64748b;margin-top:2px">下架原因：' + escHtml(p.off_shelf_reason) + '</div>'
+            : '');
+
+        var created = p.created_at
+          ? escHtml(String(p.created_at).replace('T', ' ').slice(0, 16)) : '-';
+
+        // 操作列：按状态给不同动作（文字链接，参考 PDD）
+        var acts = [];
+        var st = p.display_status;
+        if (st === 'deleted') {
+          acts.push('<a class="pd-link warn" onclick="Admin.pdRestore(' + p.id + ')">恢复</a>');
+          if (isSuper) acts.push('<a class="pd-link danger" onclick="Admin.pdPurge(' + p.id + ')">彻底删除</a>');
+          acts.push('<a class="pd-link" onclick="Admin.openAuditLog(' + p.id + ')">操作记录</a>');
+        } else {
+          if (canWrite) acts.push('<a class="pd-link" onclick="Admin.editProduct(' + p.id + ')">编辑</a>');
+          if (st === 'pending' || st === 'rejected') {
+            if (canWrite) acts.push('<a class="pd-link" onclick="Admin.openReview(' + p.id + ')">审核</a>');
+          } else if (st === 'on_sale' || st === 'sold_out') {
+            if (canWrite) acts.push('<a class="pd-link warn" onclick="Admin.pdUnpublish(' + p.id + ')">下架</a>');
+          } else {
+            if (canWrite) acts.push('<a class="pd-link" onclick="Admin.pdPublish(' + p.id + ')">上架</a>');
+          }
+          acts.push('<a class="pd-link" onclick="Admin.pdPreview(' + p.id + ')">预览</a>');
+          acts.push('<a class="pd-link" onclick="Admin.openAuditLog(' + p.id + ')">操作记录</a>');
+          if (canWrite) acts.push('<a class="pd-link danger" onclick="Admin.pdDelete(' + p.id + ')">删除</a>');
+        }
+
+        var checked = selectedProducts[p.id] ? ' checked' : '';
+        return '<tr>'
+          + '<td style="text-align:center"><input type="checkbox" class="product-check" data-id="' + p.id + '"'
+          + checked + ' onclick="Admin.toggleProductSelect(' + p.id + ',this.checked)"></td>'
+          + '<td class="pd-mid" style="display:flex;gap:10px;align-items:flex-start;border:0">'
+          + thumb
+          + '<div style="min-width:0;flex:1">'
+          + '<div style="font-weight:600;color:#0f172a;line-height:1.35;max-width:330px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical" title="' + escHtml(name) + '">' + escHtml(name) + '</div>'
+          + '<div style="font-size:12px;color:#94a3b8;margin-top:2px">' + meta + '</div>'
+          + '</div></td>'
+          + '<td class="pd-mid">' + priceCell + '</td>'
+          + '<td class="pd-mid">' + stockCell + '</td>'
+          + '<td class="pd-mid">' + (p.favorite_count || 0) + '</td>'
+          + '<td class="pd-mid">' + (p.sales_count || 0) + '</td>'
+          + '<td class="pd-mid">' + pdStatusBadge(st, p.display_status_label) + note + '</td>'
+          + '<td class="pd-mid" style="font-size:12px;color:#64748b">' + created + '</td>'
+          + '<td class="pd-mid"><div class="pd-row-actions">' + acts.join('') + '</div></td>'
+          + '</tr>';
+      }
+
+      function renderPager() {
+        var el = document.getElementById('product-pager');
+        var pages = Math.max(1, Math.ceil((pdState.total || 0) / pdState.pageSize));
+        if (!pdState.total) { el.innerHTML = ''; return; }
+        var opts = [10, 20, 50, 100].map(function (n) {
+          return '<option value="' + n + '"' + (n === pdState.pageSize ? ' selected' : '') + '>每页 ' + n + ' 条</option>';
+        }).join('');
+        el.innerHTML = '<select id="pd-page-size" style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px">'
+          + opts + '</select>'
+          + '<button ' + (pdState.page <= 1 ? 'disabled' : '') + ' onclick="Admin.pdGoPage(' + (pdState.page - 1) + ')">上一页</button>'
+          + '<span>' + pdState.page + ' / ' + pages + '</span>'
+          + '<button ' + (pdState.page >= pages ? 'disabled' : '') + ' onclick="Admin.pdGoPage(' + (pdState.page + 1) + ')">下一页</button>';
+        var sizeSel = document.getElementById('pd-page-size');
+        if (sizeSel) {
+          sizeSel.onchange = function () {
+            pdState.pageSize = Number(this.value);
+            pdState.page = 1;
+            loadProducts();
+          };
+        }
+      }
+
+      function pdGoPage(n) {
+        var pages = Math.max(1, Math.ceil((pdState.total || 0) / pdState.pageSize));
+        pdState.page = Math.min(Math.max(1, n), pages);
+        loadProducts();
+      }
+
+      // ---------- 规格级改价 / 改库存（参考 PDD 卖家后台，不含拼单价）----------
+      // 「修改价格」「修改库存」都按 商品 → 规格（SKU）两级操作：
+      //  · 批量栏：按颜色 / 尺码筛选后，按金额（库存）加减，一键套用到匹配规格
+      //  · 明细行：逐行直接改「改后价格」，或对库存做「加 / 减」并实时预览「改后库存」
+      var pdSkuState = {
+        product: null,
+        attrKeys: { colorKey: null, sizeKey: null },
+        priceRows: [],   // { sku, orig, value }
+        stockRows: [],   // { sku, orig, sign, delta }
+        batchSign: { price: 1, stock: 1 },
+      };
+
+      // 当前打开的弹窗类型（price / stock / record），用于 Esc 与遮罩关闭
+      var openSkuModalKind = null;
+
+      function pdFindCached(id) {
+        return productCache.filter(function (x) { return x.id === id; })[0];
+      }
+
+      /** 取商品详情：优先用列表缓存，缓存没有（如缓存已翻页）则单独请求 */
+      function pdLoadProduct(id) {
+        var cached = pdFindCached(id);
+        if (cached && cached.skus && cached.skus.length) return Promise.resolve(cached);
+        return api('/api/admin/products?product_id=' + id + '&limit=1')
+          .then(function (list) { return (list || [])[0] || null; });
+      }
+
+      /** 推断「颜色 / 尺码」两个筛选项对应的属性 key（不写死命名，兼容自定义属性） */
+      function pdAttrKeys(skus) {
+        var keys = [];
+        (skus || []).forEach(function (s) {
+          Object.keys(s.attributes || {}).forEach(function (k) {
+            if (keys.indexOf(k) < 0) keys.push(k);
+          });
+        });
+        var colorKey = null, sizeKey = null, i;
+        for (i = 0; i < keys.length; i++) {
+          if (!colorKey && /颜色|色/.test(keys[i])) { colorKey = keys[i]; break; }
+        }
+        for (i = 0; i < keys.length; i++) {
+          if (keys[i] !== colorKey && /尺码|尺寸|码/.test(keys[i])) { sizeKey = keys[i]; break; }
+        }
+        if (!colorKey) colorKey = keys[0] || null;
+        if (!sizeKey) {
+          for (i = 0; i < keys.length; i++) {
+            if (keys[i] !== colorKey) { sizeKey = keys[i]; break; }
+          }
+        }
+        return { colorKey: colorKey, sizeKey: sizeKey };
+      }
+
+      function pdSkuSpecText(sku, keys) {
+        var a = sku.attributes || {}, vals = [];
+        if (keys.colorKey && a[keys.colorKey]) vals.push(a[keys.colorKey]);
+        if (keys.sizeKey && a[keys.sizeKey]) vals.push(a[keys.sizeKey]);
+        if (!vals.length) {
+          Object.keys(a).forEach(function (k) { vals.push(a[k]); });
+        }
+        return vals.join(', ') || '默认规格';
+      }
+
+      function pdFixed2(n) {
+        var v = Number(n);
+        return isNaN(v) ? '0.00' : v.toFixed(2);
+      }
+
+      function pdSkuHeadHtml(p) {
+        var thumb = p.main_image
+          ? '<img src="' + escHtml(p.main_image) + '" onerror="this.style.visibility=\'hidden\'">'
+          : '<div class="ph"></div>';
+        return thumb
+          + '<div style="min-width:0">'
+          + '<div class="pd-sku-title">' + escHtml(p.name_i18n.zh || p.sku_code) + '</div>'
+          + '<div class="pd-sku-sub">ID: ' + p.id + ' · 货号 ' + escHtml(p.sku_code)
+          + ' · 共 ' + (p.skus || []).length + ' 个规格</div></div>';
+      }
+
+      function pdSkuInfoHtml(p, sku, keys, extra) {
+        var thumb = p.main_image
+          ? '<img src="' + escHtml(p.main_image) + '" onerror="this.style.visibility=\'hidden\'">'
+          : '<div class="ph"></div>';
+        return '<div class="pd-sku-info">' + thumb
+          + '<div style="min-width:0">'
+          + '<div class="pd-sku-code">规格ID: ' + sku.id + '</div>'
+          + '<div class="pd-sku-spec">' + escHtml(pdSkuSpecText(sku, keys)) + (extra || '') + '</div>'
+          + '<div class="pd-sku-code">' + escHtml(sku.sku_code) + '</div>'
+          + '</div></div>';
+      }
+
+      /** 批量栏：颜色 / 尺码筛选 + 加 / 减切换 + 金额 + 批量修改 */
+      function pdBatchBarHtml(p, kind) {
+        var keys = pdSkuState.attrKeys;
+        var defs = [];
+        if (keys.colorKey) defs.push(keys.colorKey);
+        if (keys.sizeKey) defs.push(keys.sizeKey);
+        var filters = defs.map(function (key) {
+          var vals = [];
+          (p.skus || []).forEach(function (s) {
+            var v = (s.attributes || {})[key];
+            if (v && vals.indexOf(v) < 0) vals.push(v);
+          });
+          return '<select class="pd-batch-filter" data-key="' + escHtml(key) + '">'
+            + '<option value="">全部' + escHtml(key) + '</option>'
+            + vals.map(function (v) {
+                return '<option value="' + escHtml(v) + '">' + escHtml(v) + '</option>';
+              }).join('')
+            + '</select>';
+        }).join('') || '<select class="pd-batch-filter" disabled><option>全部规格</option></select>';
+
+        var sign = pdSkuState.batchSign[kind] > 0 ? 1 : -1;
+        return '<span class="lbl">批量修改</span>' + filters
+          + '<span>' + (kind === 'price' ? '按金额加减' : '库存加减') + '</span>'
+          + '<div class="pd-step">'
+          + '<button type="button" class="' + (sign > 0 ? 'active' : '') + '"'
+          + ' data-sign="1" onclick="Admin.pdBatchSign(\'' + kind + '\',1)">加</button>'
+          + '<button type="button" class="' + (sign < 0 ? 'active' : '') + '"'
+          + ' data-sign="-1" onclick="Admin.pdBatchSign(\'' + kind + '\',-1)">减</button>'
+          + '</div>'
+          + '<input type="number" min="0" step="' + (kind === 'price' ? '0.01' : '1') + '"'
+          + ' id="pd-' + kind + '-batch-value" placeholder="请输入">'
+          + '<button class="btn btn-outline btn-sm"'
+          + ' onclick="Admin.pdBatchApply(\'' + kind + '\')">批量修改</button>';
+      }
+
+      function pdPriceRowsHtml(p) {
+        var keys = pdSkuState.attrKeys;
+        return pdSkuState.priceRows.map(function (r) {
+          var sku = r.sku;
+          var off = sku.is_active ? '' : '<span class="pd-sku-off">已停用</span>';
+          var changed = r.value !== '' && Number(r.value) !== Number(r.orig);
+          return '<tr data-sku-id="' + sku.id + '">'
+            + '<td>' + pdSkuInfoHtml(p, sku, keys, off) + '</td>'
+            + '<td style="font-variant-numeric:tabular-nums">' + pdFixed2(r.orig) + '</td>'
+            + '<td><input type="number" step="0.01" min="0.01" class="pd-price-input'
+            + (changed ? ' changed' : '') + '"'
+            + ' data-sku-id="' + sku.id + '" value="' + pdFixed2(r.value) + '"></td>'
+            + '</tr>';
+        }).join('');
+      }
+
+      function pdStockRowsHtml(p) {
+        var keys = pdSkuState.attrKeys;
+        return pdSkuState.stockRows.map(function (r) {
+          var sku = r.sku;
+          var off = sku.is_active ? '' : '<span class="pd-sku-off">已停用</span>';
+          var after = r.orig + (r.delta || 0);
+          return '<tr data-sku-id="' + sku.id + '">'
+            + '<td>' + pdSkuInfoHtml(p, sku, keys, off) + '</td>'
+            + '<td style="font-variant-numeric:tabular-nums">' + pdFixed2(sku.price) + '</td>'
+            + '<td class="pd-stock-orig">' + r.orig + '</td>'
+            + '<td><div class="pd-step">'
+            + '<button type="button" class="pd-stock-add' + (r.sign > 0 ? ' active' : '') + '"'
+            + ' onclick="Admin.pdStockSign(' + sku.id + ',1)">加</button>'
+            + '<button type="button" class="pd-stock-sub' + (r.sign < 0 ? ' active' : '') + '"'
+            + ' onclick="Admin.pdStockSign(' + sku.id + ',-1)">减</button>'
+            + '</div> <input type="number" min="0" step="1" class="pd-stock-input"'
+            + ' data-sku-id="' + sku.id + '" placeholder="请输入" style="width:88px"'
+            + ' value="' + (r.delta ? Math.abs(r.delta) : '') + '"></td>'
+            + '<td><span class="pd-newstock' + pdDeltaClass(after - r.orig) + '"'
+            + ' id="pd-newstock-' + sku.id + '">' + after + '</span></td>'
+            + '</tr>';
+        }).join('');
+      }
+
+      function pdDeltaClass(delta) {
+        if (!delta) return '';
+        return delta > 0 ? ' up' : ' down';
+      }
+
+      function pdBatchFilters(kind) {
+        var box = document.getElementById(kind === 'price' ? 'pd-price-batch' : 'pd-stock-batch');
+        var out = {};
+        if (!box) return out;
+        Array.prototype.forEach.call(box.querySelectorAll('.pd-batch-filter'), function (sel) {
+          var key = sel.getAttribute('data-key');
+          if (key && sel.value) out[key] = sel.value;
+        });
+        return out;
+      }
+
+      function pdSkuMatch(sku, filters) {
+        var a = sku.attributes || {};
+        for (var k in filters) {
+          if (a[k] !== filters[k]) return false;
+        }
+        return true;
+      }
+
+      function pdSyncPriceFooter() {
+        var changed = pdSkuState.priceRows.filter(function (r) {
+          return r.value !== '' && Number(r.value) !== Number(r.orig);
+        }).length;
+        document.getElementById('pd-price-hint').textContent =
+          '共 ' + pdSkuState.priceRows.length + ' 个规格 · 提交后商品基础价将跟随最低规格价';
+        document.getElementById('pd-price-summary').textContent = '已修改 ' + changed + ' 个规格';
+      }
+
+      function pdSyncStockFooter() {
+        var n = pdSkuState.stockRows.filter(function (r) { return r.delta; }).length;
+        document.getElementById('pd-stock-summary').textContent =
+          '共 ' + pdSkuState.stockRows.length + ' 个规格，已调整 ' + n + ' 个';
+      }
+
+      function pdPriceRowOf(skuId) {
+        return pdSkuState.priceRows.filter(function (x) { return x.sku.id === skuId; })[0];
+      }
+
+      function pdStockRowOf(skuId) {
+        return pdSkuState.stockRows.filter(function (x) { return x.sku.id === skuId; })[0];
+      }
+
+      // ---- 打开弹窗 ----
+      function pdOpenSkuModal(kind, id) {
+        pdLoadProduct(id).then(function (p) {
+          if (!p) { App.toast('商品不存在', 'error'); return; }
+          if (!(p.skus || []).length) { App.toast('该商品还没有规格（SKU）', 'error'); return; }
+          pdSkuState.product = p;
+          pdSkuState.attrKeys = pdAttrKeys(p.skus);
+          pdSkuState.batchSign[kind] = 1;
+
+          if (kind === 'price') {
+            pdSkuState.priceRows = p.skus.map(function (s) {
+              return { sku: s, orig: Number(s.price), value: Number(s.price) };
+            });
+            document.getElementById('pd-price-head').innerHTML = pdSkuHeadHtml(p);
+            document.getElementById('pd-price-batch').innerHTML = pdBatchBarHtml(p, 'price');
+            document.getElementById('pd-price-body').innerHTML = pdPriceRowsHtml(p);
+            pdSyncPriceFooter();
+            openSkuModalKind = 'price';
+            document.getElementById('pd-price-modal').classList.remove('hidden');
+          } else {
+            pdSkuState.stockRows = p.skus.map(function (s) {
+              return { sku: s, orig: s.stock || 0, sign: 1, delta: 0 };
+            });
+            document.getElementById('pd-stock-head').innerHTML = pdSkuHeadHtml(p);
+            document.getElementById('pd-stock-batch').innerHTML = pdBatchBarHtml(p, 'stock');
+            document.getElementById('pd-stock-body').innerHTML = pdStockRowsHtml(p);
+            pdSyncStockFooter();
+            openSkuModalKind = 'stock';
+            document.getElementById('pd-stock-modal').classList.remove('hidden');
+          }
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdEditPrice(id) { pdOpenSkuModal('price', id); }
+      function pdEditStock(id) { pdOpenSkuModal('stock', id); }
+
+      function pdCloseSku(kind) {
+        document.getElementById(kind === 'price' ? 'pd-price-modal' : 'pd-stock-modal')
+          .classList.add('hidden');
+        pdSkuState.product = null;
+        if (openSkuModalKind === kind) openSkuModalKind = null;
+      }
+
+      // ---- 批量栏交互 ----
+      function pdBatchSign(kind, sign) {
+        var box = document.getElementById(kind === 'price' ? 'pd-price-batch' : 'pd-stock-batch');
+        var input = document.getElementById('pd-' + kind + '-batch-value');
+        var keep = input ? input.value : '';
+        var keepFilters = pdBatchFilters(kind);
+        pdSkuState.batchSign[kind] = sign;
+        box.innerHTML = pdBatchBarHtml(pdSkuState.product, kind);
+        // 还原筛选与输入值，避免切换加/减时被清空
+        Array.prototype.forEach.call(box.querySelectorAll('.pd-batch-filter'), function (sel) {
+          var key = sel.getAttribute('data-key');
+          if (key && keepFilters[key]) sel.value = keepFilters[key];
+        });
+        var next = document.getElementById('pd-' + kind + '-batch-value');
+        if (next) next.value = keep;
+      }
+
+      function pdBatchApply(kind) {
+        var input = document.getElementById('pd-' + kind + '-batch-value');
+        var raw = input ? input.value : '';
+        if (raw === '' || isNaN(Number(raw)) || Number(raw) < 0) {
+          App.toast('请输入有效的' + (kind === 'price' ? '金额' : '库存数量'), 'error');
+          return;
+        }
+        var amount = Number(raw);
+        var sign = pdSkuState.batchSign[kind] > 0 ? 1 : -1;
+        var filters = pdBatchFilters(kind);
+        var hit = 0;
+
+        if (kind === 'price') {
+          pdSkuState.priceRows.forEach(function (r) {
+            if (!pdSkuMatch(r.sku, filters)) return;
+            var v = Number(r.orig) + sign * amount;
+            if (v <= 0) return;  // 价格必须大于 0，跳过
+            r.value = Math.round(v * 100) / 100;
+            hit++;
+          });
+          document.getElementById('pd-price-body').innerHTML = pdPriceRowsHtml(pdSkuState.product);
+          pdSyncPriceFooter();
+        } else {
+          pdSkuState.stockRows.forEach(function (r) {
+            if (!pdSkuMatch(r.sku, filters)) return;
+            if (r.orig + sign * amount < 0) return;  // 减成负数则跳过
+            r.sign = sign;
+            r.delta = sign * amount;
+            hit++;
+          });
+          document.getElementById('pd-stock-body').innerHTML = pdStockRowsHtml(pdSkuState.product);
+          pdSyncStockFooter();
+        }
+        App.toast(hit ? '已批量修改 ' + hit + ' 个规格' : '没有匹配的规格', hit ? 'success' : 'error');
+      }
+
+      // ---- 明细行交互 ----
+      function pdOnPriceInput(e) {
+        var el = e.target || {};
+        if (!el.className || String(el.className).indexOf('pd-price-input') < 0) return;
+        var r = pdPriceRowOf(Number(el.getAttribute('data-sku-id')));
+        if (!r) return;
+        r.value = el.value;
+        el.classList.toggle('changed', el.value !== '' && Number(el.value) !== Number(r.orig));
+        pdSyncPriceFooter();
+      }
+
+      function pdOnStockInput(e) {
+        var el = e.target || {};
+        if (!el.className || String(el.className).indexOf('pd-stock-input') < 0) return;
+        var skuId = Number(el.getAttribute('data-sku-id'));
+        var r = pdStockRowOf(skuId);
+        if (!r) return;
+        var mag = el.value === '' ? 0 : Math.abs(Number(el.value));
+        r.delta = (r.sign > 0 ? 1 : -1) * mag;
+        pdSyncStockRow(skuId);
+      }
+
+      function pdStockSign(skuId, sign) {
+        var r = pdStockRowOf(skuId);
+        if (!r) return;
+        r.sign = sign;
+        r.delta = sign * Math.abs(r.delta || 0);
+        var input = document.querySelector(
+          '#pd-stock-body .pd-stock-input[data-sku-id="' + skuId + '"]');
+        if (input && r.delta) input.value = Math.abs(r.delta);
+        pdSyncStockRow(skuId);
+      }
+
+      function pdSyncStockRow(skuId) {
+        var r = pdStockRowOf(skuId);
+        if (!r) return;
+        var row = document.querySelector('#pd-stock-body tr[data-sku-id="' + skuId + '"]');
+        if (row) {
+          var add = row.querySelector('.pd-stock-add');
+          var sub = row.querySelector('.pd-stock-sub');
+          if (add) add.classList.toggle('active', r.sign > 0);
+          if (sub) sub.classList.toggle('active', r.sign < 0);
+        }
+        var after = r.orig + (r.delta || 0);
+        var cell = document.getElementById('pd-newstock-' + skuId);
+        if (cell) {
+          cell.textContent = after;
+          cell.className = 'pd-newstock' + pdDeltaClass(after - r.orig);
+        }
+        pdSyncStockFooter();
+      }
+
+      // ---- 提交 ----
+      function pdSavingBtn(kind, on) {
+        var btn = document.getElementById(kind === 'price' ? 'pd-price-save' : 'pd-stock-save');
+        if (!btn) return;
+        if (on) {
+          btn.setAttribute('data-saving', '1');
+          btn.textContent = '提交中...';
+          btn.disabled = true;
+        } else {
+          btn.removeAttribute('data-saving');
+          btn.textContent = kind === 'price' ? '提交改价' : '提交';
+          btn.disabled = false;
+        }
+      }
+
+      function pdSavePrice() {
+        var p = pdSkuState.product;
+        if (!p) return;
+        var btn = document.getElementById('pd-price-save');
+        if (btn && btn.getAttribute('data-saving')) return;   // 防重复提交
+        var items = [], invalid = false;
+        pdSkuState.priceRows.forEach(function (r) {
+          if (r.value === '' || Number(r.value) === Number(r.orig)) return;
+          if (!(Number(r.value) > 0)) { invalid = true; return; }
+          items.push({ sku_id: r.sku.id, price: Number(r.value) });
+        });
+        if (invalid) { App.toast('改后价格必须大于 0', 'error'); return; }
+        if (!items.length) { App.toast('价格没有变化', 'error'); return; }
+        pdSavingBtn('price', true);
+        api('/api/admin/products/' + p.id + '/sku-prices', {
+          method: 'PUT',
+          body: { items: items, reason: '后台批量改价' },
+        }).then(function () {
+          pdSavingBtn('price', false);
+          App.toast('已提交 ' + items.length + ' 个规格的改价', 'success');
+          pdCloseSku('price');
+          loadProducts(); loadStatusCounts();
+        }).catch(function (e) {
+          pdSavingBtn('price', false);
+          App.toast(e.message, 'error');
+        });
+      }
+
+      function pdSaveStock() {
+        var p = pdSkuState.product;
+        if (!p) return;
+        var btn = document.getElementById('pd-stock-save');
+        if (btn && btn.getAttribute('data-saving')) return;   // 防重复提交
+        var items = [], invalid = false;
+        pdSkuState.stockRows.forEach(function (r) {
+          if (!r.delta) return;
+          if (r.orig + r.delta < 0) { invalid = true; return; }
+          items.push({ sku_id: r.sku.id, value: r.delta });
+        });
+        if (invalid) { App.toast('改后库存不能为负', 'error'); return; }
+        if (!items.length) { App.toast('库存没有变化', 'error'); return; }
+        pdSavingBtn('stock', true);
+        api('/api/admin/products/' + p.id + '/sku-stocks', {
+          method: 'PUT',
+          body: { mode: 'add', items: items, reason: '后台批量改库存' },
+        }).then(function () {
+          pdSavingBtn('stock', false);
+          App.toast('已提交 ' + items.length + ' 个规格的库存修改', 'success');
+          pdCloseSku('stock');
+          loadProducts(); loadStatusCounts();
+        }).catch(function (e) {
+          pdSavingBtn('stock', false);
+          App.toast(e.message, 'error');
+        });
+      }
+
+      // ---- 库存修改记录 ----
+      function pdCloseRecords() {
+        document.getElementById('pd-record-modal').classList.add('hidden');
+      }
+
+      function pdShowStockRecords() {
+        var p = pdSkuState.product;
+        if (!p) return;
+        document.getElementById('pd-record-sub').textContent =
+          '商品：' + (p.name_i18n.zh || p.sku_code) + '　ID: ' + p.id;
+        document.getElementById('pd-record-body').innerHTML =
+          '<tr><td colspan="6" style="color:#94a3b8;padding:20px;text-align:center">加载中...</td></tr>';
+        document.getElementById('pd-record-modal').classList.remove('hidden');
+        var keys = pdSkuState.attrKeys;
+        api('/api/admin/products/' + p.id + '/stock-movements?limit=100')
+          .then(function (rows) {
+            rows = rows || [];
+            document.getElementById('pd-record-body').innerHTML = rows.length
+              ? rows.map(function (m) {
+                  var cls = m.change_qty > 0 ? 'pd-delta-up' : 'pd-delta-down';
+                  var spec = m.attributes ? pdSkuSpecText({ attributes: m.attributes }, keys) : '';
+                  return '<tr>'
+                    + '<td>' + escHtml(String(m.created_at || '').replace('T', ' ').slice(0, 19)) + '</td>'
+                    + '<td>' + escHtml(spec)
+                    + '<div class="pd-sku-code">' + escHtml(m.sku_code || '') + '</div></td>'
+                    + '<td class="' + cls + '">' + (m.change_qty > 0 ? '+' : '') + m.change_qty + '</td>'
+                    + '<td>' + m.balance_after + '</td>'
+                    + '<td>' + escHtml(m.reason || '-') + '</td>'
+                    + '<td>' + escHtml(m.operator || '-') + '</td>'
+                    + '</tr>';
+                }).join('')
+              : '<tr><td colspan="6" style="color:#94a3b8;padding:24px;text-align:center">'
+                + '暂无库存修改记录</td></tr>';
+          })
+          .catch(function (e) {
+            document.getElementById('pd-record-body').innerHTML =
+              '<tr><td colspan="6" style="color:#dc2626;padding:16px">' + escHtml(e.message) + '</td></tr>';
+          });
+      }
+
+      // ---------- 通用确认 / 输入弹窗（复用 App.dialog，替代原生 confirm / prompt）----------
+      // 实现见 static/js/common.js：圆角卡片 + 悬浮关闭 + 入场动画，风格对齐前台商品详情弹窗
+      function ask(opts) { return App.dialog(opts); }
+
+      /** 确认弹窗：resolve true / false */
+      function askConfirm(message, opts) { return App.confirmDialog(message, opts); }
+
+      /** 输入弹窗：resolve 字符串 / null（取消） */
+      function askText(opts) { return App.promptDialog(opts); }
+
+      // ---------- 单商品状态操作 ----------
+      function pdPublish(id) {
+        api('/api/admin/products/' + id + '/publish-check')
+          .then(function (chk) {
+            if (!chk.can_publish) {
+              App.toast('无法上架：' + chk.blockers.join('；'), 'error');
+              return;
+            }
+            var msg = '确认将该商品上架？';
+            if (chk.warnings && chk.warnings.length) {
+              msg += '\n\n请注意：' + chk.warnings.join('；');
+            }
+            return askConfirm(msg, {
+              title: '上架商品', tone: 'info', okText: '确认上架',
+            }).then(function (ok) {
+              if (!ok) return;
+              return api('/api/admin/products/' + id + '/publish', { method: 'POST' })
+                .then(function () {
+                  App.toast('商品已上架', 'success');
+                  loadProducts(); loadStatusCounts();
+                });
+            });
           })
           .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdUnpublish(id) {
+        askText({
+          title: '下架商品', tone: 'warn', okText: '确认下架',
+          message: '下架后该商品将不在前台展示。',
+          field: {
+            label: '下架原因', placeholder: '可留空，将记录到操作日志',
+            maxLength: 100,
+          },
+        }).then(function (reason) {
+          if (reason === null) return;   // 取消
+          return api('/api/admin/products/' + id + '/unpublish',
+                     { method: 'POST', body: { reason: reason } })
+            .then(function () {
+              App.toast('商品已下架', 'success');
+              loadProducts(); loadStatusCounts();
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdDelete(id) {
+        askConfirm('商品将移入回收站，可在「已删除商品」标签页恢复。', {
+          title: '移入回收站', tone: 'warn', okText: '移入回收站',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/products/' + id, { method: 'DELETE' })
+            .then(function (d) {
+              App.toast(d.message || '已移入回收站', 'success');
+              delete selectedProducts[id];
+              loadProducts(); loadStatusCounts();
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdRestore(id) {
+        api('/api/admin/products/' + id + '/restore', { method: 'POST' })
+          .then(function () {
+            App.toast('商品已恢复为「已下架」，可重新上架', 'success');
+            loadProducts(); loadStatusCounts();
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdPurge(id) {
+        askConfirm('彻底删除后不可恢复，将连同全部 SKU 与库存流水一并删除。', {
+          title: '彻底删除商品', tone: 'danger', okText: '确认彻底删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/products/' + id + '/purge', { method: 'DELETE' })
+            .then(function () {
+              App.toast('已彻底删除', 'success');
+              loadProducts(); loadStatusCounts();
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pdPreview(id) {
+        window.open('/products.html?id=' + id, '_blank');
+      }
+
+      // ---------- 批量选择与批量操作 ----------
+      function toggleProductSelect(id, checked) {
+        if (checked) selectedProducts[id] = true; else delete selectedProducts[id];
+        renderBulkBar();
+      }
+
+      function toggleSelectAll(checked) {
+        productCache.forEach(function (p) {
+          if (checked) selectedProducts[p.id] = true; else delete selectedProducts[p.id];
+        });
+        document.querySelectorAll('.product-check').forEach(function (cb) { cb.checked = checked; });
+        renderBulkBar();
+      }
+
+      function clearSelection() {
+        selectedProducts = {};
+        document.querySelectorAll('.product-check').forEach(function (cb) { cb.checked = false; });
+        var all = document.getElementById('product-check-all');
+        if (all) all.checked = false;
+        renderBulkBar();
+      }
+
+      function selectedIds() {
+        return Object.keys(selectedProducts).map(Number);
+      }
+
+      function renderBulkBar() {
+        var n = selectedIds().length;
+        document.getElementById('bulk-count').textContent = n;
+        var all = document.getElementById('product-check-all');
+        if (all && productCache.length) {
+          all.checked = productCache.every(function (p) { return selectedProducts[p.id]; });
+        }
+      }
+
+      function syncBulkInputs() {
+        var v = document.getElementById('bulk-action').value;
+        document.getElementById('bulk-category').classList.toggle('hidden', v !== 'category');
+        // 驳回理由 / 下架原因共用同一个输入框
+        var needNote = (v === 'review:reject' || v === 'status:off_shelf' || v === 'unpublish');
+        document.getElementById('bulk-note').classList.toggle('hidden', !needNote);
+      }
+
+      function bulkCategoryOptions() {
+        var sel = document.getElementById('bulk-category');
+        sel.innerHTML = '<option value="">未分类</option>' + (categoriesCache || []).map(function (c) {
+          return '<option value="' + c.id + '">' + escHtml(c.name_i18n.zh || c.code) + '</option>';
+        }).join('');
+      }
+
+      // 快捷按钮：批量上架（带体检）/ 批量下架
+      function bulkPublish() {
+        var ids = selectedIds();
+        if (!ids.length) { App.toast('请先选择商品', 'error'); return; }
+        askConfirm('将对选中的 ' + ids.length + ' 款商品逐个做上架体检，'
+                   + '不满足条件的会被跳过并给出原因。', {
+          title: '批量上架', tone: 'info', okText: '确认上架',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/products/bulk',
+                     { method: 'POST', body: { ids: ids, action: 'publish' } })
+            .then(function (r) { afterBulk('上架', r); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function bulkUnpublish() {
+        var ids = selectedIds();
+        if (!ids.length) { App.toast('请先选择商品', 'error'); return; }
+        askText({
+          title: '批量下架', tone: 'warn', okText: '确认下架',
+          message: '将下架选中的 ' + ids.length + ' 款商品，下架后不在前台展示。',
+          field: { label: '下架原因', placeholder: '可留空，将记录到操作日志', maxLength: 100 },
+        }).then(function (reason) {
+          if (reason === null) return;
+          return api('/api/admin/products/bulk', {
+            method: 'POST',
+            body: { ids: ids, action: 'unpublish', note: reason }
+          }).then(function (r) { afterBulk('下架', r); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function afterBulk(label, r) {
+        var msg = label + '完成：成功 ' + r.succeeded
+          + '，跳过 ' + r.skipped + '，失败 ' + r.failed;
+        if (r.errors && r.errors.length) {
+          App.toast(msg + '（' + r.errors.slice(0, 2).join('；') + '）', 'success');
+        } else {
+          App.toast(msg, 'success');
+        }
+        clearSelection();
+        loadProducts(); loadStatusCounts(); loadDashboard();
+      }
+
+      function applyBulk() {
+        var ids = selectedIds();
+        if (!ids.length) { App.toast('请先选择商品', 'error'); return; }
+        var v = document.getElementById('bulk-action').value;
+        if (!v) { App.toast('请选择要执行的批量操作', 'error'); return; }
+        var body = { ids: ids };
+        var askOpts = null;      // 待确认内容：{ message, title, tone, okText }
+
+        if (v === 'category') {
+          var sel = document.getElementById('bulk-category');
+          var cid = sel.value;
+          var label = cid ? sel.selectedOptions[0].textContent : '未分类';
+          body.action = 'category';
+          body.category_id = cid ? Number(cid) : null;
+          askOpts = {
+            message: '将选中的 ' + ids.length + ' 款商品分类改为「' + label + '」。',
+            title: '批量修改分类', tone: 'info', okText: '确认修改',
+          };
+        } else if (v === 'delete') {
+          body.action = 'delete';
+          askOpts = {
+            message: '选中的 ' + ids.length + ' 款商品将移入回收站，可随时恢复。',
+            title: '批量移入回收站', tone: 'warn', okText: '移入回收站',
+          };
+        } else if (v === 'purge') {
+          body.action = 'purge';
+          askOpts = {
+            message: '选中的 ' + ids.length + ' 个回收站商品将被彻底删除，'
+                     + '连同 SKU 一并清除且不可恢复。',
+            title: '批量彻底删除', tone: 'danger', okText: '确认彻底删除',
+          };
+        } else if (v === 'restore') {
+          body.action = 'restore';
+          askOpts = {
+            message: '将选中的 ' + ids.length + ' 个商品从回收站恢复，恢复后为「已下架」。',
+            title: '批量恢复商品', tone: 'info', okText: '确认恢复',
+          };
+        } else {
+          var parts = v.split(':');
+          body.action = parts[0];
+          body.value = parts[0] === 'featured' ? (parts[1] === 'true') : parts[1];
+          if (body.action === 'review' && body.value === 'reject') {
+            body.note = document.getElementById('bulk-note').value.trim();
+            if (!body.note) { App.toast('批量驳回请填写理由', 'error'); return; }
+            askOpts = {
+              message: '将驳回选中的 ' + ids.length + ' 款商品。\n理由：' + body.note,
+              title: '批量驳回', tone: 'warn', okText: '确认驳回',
+            };
+          }
+          if (body.action === 'review' && body.value === 'approve') {
+            askOpts = {
+              message: '将通过选中的 ' + ids.length + ' 款商品审核，通过后立即在前台展示。',
+              title: '批量通过审核', tone: 'info', okText: '确认通过',
+            };
+          }
+          if (body.action === 'review' && body.value === 'pending') {
+            askOpts = {
+              message: '将把选中的 ' + ids.length + ' 款商品重置为「待审核」，'
+                       + '重置后不在前台展示。',
+              title: '批量重置待审核', tone: 'warn', okText: '确认重置',
+            };
+          }
+          if (body.action === 'status') {
+            var label2 = { active: '上架', draft: '草稿', off_shelf: '下架' }[body.value] || body.value;
+            // 下架原因（仅在选「批量下架（不体检）」时才显示该输入框）
+            if (body.value === 'off_shelf') {
+              body.note = document.getElementById('bulk-note').value.trim();
+            }
+            askOpts = {
+              message: '将把选中的 ' + ids.length + ' 款商品直接改为「' + label2
+                       + '」。\n此操作会跳过上架体检，可能与实际可售状态不符。'
+                       + (body.value === 'off_shelf' && body.note ? '\n下架原因：' + body.note : ''),
+              title: '批量修改上架状态', tone: 'warn', okText: '确认修改',
+            };
+          }
+          if (body.action === 'featured') {
+            askOpts = {
+              message: (body.value ? '将选中的 ' : '将取消选中 ')
+                       + ids.length + ' 款商品的「推荐」标记。',
+              title: '批量修改推荐', tone: 'info', okText: '确认修改',
+            };
+          }
+        }
+
+        return askConfirm(askOpts.message, askOpts).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/products/bulk', { method: 'POST', body: body })
+            .then(function (r) { afterBulk('批量操作', r); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function bulkApproveAll() {
+        askConfirm('将一次性通过全部「待审核」商品，通过后立即在前台展示。', {
+          title: '一键通过全部待审核', tone: 'info', okText: '确认全部通过',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/products/bulk-publish-all', { method: 'POST' })
+            .then(function (r) {
+              App.toast(r.message, 'success');
+              loadProducts(); loadStatusCounts(); loadDashboard();
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 单商品审核 ----------
+      var reviewingProductId = null;
+
+      function openReview(id) {
+        var p = productCache.filter(function (x) { return x.id === id; })[0];
+        reviewingProductId = id;
+        document.getElementById('review-modal-title').textContent = '审核商品 #' + id;
+        document.getElementById('review-modal-target').innerHTML =
+          '当前状态：' + pdStatusBadge((p && p.display_status) || 'pending',
+                                       (p && p.display_status_label) || '发布中')
+          + '　' + escHtml(p ? (p.name_i18n.zh || p.sku_code) : '');
+        document.getElementById('review-note').value = (p && p.review_note) || '';
+        document.getElementById('review-modal').classList.remove('hidden');
+      }
+
+      function closeReview() {
+        document.getElementById('review-modal').classList.add('hidden');
+        reviewingProductId = null;
+      }
+
+      function doReview(action) {
+        if (!reviewingProductId) return;
+        var note = document.getElementById('review-note').value.trim();
+        if (action === 'reject' && !note) { App.toast('驳回必须填写理由', 'error'); return; }
+        api('/api/admin/products/' + reviewingProductId + '/review',
+            { method: 'POST', body: { action: action, note: note } })
+          .then(function () {
+            App.toast('审核完成', 'success');
+            closeReview();
+            loadProducts(); loadStatusCounts();
+          })
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 操作日志 ----------
+      var auditProductId = null;
+      var AUDIT_PAGE = 30;          // 每页条数
+      var auditRows = [];           // 已加载的日志
+      var auditTotal = 0;           // 服务端总数
+      var auditLoading = false;
+
+      /* 时间戳 → 「今天 / 昨天 / MM-DD」+ 完整日期两行显示 */
+      function fmtLogTime(iso) {
+        if (!iso) return { main: '-', sub: '' };
+        var s = String(iso).replace('T', ' ');
+        var d = new Date(String(iso).slice(0, 19).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return { main: s.slice(0, 19), sub: '' };
+        var hhmmss = s.slice(11, 19);
+        var now = new Date();
+        var sameDay = function (a, b) {
+          return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+            && a.getDate() === b.getDate();
+        };
+        var yest = new Date(now.getTime() - 86400000);
+        var day;
+        if (sameDay(d, now)) day = '今天';
+        else if (sameDay(d, yest)) day = '昨天';
+        else day = s.slice(5, 10);          // MM-DD
+        return { main: day + ' ' + hhmmss, sub: s.slice(0, 10) };
+      }
+
+      /* 详情摘要：把 from/to 这类状态变化高亮，长文本用等宽字体 */
+      function renderAuditSummary(r) {
+        var text = r.summary || '-';
+        var html = escHtml(text).replace(/→/g, '<span class="hl">→</span>');
+        // 金额/库存数字轻微强调
+        html = html.replace(/¥[\d.,]+/g, '<span class="mono">$&</span>');
+        return html;
+      }
+
+      /* 原始 JSON 折叠块 */
+      function renderAuditRaw(r) {
+        var json = JSON.stringify(r.detail || {}, null, 2);
+        if (json === '{}') return '';
+        return '<span class="pd-json-toggle" onclick="this.nextElementSibling.classList.toggle(\'hidden\')">'
+          + '查看原始数据</span>'
+          + '<div class="pd-json-box hidden">' + escHtml(json) + '</div>';
+      }
+
+      function auditQuery(extra) {
+        var o = {
+          q: pdVal('audit-search'),
+          action: pdVal('audit-action-filter'),
+          operator: pdVal('audit-operator-filter'),
+        };
+        if (extra) { for (var k in extra) o[k] = extra[k]; }
+        var parts = [];
+        for (var key in o) {
+          if (o[key] !== '' && o[key] !== null && o[key] !== undefined) {
+            parts.push(key + '=' + encodeURIComponent(o[key]));
+          }
+        }
+        return parts;
+      }
+
+      function openAuditLog(id) {
+        auditProductId = id || null;
+        auditRows = [];
+        auditTotal = 0;
+        document.getElementById('audit-search').value = '';
+        document.getElementById('audit-action-filter').value = '';
+        document.getElementById('audit-operator-filter').value = '';
+        document.getElementById('audit-only-mine').checked = false;
+
+        var title = '商品操作日志';
+        var sub = '全部商品';
+        if (id) {
+          var p = pdFindCached(id);
+          sub = (p ? (p.sku_code || '-') + ' · ' + (p.name_i18n.zh || p.sku_code) : '')
+            + ' · #' + id;
+        }
+        document.getElementById('audit-modal-title').textContent = title;
+        document.getElementById('audit-modal-sub').textContent = sub;
+        document.getElementById('audit-modal').classList.remove('hidden');
+
+        auditReload();
+      }
+
+      /* 拉取筛选元信息：总数 + 各动作数量 + 操作人列表
+         需发两次请求：带 action 的那次给出「当前筛选总数」，
+         不带 action 的那次给出「各动作数量」（否则下拉里只剩当前选中项）。 */
+      function loadAuditMeta() {
+        var params = auditQuery();
+        if (auditProductId) params.push('product_id=' + auditProductId);
+        var base = '/api/admin/product-audit-logs/meta';
+        var url = base + (params.length ? '?' + params.join('&') : '');
+
+        var noAction = params.filter(function (p) { return p.indexOf('action=') !== 0; });
+        var countUrl = base + (noAction.length ? '?' + noAction.join('&') : '');
+
+        return Promise.all([api(url), api(countUrl)])
+          .then(function (res) {
+            var meta = res[0];
+            var counts = res[1];
+            auditTotal = meta.total || 0;
+
+            var sel = document.getElementById('audit-action-filter');
+            var cur = sel.value;
+            sel.innerHTML = '<option value="">全部动作（' + (counts.total || 0) + '）</option>'
+              + (counts.actions || []).map(function (a) {
+                return '<option value="' + escHtml(a.action) + '">'
+                  + escHtml(a.label) + '（' + a.count + '）</option>';
+              }).join('');
+            sel.value = cur;
+
+            var ops = document.getElementById('audit-operator-filter');
+            var curOp = ops.value;
+            ops.innerHTML = '<option value="">全部操作人</option>'
+              + (meta.operators || []).map(function (o) {
+                return '<option value="' + escHtml(o) + '">' + escHtml(o) + '</option>';
+              }).join('');
+            // 原选中项若已不在列表中则回退为空
+            if (curOp && (meta.operators || []).indexOf(curOp) >= 0) {
+              ops.value = curOp;
+            } else if (curOp) {
+              ops.value = '';
+            }
+          })
+          .catch(function () { /* 元信息失败不阻塞列表 */ });
+      }
+
+      function loadAuditLogs(reset) {
+        if (auditLoading) return Promise.resolve();
+        auditLoading = true;
+        if (reset) {
+          auditRows = [];
+          document.getElementById('audit-body').innerHTML =
+            '<div class="pd-log-empty">加载中…</div>';
+        }
+        var params = auditQuery({
+          limit: AUDIT_PAGE,
+          offset: reset ? 0 : auditRows.length,
+        });
+        var url;
+        if (auditProductId) {
+          // 单商品接口：商品 ID 已在路径里
+          url = '/api/admin/products/' + auditProductId + '/audit-logs'
+            + (params.length ? '?' + params.join('&') : '');
+        } else {
+          url = '/api/admin/product-audit-logs'
+            + (params.length ? '?' + params.join('&') : '');
+        }
+        return api(url)
+          .then(function (list) {
+            auditRows = reset ? (list || []) : auditRows.concat(list || []);
+            renderAuditRows();
+          })
+          .catch(function (e) {
+            document.getElementById('audit-body').innerHTML =
+              '<div class="pd-log-empty">加载失败：' + escHtml(e.message) + '</div>';
+          })
+          .then(function () { auditLoading = false; });
+      }
+
+      function renderAuditRows() {
+        var body = document.getElementById('audit-body');
+        if (!auditRows.length) {
+          body.innerHTML = '<div class="pd-log-empty">'
+            + '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">'
+            + '<path d="M9 12h6M9 16h4M8 4h8a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2z"/></svg>'
+            + '暂无操作记录</div>';
+          document.getElementById('audit-count-hint').textContent = '共 0 条';
+          document.getElementById('audit-more-btn').style.display = 'none';
+          return;
+        }
+
+        var showProduct = !auditProductId;   // 单商品视图下无需重复商品列
+        var rows = auditRows.map(function (r) {
+          var tm = fmtLogTime(r.created_at);
+          var prod = showProduct
+            ? '<td style="min-width:150px">'
+              + '<div style="color:#0f172a;font-weight:500">' + escHtml(r.product_name || '-') + '</div>'
+              + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px">'
+              + escHtml(r.product_sku || '-')
+              + (r.product_id ? ' · #' + r.product_id : '') + '</div></td>'
+            : '';
+          return '<tr>'
+            + '<td class="pd-log-time">' + escHtml(tm.main)
+            + (tm.sub ? '<small>' + escHtml(tm.sub) + '</small>' : '') + '</td>'
+            + '<td><span class="pd-log-badge ' + escHtml(r.tone || 'gray') + '">'
+            + escHtml(r.action_label || r.action) + '</span>'
+            + '<div style="margin-top:3px"><code style="font-size:10.5px;color:#cbd5e1">'
+            + escHtml(r.action) + '</code></div></td>'
+            + prod
+            + '<td style="color:#475569;white-space:nowrap">' + escHtml(r.operator || '-') + '</td>'
+            + '<td style="min-width:220px"><div class="pd-log-sum">' + renderAuditSummary(r)
+            + '</div>' + renderAuditRaw(r) + '</td>'
+            + '</tr>';
+        }).join('');
+
+        body.innerHTML =
+          '<table class="pd-log-table"><thead><tr>'
+          + '<th style="width:120px">时间</th>'
+          + '<th style="width:118px">动作</th>'
+          + (showProduct ? '<th style="width:180px">商品</th>' : '')
+          + '<th style="width:90px">操作人</th>'
+          + '<th>操作详情</th></tr></thead><tbody>' + rows + '</tbody></table>';
+
+        var hint = document.getElementById('audit-count-hint');
+        hint.textContent = '已显示 ' + auditRows.length + ' 条'
+          + (auditTotal ? ' / 共 ' + auditTotal + ' 条' : '');
+        document.getElementById('audit-more-btn').style.display =
+          auditRows.length < auditTotal ? '' : 'none';
+      }
+
+      /* 筛选条件或手动刷新：同步数量角标后重新加载列表 */
+      function auditReload() {
+        return loadAuditMeta().then(function () { return loadAuditLogs(true); });
+      }
+
+      function auditLoadMore() {
+        return loadAuditLogs(false);
+      }
+
+      // ---------- 接口文档 ----------
+      function loadApiDocs() {
+        var body = document.getElementById('apidocs-body');
+        body.innerHTML = '<div style="color:#94a3b8;padding:20px">加载中...</div>';
+        api('/api/admin/api-docs/products')
+          .then(function (d) { renderApiDocs(d); })
+          .catch(function (e) {
+            body.innerHTML = '<div style="color:#dc2626;padding:16px">加载失败：' + escHtml(e.message) + '</div>';
+          });
+      }
+
+      function renderApiDocs(d) {
+        var origin = location.origin;
+        function methodChip(m) {
+          var color, bg;
+          if (m === 'GET') { color = '#166534'; bg = '#dcfce7'; }
+          else if (m === 'POST') { color = '#1e40af'; bg = '#dbeafe'; }
+          else if (m === 'PUT') { color = '#92400e'; bg = '#fef3c7'; }
+          else { color = '#991b1b'; bg = '#fee2e2'; }
+          return '<span class="badge" style="background:' + bg + ';color:' + color
+            + ';font-weight:700;min-width:52px;text-align:center">' + m + '</span>';
+        }
+        function kvBlock(title, obj) {
+          var keys = Object.keys(obj || {});
+          if (!keys.length) return '';
+          return '<div style="margin-top:8px"><div style="font-size:12px;color:#94a3b8;margin-bottom:4px">' + title + '</div>'
+            + '<table class="admin-table" style="font-size:12px">'
+            + keys.map(function (k) {
+              return '<tr><td style="width:170px;font-family:ui-monospace,monospace;color:#0f172a">' + escHtml(k) + '</td>'
+                + '<td style="color:#475569">' + escHtml(obj[k]) + '</td></tr>';
+            }).join('')
+            + '</table></div>';
+        }
+
+        var html = '<div class="card" style="padding:16px;margin-bottom:16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">'
+          + '<h3 style="margin-bottom:10px">' + escHtml(d.title)
+          + ' <span style="font-size:12px;color:#94a3b8">v' + escHtml(d.version) + '</span></h3>'
+          + '<div style="font-size:13px;color:#475569;line-height:1.9">'
+          + '<div><b>服务地址</b>：<code>' + escHtml(origin) + '</code></div>'
+          + '<div><b>认证方式</b>：' + escHtml(d.auth.type) + '，请求头 <code>' + escHtml(d.auth.header) + '</code></div>'
+          + '<div><b>获取 Token</b>：' + escHtml(d.auth.how_to_get) + '</div>'
+          + '<div><b>权限</b>：读操作 ' + escHtml(d.auth.roles['读操作'])
+          + '；写操作 ' + escHtml(d.auth.roles['写操作']) + '</div>'
+          + '<div style="margin-top:8px"><b>审核机制</b>：字段 <code>'
+          + escHtml(d.review_workflow.field) + '</code>；' + escHtml(d.review_workflow.visibility_rule) + '</div>'
+          + '<div style="margin-top:6px">'
+          + Object.keys(d.review_workflow.values).map(function (k) {
+            return '<div>· <code>' + escHtml(k) + '</code> — ' + escHtml(d.review_workflow.values[k]) + '</div>';
+          }).join('')
+          + '</div>';
+
+        if (d.product_status) {
+          var ps = d.product_status;
+          html += '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #e2e8f0">'
+            + '<b>商品状态派生</b>：' + escHtml(ps.description) + '</div>'
+            + '<div style="margin-top:6px">'
+            + Object.keys(ps.values).map(function (k) {
+              return '<div>· <code>' + escHtml(k) + '</code> — ' + escHtml(ps.values[k]) + '</div>';
+            }).join('')
+            + '</div>'
+            + '<div style="margin-top:8px"><b>上架阻止项</b>：'
+            + escHtml((ps.publish_blockers || []).join(' / ')) + '</div>';
+        }
+        html += '</div></div>';
+
+        (d.groups || []).forEach(function (g) {
+          html += '<div class="card" style="padding:16px;margin-bottom:16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">'
+            + '<h3 style="margin-bottom:12px">' + escHtml(g.group) + '</h3>';
+          (g.items || []).forEach(function (it) {
+            html += '<div style="border-top:1px solid #f1f5f9;padding:12px 0">'
+              + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+              + methodChip(it.method)
+              + '<code style="font-size:13px;color:#0f172a">' + escHtml(it.path) + '</code>'
+              + '<span style="font-size:12px;color:#94a3b8">权限：' + escHtml(it.auth) + '</span>'
+              + '</div>'
+              + '<div style="font-size:13px;color:#475569;margin-top:6px">' + escHtml(it.summary) + '</div>'
+              + kvBlock('Query 参数', it.query)
+              + kvBlock('Form 参数', it.form)
+              + (it.body ? '<div style="margin-top:8px"><div style="font-size:12px;color:#94a3b8;margin-bottom:4px">请求体示例</div>'
+                  + '<pre style="margin:0;padding:10px;background:#0f172a;color:#e2e8f0;border-radius:8px;font-size:12px;overflow:auto">'
+                  + escHtml(JSON.stringify(it.body, null, 2)) + '</pre></div>' : '')
+              + (it.curl ? '<div style="margin-top:8px"><div style="font-size:12px;color:#94a3b8;margin-bottom:4px">curl 示例</div>'
+                  + '<pre style="margin:0;padding:10px;background:#0f172a;color:#a5f3fc;border-radius:8px;font-size:12px;overflow:auto;white-space:pre-wrap">'
+                  + escHtml(String(it.curl).replace(/\$BASE/g, origin)) + '</pre></div>' : '')
+              + '</div>';
+          });
+          html += '</div>';
+        });
+        document.getElementById('apidocs-body').innerHTML = html;
+      }
+
+      // ============ 订单查询（参考 PDD 商家后台）============
+      var ORDER_TABS = [
+        { key: 'all', label: '全部订单' },
+        { key: 'pending', label: '待付款' },
+        { key: 'paid', label: '待发货' },
+        { key: 'shipped', label: '待收货' },
+        { key: 'completed', label: '已完成' },
+        { key: 'refunded', label: '退款/售后' },
+        { key: 'cancelled', label: '已取消' },
+      ];
+      var ORDER_STATUS_TEXT = {
+        pending: '待付款', paid: '待发货', shipped: '待收货',
+        completed: '已完成', cancelled: '已取消', refunded: '退款/售后',
+        success: '支付成功', unpaid: '未支付', processing: '处理中',
+        failed: '支付失败', manual: '人工录入',
+      };
+      var odState = { tab: 'all', page: 1, pageSize: 20, total: 0, counts: {}, list: [] };
+      var odSelected = {};
+      var odQuickDays = 0;
+
+      function odOrderText(s) { return ORDER_STATUS_TEXT[s] || s || '-'; }
+
+      function odFmtTime(v) {
+        if (!v) return '-';
+        return String(v).replace('T', ' ').slice(0, 16);
+      }
+
+      function odLoadCounts() {
+        return api('/api/admin/orders-status-counts')
+          .then(function (c) { odState.counts = c || {}; return c; })
+          .catch(function () { return null; });
+      }
+
+      function odVal(id) {
+        var el = document.getElementById(id);
+        return el ? (el.value || '').trim() : '';
+      }
+
+      function odBuildQuery(extra) {
+        var p = ['tab=' + encodeURIComponent(odState.tab)];
+        var map = {
+          'of-order-no': 'order_no', 'of-product-id': 'product_id',
+          'of-receiver': 'receiver', 'of-phone': 'phone',
+          'of-tracking': 'tracking_no', 'of-keyword': 'keyword',
+          'of-date-from': 'date_from', 'of-date-to': 'date_to',
+        };
+        Object.keys(map).forEach(function (id) {
+          var v = odVal(id);
+          if (v) p.push(map[id] + '=' + encodeURIComponent(v));
+        });
+        if (extra) p.push(extra);
+        return p.join('&');
+      }
+
+      function odRenderTabs() {
+        var c = odState.counts || {};
+        document.getElementById('od-tabs').innerHTML = ORDER_TABS.map(function (t) {
+          var n = c[t.key] || 0;
+          return '<div class="od-tab' + (odState.tab === t.key ? ' active' : '') + '"'
+            + ' onclick="Admin.odSwitchTab(\'' + t.key + '\')">'
+            + t.label + ' <span class="cnt">(' + n + ')</span></div>';
+        }).join('');
+      }
+
+      function odRenderAlert() {
+        var n = (odState.counts || {}).pending_ship_alert || 0;
+        var box = document.getElementById('od-alert');
+        if (!n) { box.classList.add('hidden'); return; }
+        box.classList.remove('hidden');
+        document.getElementById('od-alert-text').textContent =
+          '有 ' + n + ' 个订单已支付超过 24 小时仍未发货，请尽快处理，避免影响店铺体验分。';
+      }
+
+      function odStatusBadge(status) {
+        return '<span class="od-status-badge od-st-' + status + '">'
+          + escHtml(odOrderText(status)) + '</span>';
+      }
+
+      function odGoodsHtml(o) {
+        if (!o.items || !o.items.length) {
+          return '<div class="od-goods-row"><span class="od-goods-meta">无商品明细</span></div>';
+        }
+        return o.items.map(function (it) {
+          var thumb = it.image
+            ? '<img src="' + escHtml(it.image) + '" onerror="this.style.visibility=\'hidden\'">'
+            : '<div class="ph"></div>';
+          var spec = Object.keys(it.sku_spec || {}).map(function (k) {
+            return k + ': ' + it.sku_spec[k];
+          }).join(' / ');
+          return '<div class="od-goods-row">' + thumb
+            + '<div style="min-width:0;flex:1">'
+            + '<div class="od-goods-name">' + escHtml(it.product_name) + '</div>'
+            + '<div class="od-goods-meta">' + escHtml(spec || it.sku_code) + '</div>'
+            + '<div class="od-goods-meta">' + escHtml(it.sku_code)
+            + ' · ' + App.money(it.unit_price) + '</div>'
+            + '</div><div class="od-qty">×' + it.quantity + '</div></div>';
+        }).join('');
+      }
+
+      function odOrderRow(o) {
+        var checked = odSelected[o.order_no] ? ' checked' : '';
+        var note = o.admin_note
+          ? '<span class="od-note" title="' + escHtml(o.admin_note) + '">备注：'
+              + escHtml(o.admin_note.length > 12 ? o.admin_note.slice(0, 12) + '…' : o.admin_note)
+              + '</span>' : '';
+        var logi = (o.carrier || o.tracking_no)
+          ? '<span class="od-logi">' + escHtml(o.carrier || '') + ' '
+              + escHtml(o.tracking_no || '') + '</span>' : '';
+
+        // 操作按钮按状态动态给出
+        var acts = ['<button class="btn btn-outline btn-sm" onclick="Admin.viewOrder(\''
+          + o.order_no + '\')">查看详情</button>'];
+        if (canWriteOrders()) {
+          acts.push('<button class="btn btn-outline btn-sm" onclick="Admin.odNote(\''
+            + o.order_no + '\')">添加备注</button>');
+          if (o.status === 'pending') {
+            acts.push('<button class="btn btn-outline btn-sm" onclick="Admin.odConfirmPay(\''
+              + o.order_no + '\')">确认收款</button>');
+          }
+          if (o.status === 'paid') {
+            acts.push('<button class="btn btn-primary btn-sm" onclick="Admin.odShip(\''
+              + o.order_no + '\')">发货</button>');
+          }
+          if (o.status === 'shipped') {
+            acts.push('<button class="btn btn-outline btn-sm" onclick="Admin.odComplete(\''
+              + o.order_no + '\')">确认完成</button>');
+          }
+          if (o.status === 'pending' || o.status === 'paid' || o.status === 'shipped') {
+            acts.push('<button class="btn btn-danger btn-sm" onclick="Admin.odCancel(\''
+              + o.order_no + '\',\'' + o.status + '\')">'
+              + (o.status === 'pending' ? '取消订单' : '退款') + '</button>');
+          }
+        }
+
+        return '<div class="od-order-card">'
+          + '<div class="od-order-head">'
+          + '<input type="checkbox" class="od-check" data-no="' + o.order_no + '"' + checked
+          + ' onclick="Admin.odToggleSelect(\'' + o.order_no + '\',this.checked)">'
+          + '<span class="no">订单编号：' + escHtml(o.order_no) + '</span>'
+          + '<span class="od-copy" onclick="Admin.odCopy(\'' + o.order_no + '\')">复制</span>'
+          + odStatusBadge(o.status)
+          + '<span class="right"><span class="time">成交时间：'
+          + odFmtTime(o.created_at) + '</span></span>'
+          + '</div>'
+          + '<div class="od-order-body">'
+          + '<div class="od-goods-col">' + odGoodsHtml(o) + '</div>'
+          + '<div class="od-info-col">'
+          + '<div><span class="muted">收件人</span> ' + escHtml(o.receiver_name || '-') + '</div>'
+          + '<div><span class="muted">手机号</span> ' + escHtml(o.receiver_phone || '-') + '</div>'
+          + '<div><span class="muted">地址</span> ' + escHtml(o.receiver_address || '-') + '</div>'
+          + '<div><span class="muted">买家</span> '
+          + escHtml(o.customer_name || o.customer_email || '-') + '</div>'
+          + '</div>'
+          + '<div class="od-amount-col">'
+          + '<div class="main">' + App.money(o.total_amount) + '</div>'
+          + '<div class="sub">商品总价 ' + App.money(o.goods_amount) + '</div>'
+          + '<div class="sub">共 ' + (o.total_quantity || 0) + ' 件</div>'
+          + '</div>'
+          + '</div>'
+          + '<div class="od-order-foot">' + note + logi
+          + '<div class="acts">' + acts.join('') + '</div>'
+          + '</div></div>';
+      }
+
+      function canWriteOrders() {
+        return adminRole === 'superadmin' || adminRole === 'operator';
+      }
+
+      function odRenderPager() {
+        var el = document.getElementById('od-pager');
+        var pages = Math.max(1, Math.ceil((odState.total || 0) / odState.pageSize));
+        if (!odState.total) { el.innerHTML = ''; return; }
+        var opts = [10, 20, 50, 100].map(function (n) {
+          return '<option value="' + n + '"' + (n === odState.pageSize ? ' selected' : '')
+            + '>每页 ' + n + ' 条</option>';
+        }).join('');
+        el.innerHTML = '<select id="od-page-size" style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px">'
+          + opts + '</select>'
+          + '<button ' + (odState.page <= 1 ? 'disabled' : '')
+          + ' onclick="Admin.odGoPage(' + (odState.page - 1) + ')">上一页</button>'
+          + '<span>' + odState.page + ' / ' + pages + '</span>'
+          + '<button ' + (odState.page >= pages ? 'disabled' : '')
+          + ' onclick="Admin.odGoPage(' + (odState.page + 1) + ')">下一页</button>';
+        var sel = document.getElementById('od-page-size');
+        if (sel) {
+          sel.onchange = function () {
+            odState.pageSize = Number(this.value);
+            odState.page = 1;
+            loadOrders();
+          };
+        }
+      }
+
+      function odRenderSelection() {
+        var n = Object.keys(odSelected).length;
+        var el = document.getElementById('od-selected-count');
+        if (el) el.textContent = n;
+      }
+
+      function loadOrders() {
+        var q = odBuildQuery();
+        return Promise.all([
+          api('/api/admin/orders-search?' + q + '&page=' + odState.page
+              + '&page_size=' + odState.pageSize),
+          api('/api/admin/orders-search-count?' + q).catch(function () { return null; }),
+        ]).then(function (res) {
+          odState.list = res[0] || [];
+          odState.total = (res[1] && typeof res[1].total === 'number')
+            ? res[1].total : odState.list.length;
+
+          var rows = odState.list.map(odOrderRow).join('');
+          document.getElementById('order-table').innerHTML =
+            rows || '<div class="od-empty">没有符合条件的订单</div>';
+
+          document.getElementById('od-order-hint').textContent =
+            '共查到 ' + odState.total + ' 个订单';
+          document.getElementById('od-total-hint').textContent =
+            odState.total ? ('共 ' + odState.total + ' 条，第 ' + odState.page
+              + ' / ' + Math.max(1, Math.ceil(odState.total / odState.pageSize)) + ' 页') : '';
+
+          odRenderPager();
+          odRenderSelection();
+          applyRoleUI();
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // 兼容旧调用（切到订单视图时刷新）
+      function loadOrdersLegacy() { return loadOrders(); }
+
+      function odSwitchTab(key) {
+        odState.tab = key;
+        odState.page = 1;
+        odSelected = {};
+        odRenderTabs();
+        loadOrders();
+      }
+
+      function odSearch() {
+        odState.page = 1;
+        odSelected = {};
+        loadOrders();
+      }
+
+      function odReset() {
+        ['of-order-no', 'of-product-id', 'of-receiver', 'of-phone',
+         'of-tracking', 'of-keyword', 'of-date-from', 'of-date-to'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        odQuickDays = 0;
+        document.querySelectorAll('#od-quick-range a').forEach(function (a) {
+          a.classList.toggle('active', a.getAttribute('data-days') === '0');
+        });
+        odSearch();
+      }
+
+      function odToggleExtra() {
+        var box = document.getElementById('od-search-extra');
+        var link = document.getElementById('od-toggle-extra');
+        var hidden = box.classList.toggle('hidden');
+        link.textContent = hidden ? '展开所有筛选项 ▾' : '收起筛选项 ▴';
+      }
+
+      function odQuickRange(days) {
+        odQuickDays = Number(days) || 0;
+        document.querySelectorAll('#od-quick-range a').forEach(function (a) {
+          a.classList.toggle('active', Number(a.getAttribute('data-days')) === odQuickDays);
+        });
+        var from = document.getElementById('of-date-from');
+        var to = document.getElementById('of-date-to');
+        if (!odQuickDays) { from.value = ''; to.value = ''; }
+        else {
+          var end = new Date();
+          var start = new Date(Date.now() - odQuickDays * 86400000);
+          var fmt = function (d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+              + '-' + String(d.getDate()).padStart(2, '0');
+          };
+          from.value = fmt(start);
+          to.value = fmt(end);
+        }
+        odSearch();
+      }
+
+      function odGoPage(n) {
+        var pages = Math.max(1, Math.ceil((odState.total || 0) / odState.pageSize));
+        odState.page = Math.min(Math.max(1, n), pages);
+        loadOrders();
+      }
+
+      function odToggleSelect(no, checked) {
+        if (checked) odSelected[no] = true; else delete odSelected[no];
+        odRenderSelection();
+      }
+
+      function odClearSelection() {
+        odSelected = {};
+        document.querySelectorAll('.od-check').forEach(function (cb) { cb.checked = false; });
+        odRenderSelection();
+      }
+
+      function odSelectedNos() { return Object.keys(odSelected); }
+
+      function odCopy(text) {
+        var done = function () { App.toast('已复制：' + text, 'success'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            App.toast('复制失败，请手动选择', 'error');
+          });
+        } else {
+          App.toast(text, 'success');
+        }
+      }
+
+      function odGotoPending() {
+        odQuickRange(0);
+        odSwitchTab('paid');
+      }
+
+      function odSetBusy(no, busy) {
+        var btn = document.querySelector('[data-od-busy="' + no + '"]');
+        if (btn) { btn.disabled = busy; }
+      }
+
+      // ---- 订单操作 ----
+      function odShip(no) {
+        App.dialog({
+          title: '订单发货', tone: 'info', okText: '确认发货',
+          message: '订单号：' + no + '\n填写快递信息后买家可查看物流。',
+          field: { label: '快递公司 / 快递单号（用空格或逗号分隔）', placeholder: '如：顺丰速运 SF1234567890' },
+        }).then(function (v) {
+          if (v === null) return;
+          var parts = String(v || '').split(/[\s,，]+/).filter(Boolean);
+          var carrier = parts.shift() || '';
+          var tracking = parts.join('');
+          return api('/api/admin/orders-search/' + no + '/ship', {
+            method: 'POST',
+            body: { carrier: carrier, tracking_no: tracking },
+          }).then(function () {
+            App.toast('已发货', 'success');
+            loadOrders(); odLoadCounts().then(odRenderTabs);
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odNote(no) {
+        var cur = (odState.list.filter(function (o) { return o.order_no === no; })[0] || {}).admin_note || '';
+        App.promptDialog({
+          title: '商家备注', tone: 'info', okText: '保存备注',
+          message: '备注仅在后台可见，用于客服/仓储协作。',
+          field: { label: '备注内容', value: cur, placeholder: '如：客户要求顺丰' },
+        }).then(function (v) {
+          if (v === null) return;
+          return api('/api/admin/orders-search/' + no + '/note', {
+            method: 'POST', body: { note: v },
+          }).then(function () {
+            App.toast('备注已保存', 'success');
+            loadOrders();
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odConfirmPay(no) {
+        App.confirmDialog('确认已收到该订单款项？确认后订单将转为「待发货」。', {
+          title: '确认收款', tone: 'info', okText: '确认收款',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/orders-search/' + no + '/confirm-payment', { method: 'POST' })
+            .then(function () {
+              App.toast('已确认收款', 'success');
+              loadOrders(); odLoadCounts().then(odRenderTabs);
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odComplete(no) {
+        App.confirmDialog('确认该订单已送达并完成？', {
+          title: '确认完成', tone: 'info', okText: '确认完成',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/orders-search/' + no + '/complete', { method: 'POST' })
+            .then(function () {
+              App.toast('订单已完成', 'success');
+              loadOrders(); odLoadCounts().then(odRenderTabs);
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odCancel(no, status) {
+        var isPaidLike = status === 'paid' || status === 'shipped';
+        App.dialog({
+          title: isPaidLike ? '订单退款' : '取消订单',
+          tone: 'danger',
+          okText: isPaidLike ? '确认退款' : '确认取消',
+          message: isPaidLike
+            ? '将把订单置为「退款/售后」并把商品库存加回，该操作不可撤销。'
+            : '将取消该订单并释放已锁定的库存，该操作不可撤销。',
+          field: { label: '原因（可留空）', placeholder: '如：买家拍错 / 缺货' },
+        }).then(function (v) {
+          if (v === null) return;
+          return api('/api/admin/orders-search/' + no + '/cancel', {
+            method: 'POST', body: { reason: v || '', refund: isPaidLike },
+          }).then(function () {
+            App.toast(isPaidLike ? '已退款' : '订单已取消', 'success');
+            loadOrders(); odLoadCounts().then(odRenderTabs);
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odBatchShip() {
+        var nos = odSelectedNos();
+        if (!nos.length) { App.toast('请先勾选订单', 'error'); return; }
+        App.dialog({
+          title: '批量发货', tone: 'info', okText: '确认发货',
+          message: '将对已勾选的 ' + nos.length + ' 个订单发货，非「待发货」的订单会被自动跳过。',
+          field: { label: '快递公司 / 快递单号（可留空）', placeholder: '如：中通快递 ZT123456' },
+        }).then(function (v) {
+          if (v === null) return;
+          var parts = String(v || '').split(/[\s,，]+/).filter(Boolean);
+          var carrier = parts.shift() || '';
+          return api('/api/admin/orders-search/bulk', {
+            method: 'POST',
+            body: {
+              order_nos: nos, action: 'ship',
+              carrier: carrier, tracking_no: parts.join(''),
+            },
+          }).then(function (d) {
+            App.toast(d.message || '已提交', 'success');
+            odClearSelection();
+            loadOrders(); odLoadCounts().then(odRenderTabs);
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odBatchNote() {
+        var nos = odSelectedNos();
+        if (!nos.length) { App.toast('请先勾选订单', 'error'); return; }
+        App.promptDialog({
+          title: '批量备注', tone: 'info', okText: '保存备注',
+          message: '将对已勾选的 ' + nos.length + ' 个订单写入同一条商家备注。',
+          field: { label: '备注内容', placeholder: '如：加急发货' },
+        }).then(function (v) {
+          if (v === null || !String(v).trim()) return;
+          return api('/api/admin/orders-search/bulk', {
+            method: 'POST', body: { order_nos: nos, action: 'note', note: v },
+          }).then(function (d) {
+            App.toast(d.message || '已提交', 'success');
+            odClearSelection();
+            loadOrders();
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odExport() {
+        // 带上当前筛选条件下载 CSV（浏览器直接触发下载，无需额外 UI）
+        var q = odBuildQuery();
+        var token = localStorage.getItem('admin_token') || '';
+        fetch('/api/admin/orders-search-export?' + q, {
+          headers: { Authorization: 'Bearer ' + token },
+        }).then(function (res) {
+          if (!res.ok) throw new Error('导出失败（HTTP ' + res.status + '）');
+          return res.blob();
+        }).then(function (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'orders_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.csv';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          App.toast('已开始下载', 'success');
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function odOpenLog() {
+        App.dialog({
+          title: '订单操作记录', tone: 'info', okText: '知道了',
+          message: '订单的发货、备注、退款等操作可在「商品操作记录」中按操作人追溯；'
+            + '订单级日志后续版本将并入统一审计中心。',
+        });
       }
 
       // ---------- 用户管理 ----------
@@ -514,9 +2943,73 @@
 
       // ---------- 管理员管理 ----------
       var meUsername = localStorage.getItem('admin_username') || '';
+      // ---------- 修改 / 重置密码 ----------
+      // mode='self' ：改自己的密码，需验证当前密码 → PUT /me/password
+      // mode='reset'：超管重置他人密码，无需对方原密码 → PUT /admins/{id}/password
+      var pwdTarget = null;
+
+      function openPwdModal(mode, user) {
+        pwdTarget = { mode: mode, id: user ? user.id : null, username: user ? user.username : meUsername };
+        var self = mode === 'self';
+        document.getElementById('pwd-title').textContent = self ? '修改密码' : '重置密码';
+        document.getElementById('pwd-tip').textContent = self
+          ? '修改后下次登录请使用新密码，当前登录状态不受影响。'
+          : '将重置「' + pwdTarget.username + '」的登录密码，对方需用新密码登录。';
+        document.getElementById('pwd-old-group').classList.toggle('hidden', !self);
+        ['pwd-old', 'pwd-new', 'pwd-confirm'].forEach(function (id) {
+          document.getElementById(id).value = '';
+        });
+        document.getElementById('pwd-err').textContent = '';
+        document.getElementById('pwd-modal').classList.remove('hidden');
+        setTimeout(function () {
+          document.getElementById(self ? 'pwd-old' : 'pwd-new').focus();
+        }, 30);
+      }
+
+      function closePwdModal() {
+        document.getElementById('pwd-modal').classList.add('hidden');
+        pwdTarget = null;
+      }
+
+      function savePwd() {
+        if (!pwdTarget) return;
+        var err = document.getElementById('pwd-err');
+        var oldPwd = document.getElementById('pwd-old').value;
+        var newPwd = document.getElementById('pwd-new').value.trim();
+        var confirmPwd = document.getElementById('pwd-confirm').value.trim();
+        var self = pwdTarget.mode === 'self';
+
+        if (self && !oldPwd) { err.textContent = '请输入当前密码'; return; }
+        if (newPwd.length < 6) { err.textContent = '新密码至少 6 位'; return; }
+        if (newPwd !== confirmPwd) { err.textContent = '两次输入的新密码不一致'; return; }
+        if (self && newPwd === oldPwd) { err.textContent = '新密码不能与当前密码相同'; return; }
+        err.textContent = '';
+
+        var btn = document.getElementById('pwd-save');
+        btn.disabled = true;
+        var req = self
+          ? api('/api/admin/me/password', {
+              method: 'PUT',
+              body: { old_password: oldPwd, new_password: newPwd },
+            })
+          : api('/api/admin/admins/' + pwdTarget.id + '/password', {
+              method: 'PUT',
+              body: { new_password: newPwd },
+            });
+        req.then(function (d) {
+          App.toast(d.message || '密码已更新', 'success');
+          closePwdModal();
+        }).catch(function (e) {
+          err.textContent = e.message || '保存失败';
+        }).then(function () { btn.disabled = false; });
+      }
+
+      var adminsCache = [];
+
       function loadAdmins() {
         api('/api/admin/admins')
           .then(function (list) {
+            adminsCache = list || [];
             var rows = list.map(function (u) {
               var statusBadge = u.is_active
                 ? '<span class="badge" style="background:#dcfce7;color:#166534">正常</span>'
@@ -528,6 +3021,9 @@
                 + '<td>' + (u.last_login || '-') + '</td>'
                 + '<td class="actions-cell">'
                 + '<button class="btn btn-outline btn-sm" onclick="Admin.editAdmin(' + u.id + ')">编辑</button> '
+                + (isMe
+                    ? '<button class="btn btn-outline btn-sm" onclick="Admin.openPwdModal(\'self\')">修改密码</button>'
+                    : '<button class="btn btn-outline btn-sm" onclick="Admin.resetPwd(' + u.id + ')">重置密码</button> ')
                 + (!isMe ? '<button class="btn btn-danger btn-sm" onclick="Admin.delAdmin(' + u.id + ')">删除</button>' : '')
                 + '</td></tr>';
             }).join('');
@@ -551,10 +3047,7 @@
       }
 
       function delProduct(id) {
-        if (!confirm('确认删除该商品？相关 SKU 与库存流水将一并删除。')) return;
-        api('/api/admin/products/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('商品已删除', 'success'); loadProducts(); loadDashboard(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        return pdDelete(id);
       }
 
       // ---------- 商品编辑模态框 ----------
@@ -698,42 +3191,93 @@
       }
 
       function delCustomer(id) {
-        if (!confirm('确认删除该用户？其购物车、收藏、地址、评价将一并删除，订单记录保留。')) return;
-        api('/api/admin/customers/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('用户已删除', 'success'); loadCustomers(document.getElementById('customer-search').value); loadDashboard(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('该用户的购物车、收藏、地址、评价将一并删除（订单记录保留）。', {
+          title: '删除用户', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/customers/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('用户已删除', 'success'); loadCustomers(document.getElementById('customer-search').value); loadDashboard(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       // ---------- 管理员管理操作 ----------
       function addAdmin() {
-        var username = prompt('用户名');
-        if (!username) return;
-        var fullName = prompt('姓名', '');
-        var password = prompt('初始密码（至少 6 位）');
-        if (!password || password.length < 6) { App.toast('密码至少 6 位', 'error'); return; }
-        var role = prompt('角色（superadmin / operator / viewer）', 'operator');
-        if (role && !['superadmin', 'operator', 'viewer'].includes(role)) { App.toast('非法角色', 'error'); return; }
-        api('/api/admin/admins', {
-          method: 'POST',
-          body: { username: username, password: password, full_name: fullName, role: role || 'operator' },
-        }).then(function () { App.toast('管理员已创建', 'success'); loadAdmins(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        ask({
+          title: '新增管理员', tone: 'info', okText: '下一步',
+          message: '请填写新管理员的登录用户名。',
+          field: { label: '用户名', placeholder: '英文 / 数字', required: true, requiredMsg: '请填写用户名' },
+        }).then(function (username) {
+          if (username === null) return null;
+          return ask({
+            title: '新增管理员', tone: 'info', okText: '下一步',
+            message: '用户名：' + username,
+            field: { label: '姓名', placeholder: '可留空' },
+          }).then(function (fullName) {
+            if (fullName === null) return null;
+            return ask({
+              title: '新增管理员', tone: 'warn', okText: '下一步',
+              message: '设置初始密码，至少 6 位。',
+              field: { label: '初始密码', placeholder: '至少 6 位', required: true,
+                       requiredMsg: '请填写密码' },
+            }).then(function (password) {
+              if (password === null) return null;
+              if (password.length < 6) { App.toast('密码至少 6 位', 'error'); return null; }
+              return ask({
+                title: '新增管理员', tone: 'info', okText: '创建',
+                message: '设置角色权限。',
+                field: { label: '角色（superadmin / operator / viewer）',
+                         value: 'operator' },
+              }).then(function (role) {
+                if (role === null) return null;
+                role = role || 'operator';
+                if (['superadmin', 'operator', 'viewer'].indexOf(role) < 0) {
+                  App.toast('非法角色', 'error'); return null;
+                }
+                return api('/api/admin/admins', {
+                  method: 'POST',
+                  body: { username: username, password: password,
+                          full_name: fullName, role: role },
+                }).then(function () { App.toast('管理员已创建', 'success'); loadAdmins(); });
+              });
+            });
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function editAdmin(id) {
-        var role = prompt('设置角色（superadmin / operator / viewer）');
-        if (!role) return;
-        if (!['superadmin', 'operator', 'viewer'].includes(role)) { App.toast('非法角色', 'error'); return; }
-        api('/api/admin/admins/' + id, { method: 'PUT', body: { role: role } })
-          .then(function () { App.toast('已更新', 'success'); loadAdmins(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        ask({
+          title: '修改管理员角色', tone: 'info', okText: '保存',
+          message: '可填 superadmin / operator / viewer。',
+          field: { label: '角色', value: 'operator' },
+        }).then(function (role) {
+          if (role === null) return;
+          if (['superadmin', 'operator', 'viewer'].indexOf(role) < 0) {
+            App.toast('非法角色', 'error'); return;
+          }
+          return api('/api/admin/admins/' + id, { method: 'PUT', body: { role: role } })
+            .then(function () { App.toast('已更新', 'success'); loadAdmins(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function delAdmin(id) {
-        if (!confirm('确认删除该管理员？')) return;
-        api('/api/admin/admins/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('管理员已删除', 'success'); loadAdmins(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('删除后该账号将无法登录后台。', {
+          title: '删除管理员', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/admins/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('管理员已删除', 'success'); loadAdmins(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      /* 超管按行重置他人密码（先确认再弹输入框） */
+      function resetPwd(id) {
+        var u = (adminsCache || []).filter(function (x) { return x.id === id; })[0];
+        if (!u) return;
+        askConfirm('将重置「' + u.username + '」的登录密码，对方需用新密码登录。', {
+          title: '重置密码', tone: 'warn', okText: '继续',
+        }).then(function (ok) {
+          if (ok) openPwdModal('reset', u);
+        });
       }
 
       // ---------- 订阅管理 ----------
@@ -757,10 +3301,13 @@
       }
 
       function delSubscriber(id) {
-        if (!confirm('确认删除该订阅者？')) return;
-        api('/api/admin/subscribers/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('已删除', 'success'); loadSubscribers(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('删除后该邮箱不再接收本站邮件。', {
+          title: '删除订阅者', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/subscribers/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('已删除', 'success'); loadSubscribers(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function sendNewsletter() {
@@ -768,12 +3315,16 @@
         var content = document.getElementById('newsletter-content').value.trim();
         if (!subject) { App.toast('请输入邮件主题', 'error'); return; }
         if (!content) { App.toast('请输入邮件内容', 'error'); return; }
-        if (!confirm('确认向所有订阅者群发该邮件？')) return;
-        api('/api/admin/subscribers/send', {
-          method: 'POST',
-          body: { subject: subject, content: content },
-        }).then(function (d) {
-          App.toast(d.message || '群发完成', 'success');
+        askConfirm('邮件将发送给全部订阅者，发送后无法撤回。\n\n主题：' + subject, {
+          title: '群发邮件', tone: 'warn', okText: '确认群发',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/subscribers/send', {
+            method: 'POST',
+            body: { subject: subject, content: content },
+          }).then(function (d) {
+            App.toast(d.message || '群发完成', 'success');
+          });
         }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
@@ -878,14 +3429,17 @@
       document.getElementById('cms-milestones-add').onclick = addCmsMilestoneRow;
       document.getElementById('cms-values-add').onclick = addCmsValueRow;
 
-      function loadCmsContent() {
+      // ---- 品牌管理：品牌故事 + Hero 区 + 成长经历与品牌价值观 ----
+      // 同属 page=about，一次请求填充全部表单
+      function loadBrandContent() {
         api('/api/admin/cms-content?page=about')
           .then(function (d) {
-            var story = d.story || {};
+            // 品牌故事
             document.getElementById('cms-story-title-zh').value = (d.story_title && d.story_title.zh) || '';
             document.getElementById('cms-story-title-en').value = (d.story_title && d.story_title.en) || '';
             document.getElementById('cms-story-content-zh').value = (d.story_content && d.story_content.zh) || '';
             document.getElementById('cms-story-content-en').value = (d.story_content && d.story_content.en) || '';
+            renderCmsStoryImage((d.story && d.story.image) || '');
             // Hero 区
             document.getElementById('cms-hero-tag-zh').value = (d.hero_tag && d.hero_tag.zh) || '';
             document.getElementById('cms-hero-tag-en').value = (d.hero_tag && d.hero_tag.en) || '';
@@ -893,7 +3447,7 @@
             document.getElementById('cms-hero-title-en').value = (d.hero_title && d.hero_title.en) || '';
             document.getElementById('cms-hero-sub-zh').value = (d.hero_subtitle && d.hero_subtitle.zh) || '';
             document.getElementById('cms-hero-sub-en').value = (d.hero_subtitle && d.hero_subtitle.en) || '';
-            // 成长历程/价值观区块标题
+            // 成长历程 / 价值观区块标题与表格
             document.getElementById('cms-milestones-kicker-zh').value = (d.milestones_kicker && d.milestones_kicker.zh) || 'MILESTONES';
             document.getElementById('cms-milestones-kicker-en').value = (d.milestones_kicker && d.milestones_kicker.en) || 'MILESTONES';
             document.getElementById('cms-milestones-title-zh').value = (d.milestones_title && d.milestones_title.zh) || '成长历程';
@@ -902,13 +3456,15 @@
             document.getElementById('cms-values-kicker-en').value = (d.values_kicker && d.values_kicker.en) || 'VALUES';
             document.getElementById('cms-values-title-zh').value = (d.values_title && d.values_title.zh) || '我们的价值观';
             document.getElementById('cms-values-title-en').value = (d.values_title && d.values_title.en) || 'Our Values';
-            var img = story.image || '';
-            renderCmsStoryImage(img);
             renderCmsTables(d.milestones, d.values);
           })
           .catch(function (e) { App.toast(e.message, 'error'); });
-        loadBannerList();
+      }
+
+      // ---- 首页和用户管理：用户故事审核 + 首页轮播 ----
+      function loadHomeContent() {
         loadUserStories();
+        loadBannerList();
       }
 
       var userStoryFilter = 'all';
@@ -941,10 +3497,13 @@
 
       // 查看/审核：跳转到独立审核页（发布/驳回/撤下/删除均在该页完成）
       function delUserStory(id) {
-        if (!confirm('确认删除这条用户故事？')) return;
-        api('/api/admin/user-stories/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('用户故事已删除', 'success'); loadUserStories(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('删除后该故事将从「成长经历」列表中移除。', {
+          title: '删除用户故事', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/user-stories/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('用户故事已删除', 'success'); loadUserStories(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function renderCmsStoryImage(url) {
@@ -982,13 +3541,18 @@
       }
 
       function delBanner(id) {
-        if (!confirm('确认删除该轮播？')) return;
-        api('/api/admin/banners/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('轮播已删除', 'success'); loadBannerList(); })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('删除后首页轮播将不再展示该图。', {
+          title: '删除首页轮播', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/banners/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('轮播已删除', 'success'); loadBannerList(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function switchView(v) {
+        // 兼容旧链接：原「内容管理」已拆分为「品牌管理」+「首页和用户管理」
+        if (v === 'cms') v = 'brand';
         document.querySelectorAll('#admin-app [data-view]').forEach(function (a) {
           a.classList.toggle('active', a.getAttribute('data-view') === v);
         });
@@ -998,20 +3562,37 @@
         document.getElementById('view-orders').classList.toggle('hidden', v !== 'orders');
         document.getElementById('view-customers').classList.toggle('hidden', v !== 'customers');
         document.getElementById('view-newsletter').classList.toggle('hidden', v !== 'newsletter');
-        document.getElementById('view-cms').classList.toggle('hidden', v !== 'cms');
+        document.getElementById('view-brand').classList.toggle('hidden', v !== 'brand');
+        document.getElementById('view-home').classList.toggle('hidden', v !== 'home');
         document.getElementById('view-admins').classList.toggle('hidden', v !== 'admins');
+        document.getElementById('view-apidocs').classList.toggle('hidden', v !== 'apidocs');
         // 延迟加载
         if (v === 'customers') loadCustomers(document.getElementById('customer-search').value);
         if (v === 'categories') loadCategories();
         if (v === 'newsletter') loadSubscribers();
-        if (v === 'cms') loadCmsContent();
+        if (v === 'brand') loadBrandContent();
+        if (v === 'home') loadHomeContent();
         if (v === 'admins') loadAdmins();
+        if (v === 'products') loadProducts();
+        if (v === 'orders') {
+          // 默认时间范围「全部」，首次进入渲染标签页与提醒
+          if (!odState.inited) {
+            odState.inited = true;
+            document.querySelectorAll('#od-quick-range a').forEach(function (a) {
+              a.classList.toggle('active', a.getAttribute('data-days') === '0');
+            });
+          }
+          odLoadCounts().then(function () { odRenderTabs(); odRenderAlert(); });
+          loadOrders();
+        }
+        if (v === 'apidocs') loadApiDocs();
       }
 
       window.Admin = {
         stock: stock, ship: ship, delProduct: delProduct, viewOrder: viewOrder,
         toggleCustomer: toggleCustomer, delCustomer: delCustomer,
         addAdmin: addAdmin, editAdmin: editAdmin, delAdmin: delAdmin,
+        openPwdModal: openPwdModal, resetPwd: resetPwd,
         delSubscriber: delSubscriber,
         editProduct: editProduct, closeProductModal: closeProductModal,
         removeGalleryImage: removeGalleryImage,
@@ -1019,12 +3600,172 @@
         editCategory: editCategory, delCategory: delCategory,
         delUserStory: delUserStory, setStoryFilter: setStoryFilter,
         delCmsRow: delCmsRow,
+        // 审核 / 批量 / 日志 / 接口文档
+        openReview: openReview, toggleProductSelect: toggleProductSelect,
+        toggleSelectAll: toggleSelectAll, applyBulk: applyBulk,
+        clearSelection: clearSelection, openAuditLog: openAuditLog,
+        auditReload: auditReload, auditLoadMore: auditLoadMore,
+        ask: ask, askConfirm: askConfirm, askText: askText,
+        bulkApproveAll: bulkApproveAll, loadProducts: loadProducts,
+        // PDD 风格：标签页 / 分页 / 行内编辑 / 状态流转
+        pdSwitchTab: pdSwitchTab, pdGoPage: pdGoPage, pdSearch: pdSearch,
+        pdReset: pdReset, pdToggleExtra: pdToggleExtra,
+        pdEditPrice: pdEditPrice, pdEditStock: pdEditStock,
+        pdBatchSign: pdBatchSign, pdBatchApply: pdBatchApply,
+        pdStockSign: pdStockSign, pdShowStockRecords: pdShowStockRecords,
+        pdCloseRecords: pdCloseRecords,
+        pdPublish: pdPublish, pdUnpublish: pdUnpublish, pdDelete: pdDelete,
+        pdRestore: pdRestore, pdPurge: pdPurge, pdPreview: pdPreview,
+        bulkPublish: bulkPublish, bulkUnpublish: bulkUnpublish,
+        // 订单查询（PDD 风格）
+        odSwitchTab: odSwitchTab, odGoPage: odGoPage, odSearch: odSearch,
+        odReset: odReset, odToggleExtra: odToggleExtra, odQuickRange: odQuickRange,
+        odToggleSelect: odToggleSelect, odClearSelection: odClearSelection,
+        odShip: odShip, odNote: odNote, odCancel: odCancel, odComplete: odComplete,
+        odConfirmPay: odConfirmPay, odBatchShip: odBatchShip, odBatchNote: odBatchNote,
+        odExport: odExport, odCopy: odCopy, odGotoPending: odGotoPending,
+        odOpenLog: odOpenLog, orderOpenLog: odOpenLog,
+        odLoadCounts: odLoadCounts, odRenderTabs: odRenderTabs,
+        loadOrders: loadOrders,
       };
 
       document.getElementById('admin-login-btn').onclick = login;
       document.getElementById('add-product-btn').onclick = function () {
         location.href = '/admin-product-edit.html?new=1';
       };
+
+      // ---------- 商品管理：标签页 / 搜索 / 批量 / 行内编辑 事件 ----------
+      document.getElementById('search-btn').onclick = pdSearch;
+      document.getElementById('reset-btn').onclick = pdReset;
+      document.getElementById('toggle-extra').onclick = pdToggleExtra;
+      ['f-product-id', 'f-sku-code', 'f-spec-code', 'f-name'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.onkeydown = function (e) { if (e.key === 'Enter') pdSearch(); };
+        }
+      });
+      ['f-category', 'f-source', 'f-status', 'f-review'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.onchange = pdSearch;
+      });
+      document.getElementById('bulk-publish-btn').onclick = bulkPublish;
+      document.getElementById('bulk-unpublish-btn').onclick = bulkUnpublish;
+      document.getElementById('bulk-approve-all-btn').onclick = bulkApproveAll;
+      document.getElementById('audit-log-btn').onclick = function () { openAuditLog(null); };
+      document.getElementById('bulk-action').onchange = syncBulkInputs;
+      document.getElementById('bulk-apply-btn').onclick = applyBulk;
+      document.getElementById('bulk-clear-btn').onclick = clearSelection;
+      // 订单查询页事件
+      document.getElementById('od-search-btn').onclick = odSearch;
+      document.getElementById('od-reset-btn').onclick = odReset;
+      document.getElementById('od-export-btn').onclick = odExport;
+      document.getElementById('od-toggle-extra').onclick = odToggleExtra;
+      document.getElementById('od-clear-btn').onclick = odClearSelection;
+      document.getElementById('od-batch-note-btn').onclick = odBatchNote;
+      document.getElementById('od-batch-ship-btn').onclick = odBatchShip;
+      ['of-order-no', 'of-product-id', 'of-receiver', 'of-phone', 'of-tracking', 'of-keyword']
+        .forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.onkeydown = function (e) { if (e.key === 'Enter') odSearch(); };
+        });
+      document.querySelectorAll('#od-quick-range a').forEach(function (a) {
+        a.onclick = function () { odQuickRange(a.getAttribute('data-days')); };
+      });
+      // 规格级改价 / 改库存弹窗
+      document.getElementById('pd-price-save').onclick = pdSavePrice;
+      document.getElementById('pd-price-cancel').onclick = function () { pdCloseSku('price'); };
+      document.getElementById('pd-price-close').onclick = function () { pdCloseSku('price'); };
+      document.getElementById('pd-price-body').oninput = pdOnPriceInput;
+      document.getElementById('pd-price-modal').onclick = function (e) {
+        if (e.target === this) pdCloseSku('price');   // 点遮罩关闭
+      };
+      document.getElementById('pd-stock-save').onclick = pdSaveStock;
+      document.getElementById('pd-stock-cancel').onclick = function () { pdCloseSku('stock'); };
+      document.getElementById('pd-stock-close').onclick = function () { pdCloseSku('stock'); };
+      document.getElementById('pd-stock-body').oninput = pdOnStockInput;
+      document.getElementById('pd-stock-modal').onclick = function (e) {
+        if (e.target === this) pdCloseSku('stock');   // 点遮罩关闭
+      };
+      document.getElementById('pd-record-close').onclick = pdCloseRecords;
+      document.getElementById('pd-record-cancel').onclick = pdCloseRecords;
+      document.getElementById('pd-record-modal').onclick = function (e) {
+        if (e.target === this) pdCloseRecords();      // 点遮罩关闭
+      };
+      // Esc 关闭弹窗（改价 / 改库存 / 修改记录）
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('pd-record-modal').classList.contains('hidden')) {
+          if (openSkuModalKind === 'price') pdCloseSku('price');
+          else if (openSkuModalKind === 'stock') pdCloseSku('stock');
+        } else {
+          pdCloseRecords();
+        }
+      });
+      // 改价 / 改库存 Enter 提交
+      document.getElementById('pd-price-body').onkeydown = function (e) {
+        if (e.key === 'Enter') pdSavePrice();
+      };
+      document.getElementById('pd-stock-body').onkeydown = function (e) {
+        if (e.key === 'Enter') pdSaveStock();
+      };
+      // 审核模态框
+      document.getElementById('review-approve-btn').onclick = function () { doReview('approve'); };
+      document.getElementById('review-reject-btn').onclick = function () { doReview('reject'); };
+      document.getElementById('review-pending-btn').onclick = function () { doReview('pending'); };
+      document.getElementById('review-cancel-btn').onclick = closeReview;
+      document.getElementById('review-modal-close').onclick = closeReview;
+      // 修改 / 重置密码弹窗
+      document.getElementById('admin-change-pwd').onclick = function () { openPwdModal('self'); };
+      document.getElementById('my-pwd-btn').onclick = function () { openPwdModal('self'); };
+      document.getElementById('pwd-save').onclick = savePwd;
+      document.getElementById('pwd-cancel').onclick = closePwdModal;
+      document.getElementById('pwd-modal-close').onclick = closePwdModal;
+      document.getElementById('pwd-modal').onclick = function (e) {
+        if (e.target === this) closePwdModal();
+      };
+      ['pwd-old', 'pwd-new', 'pwd-confirm'].forEach(function (id) {
+        document.getElementById(id).onkeydown = function (e) {
+          if (e.key === 'Enter') savePwd();
+        };
+      });
+
+      // 通用弹窗事件已由 common.js 的 App.dialog 内部绑定
+
+      // 日志模态框
+      document.getElementById('audit-modal-close').onclick = function () {
+        document.getElementById('audit-modal').classList.add('hidden');
+      };
+      document.getElementById('audit-reload-btn').onclick = auditReload;
+      document.getElementById('audit-more-btn').onclick = auditLoadMore;
+      document.getElementById('audit-action-filter').onchange = auditReload;
+      document.getElementById('audit-operator-filter').onchange = auditReload;
+      document.getElementById('audit-only-mine').onchange = function () {
+        var sel = document.getElementById('audit-operator-filter');
+        if (this.checked) {
+          var me = (localStorage.getItem('admin_username') || 'admin').trim();
+          // 下拉里没有当前用户就先补上，否则赋值会被忽略
+          if (![...sel.options].some(function (o) { return o.value === me; })) {
+            var opt = document.createElement('option');
+            opt.value = me; opt.textContent = me;
+            sel.appendChild(opt);
+          }
+          sel.value = me;
+        } else {
+          sel.value = '';
+        }
+        auditReload();
+      };
+      document.getElementById('audit-search').oninput = function () {
+        var el = this;
+        clearTimeout(el._t);
+        el._t = setTimeout(auditReload, 400);
+      };
+      // 接口文档
+      document.getElementById('apidocs-reload-btn').onclick = loadApiDocs;
+      document.getElementById('apidocs-open-swagger-btn').onclick = function () {
+        window.open('/docs', '_blank');
+      };
+
       document.getElementById('add-category-btn').onclick = addCategory;
       document.getElementById('add-admin-btn').onclick = addAdmin;
       document.getElementById('send-newsletter-btn').onclick = sendNewsletter;
@@ -1152,9 +3893,9 @@
           }).catch(function (e) { App.toast(e.message, 'error'); });
       };
 
-      // 分类缓存（登录后加载）
+      // 分类缓存（登录后加载）；返回 Promise 以便调用方等待
       function loadCategoryOptions() {
-        api('/api/admin/categories')
+        return api('/api/admin/categories')
           .then(function (list) { categoriesCache = list || []; renderCategoryOptions(); })
           .catch(function () {});
       }
@@ -1186,31 +3927,66 @@
       }
 
       function addCategory() {
-        var code = prompt('类目编码（英文/数字/下划线）');
-        if (code === null) return;
-        var nameZh = prompt('中文名称');
-        if (nameZh === null) return;
-        var nameEn = prompt('英文名称', nameZh);
-        if (nameEn === null) return;
-        api('/api/admin/categories', { method: 'POST', body: { code: code, name_i18n: { zh: nameZh, en: nameEn }, sort_order: categoriesCache.length + 1, is_active: true } })
-          .then(function () { App.toast('类目已创建', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+        ask({
+          title: '新增类目', tone: 'info', okText: '下一步',
+          message: '类目编码用于前台 URL 与接口标识，创建后不建议修改。',
+          field: { label: '类目编码（英文 / 数字 / 下划线）',
+                   placeholder: '如 yoga_pants', required: true, requiredMsg: '请填写类目编码' },
+        }).then(function (code) {
+          if (code === null) return null;
+          return ask({
+            title: '新增类目', tone: 'info', okText: '下一步',
+            message: '编码：' + code,
+            field: { label: '中文名称', required: true, requiredMsg: '请填写中文名称' },
+          }).then(function (nameZh) {
+            if (nameZh === null) return null;
+            return ask({
+              title: '新增类目', tone: 'info', okText: '创建',
+              message: '中文名称：' + nameZh,
+              field: { label: '英文名称', value: nameZh },
+            }).then(function (nameEn) {
+              if (nameEn === null) return null;
+              return api('/api/admin/categories', {
+                method: 'POST',
+                body: { code: code, name_i18n: { zh: nameZh, en: nameEn },
+                        sort_order: categoriesCache.length + 1, is_active: true },
+              }).then(function () { App.toast('类目已创建', 'success'); loadCategories(); });
+            });
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function editCategory(id) {
         var c = categoriesCache.filter(function (x) { return x.id === id; })[0];
         if (!c) return;
-        var nameZh = prompt('中文名称', c.name_i18n.zh || '');
-        if (nameZh === null) return;
-        var nameEn = prompt('英文名称', c.name_i18n.en || '');
-        if (nameEn === null) return;
-        api('/api/admin/categories/' + id, { method: 'PUT', body: { name_i18n: { zh: nameZh, en: nameEn } } })
-          .then(function () { App.toast('类目已更新', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+        ask({
+          title: '编辑类目', tone: 'info', okText: '下一步',
+          message: '编码 ' + (c.code || '') + ' 不可修改。',
+          field: { label: '中文名称', value: c.name_i18n.zh || '',
+                   required: true, requiredMsg: '请填写中文名称' },
+        }).then(function (nameZh) {
+          if (nameZh === null) return null;
+          return ask({
+            title: '编辑类目', tone: 'info', okText: '保存',
+            message: '中文名称：' + nameZh,
+            field: { label: '英文名称', value: c.name_i18n.en || '' },
+          }).then(function (nameEn) {
+            if (nameEn === null) return null;
+            return api('/api/admin/categories/' + id, {
+              method: 'PUT', body: { name_i18n: { zh: nameZh, en: nameEn } },
+            }).then(function () { App.toast('类目已更新', 'success'); loadCategories(); });
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function delCategory(id) {
-        if (!confirm('确认删除该类目？有关联商品时无法删除。')) return;
-        api('/api/admin/categories/' + id, { method: 'DELETE' })
-          .then(function () { App.toast('类目已删除', 'success'); loadCategories(); }).catch(function (e) { App.toast(e.message, 'error'); });
+        askConfirm('若该类目下仍有商品则无法删除，需先转移或删除商品。', {
+          title: '删除类目', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/categories/' + id, { method: 'DELETE' })
+            .then(function () { App.toast('类目已删除', 'success'); loadCategories(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       (function init() {

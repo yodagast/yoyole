@@ -25,6 +25,7 @@ from app.models import (
     PaymentStatus,
     SKU,
     StockMovement,
+    utc_to_local_naive,
 )
 from app.payments import PaymentRequest, get_gateway
 from app.schemas import (
@@ -37,6 +38,9 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["orders"])
+
+# Python 写入的 UTC 时间 → 本地时间（与 DB 生成的 created_at 同口径）
+utc_to_local = utc_to_local_naive
 
 
 def _gen_order_no() -> str:
@@ -84,8 +88,8 @@ def _order_to_out(order: Order, lang: str) -> OrderOut:
         receiver_address=order.receiver_address,
         remark=order.remark,
         created_at=order.created_at,
-        paid_at=order.paid_at,
-        shipped_at=order.shipped_at,
+        paid_at=utc_to_local(order.paid_at),
+        shipped_at=utc_to_local(order.shipped_at),
         items=items,
         payments=payments,
     )

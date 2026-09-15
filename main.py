@@ -16,9 +16,12 @@ from app.routers import (
     cart,
     catalog,
     cms,
+    imports,
     newsletter,
     orders,
     payments,
+    product_admin,
+    order_admin,
     reviews,
     uploads,
     wishlist,
@@ -66,6 +69,9 @@ app.include_router(cms.router)
 app.include_router(newsletter.router)
 app.include_router(uploads.router)
 app.include_router(admin.router)
+app.include_router(product_admin.router)
+app.include_router(order_admin.router)
+app.include_router(imports.router)
 
 
 @app.get("/api/health")
@@ -77,4 +83,7 @@ async def health():
 # 注意：HTML 中引用的资源带 /static 前缀（如 /static/css/style.css），
 # 因此先将静态目录挂载到 /static，再把首页等页面挂到根路径 /。
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# 图文详情图的 /d/ 前缀标记：/d/static/uploads/... 与 /static/uploads/... 指向同一目录，
+# 前台（products.html）据此把「轮播图」与「图文详情大图」区分开。
+app.mount("/d/static", StaticFiles(directory="static"), name="detail-static")
 app.mount("/", StaticFiles(directory="static", html=True), name="home")

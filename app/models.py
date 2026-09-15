@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -22,6 +23,315 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+# ---------------------------------------------------------------- 商品状态派生
+PRODUCT_STATUS_LABELS: dict[str, str] = {
+    "on_sale": "在售中",
+    "off_shelf": "已下架",
+    "sold_out": "已售罄",
+    "pending": "发布中",
+    "rejected": "已驳回",
+    "draft": "草稿箱",
+    "deleted": "已删除",
+}
+
+
+def derive_product_status(
+    *, deleted_at, review_status: str, status: str, total_stock: int
+) -> str:
+    """由 (是否删除, 审核状态, 上下架状态, 库存) 派生单一「商品状态」。
+
+    后台以该状态做单维度标签页管理（全部/在售中/已下架/已售罄/发布中/已驳回/草稿箱/已删除）。
+    判定优先级：回收站 > 审核结果 > 上下架 > 库存。
+    """
+    if deleted_at is not None:
+        return "deleted"
+    if review_status == "rejected":
+        return "rejected"
+    if review_status == "pending":
+        return "pending"
+    if status == "draft":
+        return "draft"
+    if status == "off_shelf":
+        return "off_shelf"
+    return "sold_out" if (total_stock or 0) <= 0 else "on_sale"
+
+
+# ------------------------------------------------- 审计日志：动作标签 / 可读摘要
+AUDIT_ACTION_LABELS: dict[str, str] = {
+    "create": "新增商品",
+    "update": "编辑商品",
+    "delete": "移入回收站",
+    "restore": "从回收站恢复",
+    "purge": "彻底删除",
+    "publish": "上架",
+    "unpublish": "下架",
+    "quick_price": "修改价格",
+    "quick_stock": "修改库存",
+    "sku_price": "修改规格价格",
+    "sku_stock": "修改规格库存",
+    "review": "人工审核",
+    "bulk_status": "批量改状态",
+    "bulk_publish": "批量上架",
+    "bulk_unpublish": "批量下架",
+    "bulk_review": "批量审核",
+    "bulk_category": "批量改分类",
+    "bulk_featured": "批量改推荐",
+    "bulk_delete": "批量移入回收站",
+    "bulk_restore": "批量恢复",
+    "bulk_purge": "批量彻底删除",
+    "import_products": "产品册导入",
+}
+
+# 徽标色调：green 正向 / orange 待定 / red 破坏性 / gray 中性 / blue 新增编辑
+AUDIT_ACTION_TONES: dict[str, str] = {
+    "create": "blue",
+    "update": "blue",
+    "import_products": "blue",
+    "publish": "green",
+    "bulk_publish": "green",
+    "restore": "green",
+    "bulk_restore": "green",
+    "review": "orange",
+    "bulk_review": "orange",
+    "unpublish": "gray",
+    "bulk_unpublish": "gray",
+    "bulk_status": "gray",
+    "bulk_category": "gray",
+    "bulk_featured": "gray",
+    "quick_price": "gray",
+    "quick_stock": "gray",
+    "sku_price": "gray",
+    "sku_stock": "gray",
+    "delete": "red",
+    "bulk_delete": "red",
+    "purge": "red",
+    "bulk_purge": "red",
+}
+
+# 审计日志 detail 中出现的枚举值 → 中文
+AUDIT_VALUE_LABELS: dict[str, str] = {
+    **PRODUCT_STATUS_LABELS,
+    "active": "在售中",
+    "approved": "已通过",
+    "manual": "人工录入",
+    "import": "产品册导入",
+}
+
+# 审核状态专用标签（与商品状态词区分，避免「发布中」当审核结果读起来歧义）
+REVIEW_STATUS_LABELS: dict[str, str] = {
+    "pending": "待审核",
+    "approved": "已通过",
+    "rejected": "已驳回",
+}
+
+
+def audit_action_label(action: str) -> str:
+    """动作英文 → 中文标签（未知动作原样返回）"""
+    return AUDIT_ACTION_LABELS.get(action, action or "-")
+
+
+def audit_action_tone(action: str) -> str:
+    """动作 → 徽标色调（未知动作归为 gray）"""
+    return AUDIT_ACTION_TONES.get(action, "gray")
+
+
+def _audit_value(value, labels: dict[str, str] | None = None) -> str:
+    """把 detail 中的值渲染成中文可读文本"""
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if value is None or value == "":
+        return "无"
+    if isinstance(value, dict):
+        # 多语言对象取中文；其余压成短 JSON
+        if "zh" in value:
+            return str(value["zh"])
+        text = json.dumps(value, ensure_ascii=False)
+        return text if len(text) <= 40 else text[:37] + "…"
+    if isinstance(value, (list, tuple)):
+        text = "、".join(str(v) for v in value)
+        return text if len(text) <= 40 else text[:37] + "…"
+    table = labels if labels is not None else AUDIT_VALUE_LABELS
+    return table.get(str(value), str(value))
+
+
+def _money(value) -> str:
+    try:
+        return f"¥{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def describe_audit_detail(action: str, detail: dict | None) -> str:
+    """把审计日志的 detail JSON 转成一句人话摘要（供后台展示）。
+
+    无法识别的动作/结构回退为 `key=value` 拼接，绝不抛异常。
+    """
+    d = detail or {}
+    if not isinstance(d, dict):
+        return str(d)
+
+    # 审核相关动作的 from/to 是审核状态，用审核标签而非商品状态标签
+    is_review = action in ("review", "bulk_review")
+    labels = REVIEW_STATUS_LABELS if is_review else AUDIT_VALUE_LABELS
+
+    def val(key):
+        return _audit_value(d.get(key), labels)
+
+    def pair() -> str:
+        return f"{val('from')} → {val('to')}"
+
+    try:
+        # ---- 新增 / 编辑 ----
+        if action == "create":
+            parts = []
+            if d.get("sku_code"):
+                parts.append(f"货号 {d['sku_code']}")
+            if d.get("base_price") is not None:
+                parts.append(f"基础价 {_money(d['base_price'])}")
+            if d.get("sku_count") is not None:
+                parts.append(f"{d['sku_count']} 个规格")
+            return " · ".join(parts) or "新建商品"
+
+        if action == "update":
+            fields = d.get("fields") or {}
+            if not isinstance(fields, dict) or not fields:
+                return "无字段变更"
+            keys = list(fields.keys())
+            shown = keys[:3]
+            text = "、".join(f"{k}={_audit_value(fields[k])}" for k in shown)
+            if len(keys) > len(shown):
+                text += f" 等 {len(keys)} 项"
+            return f"修改 {text}"
+
+        # ---- 回收站 ----
+        if action in ("delete", "bulk_delete"):
+            base = "移入回收站（可恢复）"
+            if d.get("status"):
+                base += f" · 原状态 {val('status')}"
+            return base
+
+        if action in ("restore", "bulk_restore"):
+            return f"恢复为 {val('to_status')}，需重新上架"
+
+        if action in ("purge", "bulk_purge"):
+            base = "彻底删除，不可恢复"
+            if d.get("status"):
+                base += f" · 原状态 {val('status')}"
+            return base
+
+        # ---- 上下架 ----
+        if action in ("publish", "bulk_publish"):
+            return pair()
+
+        if action in ("unpublish", "bulk_unpublish"):
+            text = pair()
+            if d.get("reason"):
+                text += f" · 原因：{d['reason']}"
+            return text
+
+        if action == "bulk_status":
+            return f"批量设为 {val('to')}"
+
+        # ---- 行内快捷编辑 ----
+        if action == "quick_price":
+            text = f"{_money(d.get('from'))} → {_money(d.get('to'))}"
+            if d.get("synced_skus"):
+                text += f" · 同步 {d['synced_skus']} 个规格"
+            if d.get("reason"):
+                text += f" · 原因：{d['reason']}"
+            return text
+
+        if action == "quick_stock":
+            value = d.get("value")
+            text = (
+                f"总库存 +{value}"
+                if d.get("mode") == "add"
+                else f"总库存 设为 {value}"
+            )
+            if d.get("from_total") is not None and d.get("to_total") is not None:
+                text += f"（{d['from_total']} → {d['to_total']}）"
+            if d.get("skus"):
+                text += f" · {d['skus']} 个规格"
+            if d.get("reason") and d["reason"] != "quick_edit":
+                text += f" · 原因：{d['reason']}"
+            return text
+
+        # ---- 规格级批量改价 / 改库存（后台弹窗）----
+        if action == "sku_price":
+            changed = d.get("changed") or 0
+            text = f"修改 {changed} 个规格的价格"
+            spans = d.get("spans") or []
+            if spans:
+                text += " · " + "、".join(
+                    f"{_money(s.get('from'))} → {_money(s.get('to'))}" for s in spans[:3]
+                )
+                if len(spans) > 3:
+                    text += f" 等 {len(spans)} 种"
+            if d.get("reason"):
+                text += f" · 原因：{d['reason']}"
+            return text
+
+        if action == "sku_stock":
+            changed = d.get("changed") or 0
+            mode = d.get("mode")
+            value = d.get("value")
+            if mode == "set" and value is not None:
+                text = f"{changed} 个规格库存 设为 {value}"
+            elif mode == "set":
+                text = f"{changed} 个规格库存 设为不同值"
+            elif value is not None:
+                text = f"{changed} 个规格库存 {'+' if value >= 0 else ''}{value}"
+            else:
+                delta = (d.get("to_total") or 0) - (d.get("from_total") or 0)
+                text = (
+                    f"调整 {changed} 个规格库存（合计 "
+                    f"{'+' if delta >= 0 else ''}{delta}）"
+                )
+            if d.get("from_total") is not None and d.get("to_total") is not None:
+                text += f"（总库存 {d['from_total']} → {d['to_total']}）"
+            if d.get("reason") and d["reason"] != "quick_edit":
+                text += f" · 原因：{d['reason']}"
+            return text
+
+        # ---- 审核 ----
+        if is_review:
+            text = pair()
+            if d.get("note"):
+                text += f" · 理由：{d['note']}"
+            return text
+
+        # ---- 分类 / 推荐 ----
+        if action == "bulk_category":
+            return f"分类 {val('from')} → {val('to')}"
+
+        if action == "bulk_featured":
+            return "设为推荐" if d.get("to") else "取消推荐"
+
+        # ---- 批量导入 ----
+        if action == "import_products":
+            parts = []
+            if d.get("imported") is not None:
+                parts.append(f"导入 {d['imported']} 个商品")
+            if d.get("total_slides"):
+                parts.append(f"共 {d['total_slides']} 页")
+            if d.get("mode"):
+                parts.append(f"模式 {d['mode']}")
+            if d.get("review_status"):
+                parts.append(
+                    "审核 " + _audit_value(d["review_status"], REVIEW_STATUS_LABELS)
+                )
+            if d.get("skipped"):
+                parts.append(f"跳过 {d['skipped']}")
+            return " · ".join(parts) or "批量导入完成"
+    except Exception:  # noqa: BLE001 —— 展示层永不因脏数据报错
+        pass
+
+    # 兜底：key=value 拼接
+    if not d:
+        return "-"
+    return " · ".join(f"{k}={_audit_value(v)}" for k, v in list(d.items())[:4])
+
+
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"        # 待支付
@@ -30,6 +340,52 @@ class OrderStatus(str, enum.Enum):
     COMPLETED = "completed"    # 已完成
     CANCELLED = "cancelled"    # 已取消
     REFUNDED = "refunded"      # 已退款
+
+
+# 订单状态中文标签（后台列表/标签页/徽标共用）
+ORDER_STATUS_LABELS: dict[str, str] = {
+    "pending": "待付款",
+    "paid": "待发货",
+    "shipped": "待收货",
+    "completed": "已完成",
+    "cancelled": "已取消",
+    "refunded": "退款/售后",
+}
+
+# 后台订单标签页（key → 标签，`all` 表示全部）
+ORDER_TABS: list[tuple[str, str]] = [
+    ("all", "全部订单"),
+    ("pending", "待付款"),
+    ("paid", "待发货"),
+    ("shipped", "待收货"),
+    ("completed", "已完成"),
+    ("refunded", "退款/售后"),
+    ("cancelled", "已取消"),
+]
+
+
+def order_status_label(status) -> str:
+    """订单状态 → 中文标签（未知状态原样返回）"""
+    key = status.value if hasattr(status, "value") else str(status or "")
+    return ORDER_STATUS_LABELS.get(key, key or "-")
+
+
+def utc_to_local_naive(dt: datetime | None) -> datetime | None:
+    """把「Python 写入的 UTC 无时区时间」转成本地（服务器时区）无时区时间。
+
+    背景：模型里的 `created_at` 由数据库 `now()` 生成 → 落库是**本地时间**；
+    而部分字段（订单 `paid_at`/`shipped_at`/`completed_at`/`cancelled_at` 等）由
+    Python 用 `datetime.now(timezone.utc)` 写入 → 落库是 **UTC**。
+    两者直接展示会差一个时区（如「支付时间」早于「下单时间」），
+    因此统一在序列化时把后者转成本地时间，保证同一订单内时间轴顺序正确。
+    """
+    if dt is None:
+        return None
+    # 已带时区信息：直接用 astimezone 转本地再抹掉时区
+    if dt.tzinfo is not None:
+        return dt.astimezone().replace(tzinfo=None)
+    # 无时区：按 UTC 解释，转成本地
+    return dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
 
 
 class PaymentStatus(str, enum.Enum):
@@ -95,6 +451,21 @@ class Product(Base):
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active/draft/off_shelf
+    # 审核状态：pending=待审核 / approved=已通过 / rejected=已驳回
+    # 只有 approved 的商品才在前台展示（批量导入默认 pending，需人工审核）
+    review_status: Mapped[str] = mapped_column(
+        String(20), default="approved", index=True
+    )
+    review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # 审核备注/驳回理由
+    reviewed_by: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 来源：manual=后台人工录入 / import=产品册批量导入
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    # 软删除：非空则商品已进回收站（可在后台恢复）。物理删除请显式走 purge 接口
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    # 最后一次上下架操作留痕
+    off_shelf_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_status_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
     sales_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -111,6 +482,68 @@ class Product(Base):
 
     def description(self, lang: str) -> str:
         return self.description_i18n.get(lang) or self.description_i18n.get("zh", "")
+
+    @property
+    def total_stock(self) -> int:
+        """所有启用 SKU 的库存合计"""
+        return sum(s.stock or 0 for s in (self.skus or []) if s.is_active)
+
+    def compute_display_status(self, total_stock: int | None = None) -> str:
+        """派生「商品状态」——后台按此做单维度分状态管理（见 derive_product_status）"""
+        return derive_product_status(
+            deleted_at=self.deleted_at,
+            review_status=self.review_status,
+            status=self.status,
+            total_stock=self.total_stock if total_stock is None else total_stock,
+        )
+
+    @property
+    def total_stock(self) -> int:
+        """所有启用 SKU 的库存合计"""
+        return sum(s.stock or 0 for s in (self.skus or []) if s.is_active)
+
+    def compute_display_status(self, total_stock: int | None = None) -> str:
+        """派生「商品状态」——后台按此做单维度分状态管理。
+
+        | 值 | 标签 | 含义 |
+        |---|---|---|
+        | `deleted`   | 已删除 | 在回收站，可从回收站恢复 |
+        | `rejected`  | 已驳回 | 审核未通过，需修改后重新提交 |
+        | `pending`   | 发布中 | 已提交，等待人工审核 |
+        | `draft`     | 草稿箱 | 未提交上架 |
+        | `off_shelf` | 已下架 | 主动下架 |
+        | `sold_out`  | 已售罄 | 已上架但库存为 0 |
+        | `on_sale`   | 在售中 | 正常在售 |
+        """
+        return derive_product_status(
+            deleted_at=self.deleted_at,
+            review_status=self.review_status,
+            status=self.status,
+            total_stock=self.total_stock if total_stock is None else total_stock,
+        )
+
+
+class ProductAuditLog(Base):
+    """商品操作审计日志（人工管理 / 审核留痕）
+
+    商品被删除后仍保留记录（product_id 置空，靠 product_sku/product_name 追溯）。
+    """
+
+    __tablename__ = "product_audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    product_sku: Mapped[str] = mapped_column(String(64), default="")
+    product_name: Mapped[str] = mapped_column(String(200), default="")
+    # create / update / delete / review / bulk_status / bulk_delete / bulk_category ...
+    action: Mapped[str] = mapped_column(String(30), index=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    operator: Mapped[str] = mapped_column(String(50), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
 
 
 class SKU(Base):
@@ -213,9 +646,17 @@ class Order(Base):
     receiver_address: Mapped[str] = mapped_column(Text, default="")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 后台运营字段
+    admin_note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # 商家备注
+    carrier: Mapped[str | None] = mapped_column(String(50), nullable=True)      # 快递公司
+    tracking_no: Mapped[str | None] = mapped_column(String(60), nullable=True)  # 快递单号
+    cancel_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     shipped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     customer = relationship("Customer", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")

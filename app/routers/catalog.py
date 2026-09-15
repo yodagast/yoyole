@@ -64,6 +64,9 @@ async def list_products(
         select(Product, favorite_count)
         .outerjoin(WishlistItem, WishlistItem.product_id == Product.id)
         .where(Product.status == "active")
+        # 仅展示已审核通过、且未进回收站的商品
+        .where(Product.review_status == "approved")
+        .where(Product.deleted_at.is_(None))
         .group_by(Product.id)
     )
 
@@ -119,7 +122,12 @@ async def autocomplete(
         return []
     result = await db.execute(
         select(Product)
-        .where(Product.status == "active", _name_like(q.strip()))
+        .where(
+            Product.status == "active",
+            Product.review_status == "approved",
+            Product.deleted_at.is_(None),
+            _name_like(q.strip()),
+        )
         .order_by(Product.is_featured.desc(), Product.sales_count.desc())
         .limit(limit)
     )
@@ -141,7 +149,12 @@ async def product_detail(
     result = await db.execute(
         select(Product)
         .options(selectinload(Product.skus))
-        .where(Product.id == product_id, Product.status == "active")
+        .where(
+            Product.id == product_id,
+            Product.status == "active",
+            Product.review_status == "approved",   # 未过审的商品不在前台露出
+            Product.deleted_at.is_(None),           # 回收站商品同样不露出
+        )
     )
     product = result.scalar_one_or_none()
     if not product:

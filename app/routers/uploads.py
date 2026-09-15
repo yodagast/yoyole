@@ -65,16 +65,22 @@ async def list_uploaded_files(
 
 @router.post("/upload", status_code=201)
 async def upload_file(
-    kind: str = "image",  # image | video
+    kind: str = "image",  # image | video | detail
     file: UploadFile = File(...),
     admin: AdminUser = Depends(require_admin()),
 ):
-    """上传图片或视频，返回 {url}"""
-    if kind not in ("image", "video"):
-        raise HTTPException(status_code=400, detail="kind 必须是 image 或 video")
+    """上传图片或视频，返回 {url}
+
+    - `kind=image`  → 轮播图 / 主图，URL 形如 `/static/uploads/...`
+    - `kind=detail` → 商品图文详情大图，URL 形如 `/d/static/uploads/...`
+      （带 `/d/` 标记，后台编辑页与前台据此区分「轮播图 / 图文详情图」）
+    - `kind=video`  → 视频
+    """
+    if kind not in ("image", "video", "detail"):
+        raise HTTPException(status_code=400, detail="kind 必须是 image / video / detail")
 
     ext = _safe_ext(file.filename or "", file.content_type)
-    allowed = ALLOWED_IMAGE_EXT if kind == "image" else ALLOWED_VIDEO_EXT
+    allowed = ALLOWED_IMAGE_EXT if kind in ("image", "detail") else ALLOWED_VIDEO_EXT
     if ext not in allowed:
         raise HTTPException(status_code=400, detail=f"{kind} 类型不允许：{ext or '未知'}")
 
@@ -89,7 +95,7 @@ async def upload_file(
 
 async def _save_upload(file: UploadFile, kind: str, ext: str) -> dict:
     """校验后的上传文件落盘并返回公开 URL。"""
-    limit = MAX_IMAGE_SIZE if kind == "image" else MAX_VIDEO_SIZE
+    limit = MAX_IMAGE_SIZE if kind in ("image", "detail") else MAX_VIDEO_SIZE
     now = datetime.now()
     day_dir = UPLOAD_DIR / now.strftime("%Y/%m/%d")
     day_dir.mkdir(parents=True, exist_ok=True)
@@ -115,7 +121,9 @@ async def _save_upload(file: UploadFile, kind: str, ext: str) -> dict:
         raise HTTPException(status_code=500, detail="文件保存失败")
 
     await file.close()
-    url = f"/static/uploads/{now.strftime('%Y/%m/%d')}/{fname}"
+    # 详情图 URL 加 /d/ 前缀，作为「图文详情图」标记；静态文件由 /d/static 挂载提供
+    prefix = "/d/static/uploads" if kind == "detail" else "/static/uploads"
+    url = f"{prefix}/{now.strftime('%Y/%m/%d')}/{fname}"
     return {"url": url, "kind": kind, "size": written}
 
 

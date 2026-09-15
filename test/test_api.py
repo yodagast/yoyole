@@ -22,7 +22,8 @@ import requests
 
 from app.config import settings
 
-BASE = "http://127.0.0.1:8010"
+# 目标服务地址：默认 8010，可覆盖（如 export TEST_BASE_URL=http://127.0.0.1:8020）
+BASE = os.environ.get("TEST_BASE_URL", "http://127.0.0.1:8010").rstrip("/")
 H = {"Accept-Language": "zh"}
 
 BUYER_EMAIL = "buyer@example.com"
@@ -477,6 +478,29 @@ class TestWishlist:
         assert r.status_code == 200
         lst = requests.get(f"{BASE}/api/wishlist", headers=buyer_token).json()
         assert lst["items"] == []
+
+    def test_admin_list_exposes_favorite_count(self, buyer_token, admin_token):
+        """后台商品列表必须返回 favorite_count（否则「收藏」列恒为 0）
+
+        `favorite_count` 不是 products 表字段，需要在路由里聚合 WishlistItem。
+        """
+        items = requests.get(f"{BASE}/api/products", headers=H).json()
+        pid = items[0]["id"]
+        requests.delete(f"{BASE}/api/wishlist", headers=buyer_token)
+        requests.post(f"{BASE}/api/wishlist", json={"product_id": pid}, headers=buyer_token)
+
+        got = requests.get(f"{BASE}/api/admin/products?product_id={pid}",
+                           headers=admin_token).json()
+        row = next(p for p in got if p["id"] == pid)
+        assert "favorite_count" in row
+        assert row["favorite_count"] == 1
+
+        # 取消收藏后归零
+        requests.delete(f"{BASE}/api/wishlist/{pid}", headers=buyer_token)
+        got2 = requests.get(f"{BASE}/api/admin/products?product_id={pid}",
+                            headers=admin_token).json()
+        row2 = next(p for p in got2 if p["id"] == pid)
+        assert row2["favorite_count"] == 0
 
 
 # ---------- 地址 ----------
@@ -1117,10 +1141,32 @@ class TestAdmin:
         created = requests.post(f"{BASE}/api/admin/products", json=payload, headers=admin_token)
         assert created.status_code == 201, created.text
         pid = created.json()["id"]
+
+        # 删除为「软删除」：商品移入回收站，仍可查到（tab=deleted）
         r = requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
         assert r.status_code == 200, r.text
+        assert "回收站" in r.json()["message"]
+        in_bin = requests.get(
+            f"{BASE}/api/admin/products?tab=deleted&product_id={pid}", headers=admin_token
+        ).json()
+        assert [p["id"] for p in in_bin] == [pid]
+        # 默认列表（tab=all）不再包含
+        in_all = requests.get(
+            f"{BASE}/api/admin/products?product_id={pid}", headers=admin_token
+        ).json()
+        assert in_all == []
+
+        # 重复删除幂等（仍返回 200，提示已在回收站）
         r2 = requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
-        assert r2.status_code == 404
+        assert r2.status_code == 200
+        assert "回收站" in r2.json()["message"]
+
+        # 彻底删除后彻底查不到
+        r3 = requests.delete(f"{BASE}/api/admin/products/{pid}/purge", headers=admin_token)
+        assert r3.status_code == 200, r3.text
+        assert requests.get(
+            f"{BASE}/api/admin/products?tab=deleted&product_id={pid}", headers=admin_token
+        ).json() == []
 
     # ---------- 管理员账号管理 + 权限 ----------
     def test_admin_manage_admins(self, admin_token):
@@ -1161,6 +1207,579 @@ class TestAdmin:
         for a in admins:
             if a["username"] == uname:
                 requests.delete(f"{BASE}/api/admin/admins/{a['id']}", headers=admin_token)
+
+    # ---------- 修改 / 重置密码 ----------
+    def test_change_own_password_rejects_bad_input(self, admin_token):
+        """非法输入必须被拒且**不能改动密码**（沿用固定 admin123 供其余用例登录）"""
+        def put(body, token=admin_token):
+            return requests.put(f"{BASE}/api/admin/me/password", json=body, headers=token)
+
+        # 当前密码错误
+        r = put({"old_password": "wrong-password", "new_password": "brandnew123"})
+        assert r.status_code == 400 and "当前密码" in r.json()["detail"]
+        # 新旧相同
+        r = put({"old_password": ADMIN_PASS, "new_password": ADMIN_PASS})
+        assert r.status_code == 400 and "不能与当前密码相同" in r.json()["detail"]
+        # 新密码过短 → pydantic 校验
+        assert put({"old_password": ADMIN_PASS, "new_password": "123"}).status_code == 422
+        # 缺字段
+        assert put({"new_password": "brandnew123"}).status_code == 422
+        # 未登录
+        assert requests.put(f"{BASE}/api/admin/me/password",
+                            json={"old_password": ADMIN_PASS,
+                                  "new_password": "brandnew123"}).status_code == 401
+        # 密码未被改动
+        assert requests.post(f"{BASE}/api/admin/login",
+                             json={"username": ADMIN_USER,
+                                   "password": ADMIN_PASS}).status_code == 200
+
+    def test_superadmin_reset_own_password_is_blocked(self, admin_token):
+        """不允许通过「重置他人密码」接口绕过原密码校验改自己"""
+        me = requests.get(f"{BASE}/api/admin/admins", headers=admin_token).json()
+        my_id = [a["id"] for a in me if a["username"] == ADMIN_USER][0]
+        r = requests.put(f"{BASE}/api/admin/admins/{my_id}/password",
+                         json={"new_password": "bypass123"}, headers=admin_token)
+        assert r.status_code == 400 and "修改密码" in r.json()["detail"]
+        # 原密码仍可用
+        assert requests.post(f"{BASE}/api/admin/login",
+                             json={"username": ADMIN_USER,
+                                   "password": ADMIN_PASS}).status_code == 200
+
+    def test_password_change_and_reset_flow(self, admin_token):
+        """完整流程：改自己密码 → 登录态切换 → 超管重置 → 权限校验 → 清理"""
+        uname = f"pwtest_{ts}"
+        created = requests.post(
+            f"{BASE}/api/admin/admins",
+            json={"username": uname, "password": "init123456",
+                  "full_name": "密码测试", "role": "operator"},
+            headers=admin_token,
+        )
+        assert created.status_code == 201, created.text
+        aid = created.json()["id"]
+        login_url = f"{BASE}/api/admin/login"
+        try:
+            # 自己的旧密码登录
+            me = requests.post(login_url, json={"username": uname, "password": "init123456"})
+            assert me.status_code == 200
+            mtoken = {"Authorization": f"Bearer {me.json()['access_token']}", **H}
+
+            # operator 修改自己的密码（需原密码）
+            r = requests.put(f"{BASE}/api/admin/me/password",
+                             json={"old_password": "init123456",
+                                   "new_password": "self123456"}, headers=mtoken)
+            assert r.status_code == 200, r.text
+            # 旧密码失效、新密码可登录
+            assert requests.post(login_url, json={"username": uname,
+                                                  "password": "init123456"}).status_code == 401
+            assert requests.post(login_url, json={"username": uname,
+                                                  "password": "self123456"}).status_code == 200
+
+            # operator 无权重置他人密码（即便有合法 token）
+            assert requests.put(f"{BASE}/api/admin/admins/{aid}/password",
+                                json={"new_password": "hacked123"},
+                                headers=mtoken).status_code == 403
+
+            # 超管重置该账号密码（无需对方原密码）
+            r = requests.put(f"{BASE}/api/admin/admins/{aid}/password",
+                             json={"new_password": "reset12345"}, headers=admin_token)
+            assert r.status_code == 200, r.text
+            assert "已重置" in r.json()["message"]
+            assert requests.post(login_url, json={"username": uname,
+                                                  "password": "self123456"}).status_code == 401
+            assert requests.post(login_url, json={"username": uname,
+                                                  "password": "reset12345"}).status_code == 200
+
+            # 不存在 / 过短密码
+            assert requests.put(f"{BASE}/api/admin/admins/999999999/password",
+                                json={"new_password": "whatever1"},
+                                headers=admin_token).status_code == 404
+            assert requests.put(f"{BASE}/api/admin/admins/{aid}/password",
+                                json={"new_password": "123"},
+                                headers=admin_token).status_code == 422
+            # 未登录 401
+            assert requests.put(f"{BASE}/api/admin/admins/{aid}/password",
+                                json={"new_password": "whatever1"}).status_code == 401
+        finally:
+            requests.delete(f"{BASE}/api/admin/admins/{aid}", headers=admin_token)
+
+    def test_legacy_admin_update_cannot_change_own_password(self, admin_token):
+        """PUT /admins/{id} 的 password 字段只能改他人，改自己需走 /me/password"""
+        admins = requests.get(f"{BASE}/api/admin/admins", headers=admin_token).json()
+        my_id = [a["id"] for a in admins if a["username"] == ADMIN_USER][0]
+        r = requests.put(f"{BASE}/api/admin/admins/{my_id}",
+                         json={"password": "bypass123"}, headers=admin_token)
+        assert r.status_code == 400 and "修改密码" in r.json()["detail"]
+        assert requests.post(f"{BASE}/api/admin/login",
+                             json={"username": ADMIN_USER,
+                                   "password": ADMIN_PASS}).status_code == 200
+
+
+# ---------- 后台订单查询（增强）----------
+def _pick_sku() -> tuple[int, dict]:
+    """取一个有库存的在售商品与首个 SKU"""
+    products = requests.get(f"{BASE}/api/products", headers=H).json()
+    pid = next(p["id"] for p in products)
+    detail = requests.get(f"{BASE}/api/products/{pid}", headers=H).json()
+    return pid, detail["skus"][0]
+
+
+def _checkout(buyer_token, sku: dict, *, quantity: int = 1, receiver_name: str = "订单测试",
+              receiver_phone: str = "13800001111",
+              receiver_address: str = "上海市浦东新区测试路 1 号",
+              remark: str = "pytest 订单管理", pay: bool = False) -> str:
+    """购物车加购 → 下单（可选模拟支付），返回订单号"""
+    requests.delete(f"{BASE}/api/cart", headers=buyer_token)
+    add = requests.post(f"{BASE}/api/cart/items",
+                        json={"sku_id": sku["id"], "quantity": quantity},
+                        headers=buyer_token)
+    assert add.status_code == 201, add.text
+    r = requests.post(f"{BASE}/api/orders/checkout", json={
+        "receiver_name": receiver_name,
+        "receiver_phone": receiver_phone,
+        "receiver_address": receiver_address,
+        "remark": remark,
+        "payment_method": "mock",
+    }, headers=buyer_token)
+    assert r.status_code == 201, r.text
+    order_no = r.json()["order_no"]
+    if pay:
+        p = requests.post(f"{BASE}/api/orders/{order_no}/pay", headers=buyer_token)
+        assert p.status_code == 200, p.text
+        c = requests.get(f"{BASE}/api/payments/mock/confirm",
+                         params={"txn_no": p.json()["transaction_no"]})
+        assert c.status_code == 200, c.text
+    return order_no
+
+
+class TestAdminOrderManagement:
+    """订单查询增强接口：状态统计、多条件筛选、发货/备注/取消/收款/完成、批量与导出。"""
+
+    @pytest.fixture()
+    def track(self, buyer_token, admin_token):
+        """记录本用例创建的订单号，结束后统一清理（避免残留锁库存）"""
+        created: list[str] = []
+        yield created
+        for no in created:
+            requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                          json={"reason": "pytest 清理", "refund": True},
+                          headers=admin_token)
+
+    def _search(self, admin_token, **params):
+        r = requests.get(f"{BASE}/api/admin/orders-search", params=params, headers=admin_token)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _count(self, admin_token, **params):
+        r = requests.get(f"{BASE}/api/admin/orders-search-count", params=params,
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        return r.json()["total"]
+
+    # ---------- 鉴权与参数校验 ----------
+    def test_endpoints_require_auth(self):
+        for path in ("/orders-status-counts", "/orders-search", "/orders-search-count",
+                     "/orders-search-export"):
+            assert requests.get(f"{BASE}/api/admin{path}").status_code == 401
+        for path, body in (
+            ("/orders-search/ORD_X/ship", {}),
+            ("/orders-search/ORD_X/note", {"note": "x"}),
+            ("/orders-search/ORD_X/cancel", {}),
+            ("/orders-search/ORD_X/complete", {}),
+            ("/orders-search/ORD_X/confirm-payment", {}),
+            ("/orders-search/bulk", {"order_nos": ["ORD_X"], "action": "note"}),
+        ):
+            assert requests.post(f"{BASE}/api/admin{path}", json=body).status_code == 401
+
+    def test_bad_tab_rejected(self, admin_token):
+        for params in ({"tab": "not-a-tab"}, {"tab": "unknown"}):
+            r = requests.get(f"{BASE}/api/admin/orders-search", params=params,
+                             headers=admin_token)
+            assert r.status_code == 400, r.text
+            r2 = requests.get(f"{BASE}/api/admin/orders-search-count", params=params,
+                              headers=admin_token)
+            assert r2.status_code == 400
+
+    def test_all_tabs_accepted(self, admin_token):
+        """7 个状态标签页都必须可用（曾因 ORDER_TABS 漏了 cancelled 报 400）"""
+        for tab in ("all", "pending", "paid", "shipped", "completed",
+                    "refunded", "cancelled"):
+            r = requests.get(f"{BASE}/api/admin/orders-search",
+                             params={"tab": tab, "page_size": 1}, headers=admin_token)
+            assert r.status_code == 200, f"tab={tab} 被拒绝：{r.text}"
+            c = requests.get(f"{BASE}/api/admin/orders-search-count",
+                             params={"tab": tab}, headers=admin_token)
+            assert c.status_code == 200, f"tab={tab} 计数被拒绝：{c.text}"
+
+    def test_tabs_cover_all_order_statuses(self, admin_token):
+        """各标签页数量之和 = 全部（保证没有状态被漏在标签页之外）"""
+        counts = {}
+        for tab in ("pending", "paid", "shipped", "completed",
+                    "refunded", "cancelled"):
+            counts[tab] = self._count(admin_token, tab=tab)
+        assert self._count(admin_token, tab="all") == sum(counts.values())
+
+    def test_cancelled_tab_lists_cancelled_order(self, admin_token, buyer_token, track):
+        """取消后的订单必须出现在「已取消」标签页（回归：曾报 tab 非法）"""
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+        requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                      json={"reason": "标签页回归"}, headers=admin_token)
+
+        rows = self._search(admin_token, tab="cancelled", order_no=no)
+        assert [o["order_no"] for o in rows] == [no]
+        assert rows[0]["status_label"] == "已取消"
+
+    # ---------- 状态统计 ----------
+    def test_status_counts_shape(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/orders-status-counts", headers=admin_token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        for key in ("all", "pending", "paid", "shipped", "completed",
+                    "cancelled", "refunded", "pending_ship_alert"):
+            assert key in data, key
+            assert isinstance(data[key], int) and data[key] >= 0
+        parts = sum(data[k] for k in ("pending", "paid", "shipped",
+                                      "completed", "cancelled", "refunded"))
+        assert data["all"] == parts
+
+    def test_status_counts_reflect_new_order(self, admin_token, buyer_token, track):
+        before = requests.get(f"{BASE}/api/admin/orders-status-counts",
+                              headers=admin_token).json()
+        _, sku = _pick_sku()
+        track.append(_checkout(buyer_token, sku))
+
+        after = requests.get(f"{BASE}/api/admin/orders-status-counts",
+                             headers=admin_token).json()
+        assert after["pending"] == before["pending"] + 1
+        assert after["all"] == before["all"] + 1
+
+    # ---------- 筛选 ----------
+    def test_search_filters(self, admin_token, buyer_token, track):
+        pid, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, receiver_name="筛选测试甲",
+                       receiver_phone="13711112222", remark="筛选备注ABC")
+        track.append(no)
+        no2 = _checkout(buyer_token, sku, receiver_name="筛选测试乙",
+                        receiver_phone="13733334444")
+        track.append(no2)
+
+        # 收件人 / 手机号
+        assert {o["order_no"] for o in self._search(admin_token, receiver="筛选测试甲")} == {no}
+        assert {o["order_no"] for o in self._search(admin_token, phone="13733334444")} == {no2}
+        # 订单号精确（单值走模糊匹配）
+        assert {o["order_no"] for o in self._search(admin_token, order_no=no)} == {no}
+        # 订单号多值（逗号分隔）
+        both = self._search(admin_token, order_no=f"{no},{no2}")
+        assert {o["order_no"] for o in both} == {no, no2}
+        # 通用关键词命中收件人与备注无关字段（按收件人/手机号匹配）
+        assert {o["order_no"] for o in self._search(admin_token, keyword="筛选测试甲")} == {no}
+        # 按商品过滤：商品 ID（纯数字）与规格编码两种口径都能命中
+        assert no in {o["order_no"] for o in self._search(admin_token, product_id=str(pid))}
+        assert no in {o["order_no"] for o in self._search(admin_token,
+                                                          product_id=sku["sku_code"])}
+        # 不存在的关键词
+        assert self._search(admin_token, keyword="ZZZ_NOT_EXIST_QQQ") == []
+
+    def test_search_filter_matches_count(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, receiver_name="计数一致性")
+        track.append(no)
+
+        params = {"receiver": "计数一致性", "page": 1, "page_size": 5}
+        rows = self._search(admin_token, **params)
+        assert self._count(admin_token, **{"receiver": "计数一致性"}) == len(rows) == 1
+
+    def test_search_tab_filter(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, pay=True)
+        track.append(no)
+
+        rows = self._search(admin_token, tab="paid", order_no=no)
+        assert [o["order_no"] for o in rows] == [no]
+        assert self._search(admin_token, tab="pending", order_no=no) == []
+
+    def test_search_date_range(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+
+        today = time.strftime("%Y-%m-%d")
+        assert no in {o["order_no"] for o in self._search(admin_token, date_from=today,
+                                                          date_to=today)}
+        assert no not in {o["order_no"] for o in self._search(admin_token, date_from="2099-01-01")}
+        # 非法日期被忽略而不是报错
+        assert self._search(admin_token, date_from="not-a-date", order_no=no)
+
+    def test_search_pagination(self, admin_token):
+        rows = self._search(admin_token, page=1, page_size=2)
+        assert len(rows) <= 2
+        total = self._count(admin_token)
+        assert total >= len(rows)
+        # 超出范围的页码返回空
+        assert self._search(admin_token, page=99999, page_size=20) == []
+
+    def test_search_limit_mode(self, admin_token):
+        rows = self._search(admin_token, limit=3)
+        assert len(rows) <= 3
+
+    # ---------- 详情 ----------
+    def test_order_detail_fields(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, quantity=2, pay=True)
+        track.append(no)
+
+        r = requests.get(f"{BASE}/api/admin/orders-search/{no}", headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["order_no"] == no
+        assert o["status"] == "paid" and o["status_label"] == "待发货"
+        assert o["total_quantity"] == 2 and o["item_count"] == 1
+        assert float(o["goods_amount"]) > 0
+        assert o["customer_email"] == BUYER_EMAIL
+        assert o["items"][0]["sku_id"] == sku["id"]
+        assert o["payments"], "已支付订单应有支付记录"
+        assert o["payments"][0]["method_label"] == "模拟支付"
+        assert o["payments"][0]["status_label"] == "支付成功"
+        # 时间节点为本地时间：下单时间不晚于支付时间
+        assert o["created_at"] <= o["paid_at"], (o["created_at"], o["paid_at"])
+
+    def test_order_detail_unknown(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/orders-search/ORD_NOT_EXIST", headers=admin_token)
+        assert r.status_code == 404
+
+    # ---------- 发货 ----------
+    def test_ship_and_repeat(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, pay=True)
+        track.append(no)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/ship",
+                          json={"carrier": "顺丰速运", "tracking_no": "SF123456"},
+                          headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["status"] == "shipped" and o["status_label"] == "待收货"
+        assert o["carrier"] == "顺丰速运" and o["tracking_no"] == "SF123456"
+        assert o["shipped_at"] and o["shipped_at"] >= o["paid_at"]
+
+        again = requests.post(f"{BASE}/api/admin/orders-search/{no}/ship", headers=admin_token)
+        assert again.status_code == 400 and "已发货" in again.json()["detail"]
+
+    def test_ship_requires_paid(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)  # 未支付
+        track.append(no)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/ship", headers=admin_token)
+        assert r.status_code == 400 and "仅已支付订单可发货" in r.json()["detail"]
+
+    def test_ship_unknown_order(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/orders-search/ORD_NOT_EXIST/ship",
+                          headers=admin_token)
+        assert r.status_code == 404
+
+    def test_tracking_filter_after_ship(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, pay=True)
+        track.append(no)
+        requests.post(f"{BASE}/api/admin/orders-search/{no}/ship",
+                      json={"tracking_no": "ZT_TEST_0001"}, headers=admin_token)
+
+        assert {o["order_no"] for o in self._search(admin_token, tracking_no="ZT_TEST_0001")} == {no}
+        assert {o["order_no"] for o in self._search(admin_token, keyword="ZT_TEST_0001")} == {no}
+
+    # ---------- 备注 ----------
+    def test_admin_note(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/note",
+                          json={"note": "客户要求纸质发票"}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["admin_note"] == "客户要求纸质发票"
+
+        got = requests.get(f"{BASE}/api/admin/orders-search/{no}", headers=admin_token).json()
+        assert got["admin_note"] == "客户要求纸质发票"
+        # 清空
+        assert requests.post(f"{BASE}/api/admin/orders-search/{no}/note",
+                             json={"note": ""}, headers=admin_token).json()["admin_note"] is None
+
+    def test_admin_note_too_long(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/note",
+                          json={"note": "x" * 501}, headers=admin_token)
+        assert r.status_code == 422
+
+    # ---------- 取消 / 退款 ----------
+    def test_cancel_unpaid_releases_locked_stock(self, admin_token, buyer_token, track):
+        pid, sku = _pick_sku()
+        before = sku["available_stock"]
+        assert before >= 1
+
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+        after_checkout = requests.get(f"{BASE}/api/products/{pid}", headers=H).json()
+        assert after_checkout["skus"][0]["available_stock"] == before - 1
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                          json={"reason": "买家不要了"}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["status"] == "cancelled" and o["status_label"] == "已取消"
+        assert o["cancel_reason"] == "买家不要了" and o["cancelled_at"]
+
+        after_cancel = requests.get(f"{BASE}/api/products/{pid}", headers=H).json()
+        assert after_cancel["skus"][0]["available_stock"] == before
+
+    def test_cancel_paid_requires_refund_and_restores_stock(self, admin_token, buyer_token, track):
+        pid, sku = _pick_sku()
+        before = sku["available_stock"]
+        no = _checkout(buyer_token, sku, pay=True)
+        track.append(no)
+
+        paid_stock = requests.get(f"{BASE}/api/products/{pid}", headers=H).json()
+        assert paid_stock["skus"][0]["available_stock"] == before - 1
+
+        # 已支付订单不允许直接取消
+        bad = requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                            json={"reason": "不想要了"}, headers=admin_token)
+        assert bad.status_code == 400 and "退款" in bad.json()["detail"]
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                          json={"reason": "拍错了", "refund": True}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["status"] == "refunded" and o["status_label"] == "退款/售后"
+        assert o["payments"] and o["payments"][0]["status_label"] == "已退款"
+
+        restored = requests.get(f"{BASE}/api/products/{pid}", headers=H).json()
+        assert restored["skus"][0]["available_stock"] == before
+
+    def test_cancel_twice_rejected(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)
+        track.append(no)
+        assert requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                             headers=admin_token).status_code == 200
+        again = requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                              headers=admin_token)
+        assert again.status_code == 400 and "已取消" in again.json()["detail"]
+
+    # ---------- 确认收款 / 完成 ----------
+    def test_confirm_payment(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku)  # 未支付
+        track.append(no)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/confirm-payment",
+                          headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["status"] == "paid" and o["paid_at"]
+
+        again = requests.post(f"{BASE}/api/admin/orders-search/{no}/confirm-payment",
+                              headers=admin_token)
+        assert again.status_code == 400 and "待付款" in again.json()["detail"]
+
+    def test_complete_flow_and_then_cancel_rejected(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, pay=True)
+        track.append(no)
+
+        premature = requests.post(f"{BASE}/api/admin/orders-search/{no}/complete",
+                                  headers=admin_token)
+        assert premature.status_code == 400 and "待收货" in premature.json()["detail"]
+
+        requests.post(f"{BASE}/api/admin/orders-search/{no}/ship", headers=admin_token)
+        r = requests.post(f"{BASE}/api/admin/orders-search/{no}/complete",
+                          headers=admin_token)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["status"] == "completed" and o["status_label"] == "已完成"
+        assert o["completed_at"] and o["completed_at"] >= o["shipped_at"]
+
+        cancel = requests.post(f"{BASE}/api/admin/orders-search/{no}/cancel",
+                               headers=admin_token)
+        assert cancel.status_code == 400 and "已完成" in cancel.json()["detail"]
+
+    # ---------- 批量 ----------
+    def test_bulk_ship_with_skipped(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        n1 = _checkout(buyer_token, sku, pay=True)
+        track.append(n1)
+        n2 = _checkout(buyer_token, sku, pay=True)
+        track.append(n2)
+        n3 = _checkout(buyer_token, sku)  # 未支付，应被跳过
+        track.append(n3)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/bulk", json={
+            "order_nos": [n1, n2, n3, "ORD_NOT_EXIST"],
+            "action": "ship", "carrier": "圆通速递",
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        msg = r.json()["message"]
+        assert "成功 2 条" in msg and "跳过 2 条" in msg
+        assert "ORD_NOT_EXIST" in msg
+
+        for no in (n1, n2):
+            od = requests.get(f"{BASE}/api/admin/orders-search/{no}",
+                              headers=admin_token).json()
+            assert od["status"] == "shipped" and od["carrier"] == "圆通速递"
+
+    def test_bulk_note(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        n1 = _checkout(buyer_token, sku)
+        track.append(n1)
+        n2 = _checkout(buyer_token, sku)
+        track.append(n2)
+
+        r = requests.post(f"{BASE}/api/admin/orders-search/bulk", json={
+            "order_nos": [n1, n2, n1],  # 重复项应去重
+            "action": "note", "note": "批量备注：加急",
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert "成功 2 条" in r.json()["message"]
+        for no in (n1, n2):
+            assert requests.get(f"{BASE}/api/admin/orders-search/{no}",
+                                headers=admin_token).json()["admin_note"] == "批量备注：加急"
+
+    def test_bulk_invalid_payload(self, admin_token):
+        bad_action = requests.post(f"{BASE}/api/admin/orders-search/bulk", json={
+            "order_nos": ["ORD_X"], "action": "delete",
+        }, headers=admin_token)
+        assert bad_action.status_code in (400, 422)
+        empty = requests.post(f"{BASE}/api/admin/orders-search/bulk", json={
+            "order_nos": [], "action": "note",
+        }, headers=admin_token)
+        assert empty.status_code == 422
+
+    # ---------- 导出 ----------
+    def test_export_csv(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/orders-search-export", headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert "text/csv" in r.headers["content-type"]
+        assert "attachment" in r.headers.get("content-disposition", "")
+        assert r.content[:3] == b"\xef\xbb\xbf", "缺少 UTF-8 BOM"
+        text = r.content.decode("utf-8-sig")
+        header = text.splitlines()[0]
+        for col in ("订单号", "订单状态", "实收金额", "商品件数", "下单时间"):
+            assert col in header, col
+
+    def test_export_respects_filters(self, admin_token, buyer_token, track):
+        _, sku = _pick_sku()
+        no = _checkout(buyer_token, sku, receiver_name="导出专用收件人")
+        track.append(no)
+
+        r = requests.get(f"{BASE}/api/admin/orders-search-export",
+                         params={"receiver": "导出专用收件人"}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        lines = r.content.decode("utf-8-sig").strip().splitlines()
+        assert len(lines) == 2, lines
+        assert no in lines[1]
 
 
 class TestBanner:
@@ -1220,3 +1839,1095 @@ class TestBanner:
         assert d.status_code == 200, d.text
         # 删除后单条 404
         assert requests.get(f"{BASE}/api/admin/banners/{bid}", headers=admin_token).status_code == 404
+
+
+def _make_test_pptx(path, sku_code: str, name_zh: str = "蜜桃测试文胸") -> None:
+    """生成一份最小产品册 PPT（1 页 = 1 商品），用于导入接口测试。
+
+    页面结构刻意模仿真实产品册：主信息框内「颜色/Color」之后跟颜色文字。
+    """
+    from io import BytesIO
+
+    from PIL import Image
+    from pptx import Presentation as PptxPresentation
+    from pptx.util import Inches
+
+    prs = PptxPresentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # 空白版式
+
+    box = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(5), Inches(4))
+    box.text_frame.text = (
+        f"货号/Number\n{sku_code}\n\n"
+        f"品名：{name_zh}\n"
+        "面料：82.5%聚酯纤维17.5%氨纶\n"
+        "尺码：S/M/L\n\n"
+        "颜色/Color\n"
+        "星耀黑          春雨绿"
+    )
+
+    buf = BytesIO()
+    Image.new("RGB", (600, 800), (200, 120, 140)).save(buf, format="JPEG")
+    slide.shapes.add_picture(BytesIO(buf.getvalue()), Inches(6), Inches(0.5),
+                             Inches(3), Inches(4))
+
+    prs.save(str(path))
+
+
+class TestProductImport:
+    """产品册 PPT 批量导入接口（/api/admin/import/*）。"""
+
+    def test_import_format_requires_auth(self):
+        assert requests.get(f"{BASE}/api/admin/import/format").status_code == 401
+
+    def test_import_format_rules(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/import/format", headers=admin_token)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert ".pptx" in data["supported_ext"]
+        assert data["one_slide_per_product"] is True
+        assert {"sku_code", "name", "fabrics", "sizes", "colors", "images"} <= set(data["fields"])
+        codes = {c["code"] for c in data["categories"]}
+        assert {"bras", "vests", "tshirts", "pants", "other"} <= codes
+        assert {"merge", "replace"} <= set(data["modes"])
+
+    def test_import_requires_auth(self, tmp_path):
+        pptx = tmp_path / f"noauth_{ts}.pptx"
+        _make_test_pptx(pptx, f"PTIMP{ts % 1000000}")
+        with open(pptx, "rb") as f:
+            r = requests.post(f"{BASE}/api/admin/import/products",
+                              files={"file": (pptx.name, f)}, data={"dry_run": "true"})
+        assert r.status_code == 401
+
+    def test_import_rejects_non_pptx(self, admin_token, tmp_path):
+        bogus = tmp_path / f"bogus_{ts}.txt"
+        bogus.write_text("not a pptx", encoding="utf-8")
+        with open(bogus, "rb") as f:
+            r = requests.post(f"{BASE}/api/admin/import/products",
+                              files={"file": (bogus.name, f)},
+                              data={"dry_run": "true"}, headers=admin_token)
+        assert r.status_code == 400, r.text
+
+    def test_import_rejects_bad_mode(self, admin_token, tmp_path):
+        pptx = tmp_path / f"badmode_{ts}.pptx"
+        _make_test_pptx(pptx, f"PTIMP{ts % 1000000}")
+        with open(pptx, "rb") as f:
+            r = requests.post(f"{BASE}/api/admin/import/products",
+                              files={"file": (pptx.name, f)},
+                              data={"mode": "upsert"}, headers=admin_token)
+        assert r.status_code == 400, r.text
+
+    def test_import_dry_run_parses_without_writing(self, admin_token, tmp_path):
+        """dry_run 应解析出商品字段，但不写库、返回 imported=0。"""
+        sku = f"PTIMP{ts % 1000000}"
+        pptx = tmp_path / f"dryrun_{ts}.pptx"
+        _make_test_pptx(pptx, sku)
+
+        before = requests.get(f"{BASE}/api/admin/dashboard", headers=admin_token).json()["products_count"]
+
+        with open(pptx, "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/admin/import/products",
+                files={"file": (pptx.name, f)},
+                data={"dry_run": "true", "preview_limit": "1"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+
+        assert d["dry_run"] is True
+        assert d["total_slides"] == 1
+        assert d["parsed_products"] == 1
+        assert d["imported"] == 0
+        assert d["products_total"] == 0
+
+        item = d["preview"][0]
+        assert item["sku_code"] == sku
+        assert item["name_zh"] == "蜜桃测试文胸"
+        assert item["category_code"] == "bras"
+        assert item["sizes"] == ["S", "M", "L"]
+        assert "星耀黑" in item["colors"] and "春雨绿" in item["colors"]
+        assert item["main_image"].endswith("/main.jpg")
+
+        # 预览不应改变库中商品数
+        after = requests.get(f"{BASE}/api/admin/dashboard", headers=admin_token).json()["products_count"]
+        assert after == before
+
+
+class TestProductReviewAndBulk:
+    """商品人工审核、批量管理、审计日志与后台接口文档。
+
+    所有写操作都作用于本测试自建的 `PYTEST-` 前缀商品，
+    不触碰真实商品数据。
+    """
+
+    @staticmethod
+    def _make_product(admin_token, suffix: str) -> int:
+        """创建一个测试商品，返回其 id"""
+        sku = f"PYTEST-{suffix}-{ts}"
+        r = requests.post(
+            f"{BASE}/api/admin/products",
+            json={
+                "sku_code": sku,
+                "name_zh": f"审核测试商品 {suffix}",
+                "name_en": f"Review Test {suffix}",
+                "base_price": 199,
+                "status": "active",
+                "skus": [{"sku_code": f"{sku}-001", "price": 199, "stock": 10}],
+            },
+            headers=admin_token,
+        )
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    # ---------- 审核状态 ----------
+    def test_review_stats_shape(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/products-review-stats", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        for k in ("total", "pending", "approved", "rejected", "imported", "manual"):
+            assert k in d, f"缺少字段 {k}"
+        assert d["total"] == d["pending"] + d["approved"] + d["rejected"]
+
+    def test_review_stats_requires_auth(self):
+        assert requests.get(f"{BASE}/api/admin/products-review-stats").status_code == 401
+
+    def test_manual_product_is_approved_by_default(self, admin_token):
+        """后台人工录入的商品应直接为已通过、来源 manual"""
+        pid = self._make_product(admin_token, "manual")
+        r = requests.get(f"{BASE}/api/admin/products?q=PYTEST-manual", headers=admin_token)
+        item = [p for p in r.json() if p["id"] == pid][0]
+        assert item["review_status"] == "approved"
+        assert item["source"] == "manual"
+        assert item["reviewed_by"] == "admin"
+
+    def test_review_flow(self, admin_token):
+        """驳回（需理由）→ 重置待审 → 通过"""
+        pid = self._make_product(admin_token, "flow")
+        url = f"{BASE}/api/admin/products/{pid}/review"
+
+        # 驳回缺理由 → 400
+        assert requests.post(url, json={"action": "reject"}, headers=admin_token).status_code == 400
+
+        # 驳回带理由 → 成功，且理由落库
+        r = requests.post(url, json={"action": "reject", "note": "图片不清晰"},
+                          headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["review_status"] == "rejected"
+        assert r.json()["review_note"] == "图片不清晰"
+
+        # 重置为待审核
+        r = requests.post(url, json={"action": "pending", "note": ""}, headers=admin_token)
+        assert r.json()["review_status"] == "pending"
+
+        # 通过
+        r = requests.post(url, json={"action": "approve", "note": "OK"}, headers=admin_token)
+        assert r.json()["review_status"] == "approved"
+
+        # 非法 action → 400
+        assert requests.post(url, json={"action": "nope"},
+                             headers=admin_token).status_code == 400
+        # 不存在的商品 → 404
+        assert requests.post(f"{BASE}/api/admin/products/99999999/review",
+                             json={"action": "approve"},
+                             headers=admin_token).status_code == 404
+
+    def test_pending_product_hidden_from_storefront(self, admin_token):
+        """未过审的商品不应出现在前台列表与详情"""
+        pid = self._make_product(admin_token, "hidden")
+        # 先确认前台可见（人工录入默认 approved）
+        assert requests.get(f"{BASE}/api/products/{pid}").status_code == 200
+        # 驳回后前台不可见
+        requests.post(f"{BASE}/api/admin/products/{pid}/review",
+                      json={"action": "reject", "note": "测试下架"},
+                      headers=admin_token)
+        assert requests.get(f"{BASE}/api/products/{pid}").status_code == 404
+        ids = [p["id"] for p in requests.get(
+            f"{BASE}/api/products?page_size=100").json()]
+        assert pid not in ids
+
+    # ---------- 批量操作 ----------
+    def test_bulk_status_and_featured(self, admin_token):
+        ids = [self._make_product(admin_token, f"st{i}") for i in range(3)]
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "status", "value": "draft"},
+                          headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["succeeded"] == 3
+        assert r.json()["failed"] == 0
+
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "featured", "value": True},
+                          headers=admin_token)
+        assert r.json()["succeeded"] == 3
+
+        got = requests.get(f"{BASE}/api/admin/products?q=PYTEST-st", headers=admin_token).json()
+        for p in got:
+            if p["id"] in ids:
+                assert p["status"] == "draft"
+                assert p["is_featured"] is True
+
+    def test_bulk_status_writes_and_clears_off_shelf_reason(self, admin_token):
+        """批量改状态带 note 时必须写入「下架原因」，重新上架时清空
+
+        曾漏传 note：后台弹窗让用户填下架原因，但请求体里没有该字段，
+        原因被静默丢弃（off_shelf_reason 一直为空）。
+        """
+        pid = self._make_product(admin_token, "ofs")
+
+        r = requests.post(f"{BASE}/api/admin/products/bulk", json={
+            "ids": [pid], "action": "status", "value": "off_shelf",
+            "note": "批量下架原因",
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["succeeded"] == 1
+        got = requests.get(f"{BASE}/api/admin/products/{pid}", headers=admin_token).json()
+        assert got["status"] == "off_shelf"
+        assert got["off_shelf_reason"] == "批量下架原因"
+        assert got["display_status_label"] == "已下架"
+
+        # 重新上架 → 原因清空（与单个下架/上架接口语义一致）
+        requests.post(f"{BASE}/api/admin/products/bulk", json={
+            "ids": [pid], "action": "status", "value": "active",
+        }, headers=admin_token)
+        got3 = requests.get(f"{BASE}/api/admin/products/{pid}", headers=admin_token).json()
+        assert got3["status"] == "active" and got3["off_shelf_reason"] is None
+
+    def test_bulk_review(self, admin_token):
+        ids = [self._make_product(admin_token, f"rv{i}") for i in range(2)]
+        # 批量驳回缺理由 → 400
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "review", "value": "reject"},
+                          headers=admin_token)
+        assert r.status_code == 400
+        # 批量驳回带理由
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "review", "value": "reject",
+                                "note": "批量驳回原因"},
+                          headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        # 批量通过
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "review", "value": "approve"},
+                          headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        got = requests.get(f"{BASE}/api/admin/products?q=PYTEST-rv", headers=admin_token).json()
+        assert all(p["review_status"] == "approved" for p in got if p["id"] in ids)
+
+    def test_bulk_category(self, admin_token):
+        pid = self._make_product(admin_token, "cat")
+        cats = requests.get(f"{BASE}/api/admin/categories", headers=admin_token).json()
+        assert cats, "需要至少一个分类"
+        cid = cats[0]["id"]
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": [pid], "action": "category", "category_id": cid},
+                          headers=admin_token)
+        assert r.json()["succeeded"] == 1
+        got = requests.get(f"{BASE}/api/admin/products?q=PYTEST-cat", headers=admin_token).json()
+        assert [p for p in got if p["id"] == pid][0]["category_id"] == cid
+
+    def test_bulk_delete(self, admin_token):
+        pid = self._make_product(admin_token, "del")
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": [pid], "action": "delete"}, headers=admin_token)
+        assert r.json()["succeeded"] == 1
+        assert requests.get(f"{BASE}/api/admin/products?q=PYTEST-del",
+                            headers=admin_token).json() == []
+        # 删除后审计日志仍保留（product_id 置空，靠货号追溯）
+        logs = requests.get(
+            f"{BASE}/api/admin/product-audit-logs?q=PYTEST-del", headers=admin_token
+        ).json()
+        assert any(l["action"] in ("create", "delete", "bulk_delete") for l in logs)
+
+    def test_bulk_validation(self, admin_token):
+        pid = self._make_product(admin_token, "valid")
+        # 非法 action → 400
+        assert requests.post(f"{BASE}/api/admin/products/bulk",
+                             json={"ids": [pid], "action": "nope"},
+                             headers=admin_token).status_code == 400
+        # 非法 status 值 → 400
+        assert requests.post(f"{BASE}/api/admin/products/bulk",
+                             json={"ids": [pid], "action": "status", "value": "bad"},
+                             headers=admin_token).status_code == 400
+        # 非法 review 值 → 400
+        assert requests.post(f"{BASE}/api/admin/products/bulk",
+                             json={"ids": [pid], "action": "review", "value": "bad"},
+                             headers=admin_token).status_code == 400
+        # 空 ids → 422（Pydantic 校验）
+        assert requests.post(f"{BASE}/api/admin/products/bulk",
+                             json={"ids": [], "action": "delete"},
+                             headers=admin_token).status_code == 422
+        # 不存在的 id → 计入 skipped 而非失败
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": [99999999], "action": "status", "value": "active"},
+                          headers=admin_token)
+        assert r.json()["skipped"] == 1
+
+    def test_bulk_requires_auth(self):
+        assert requests.post(f"{BASE}/api/admin/products/bulk",
+                             json={"ids": [1], "action": "delete"}).status_code == 401
+
+    def test_viewer_cannot_bulk_write(self, admin_token):
+        """只读角色不能执行批量写操作"""
+        uname = f"ptest_pv_{ts}"
+        requests.post(f"{BASE}/api/admin/admins",
+                      json={"username": uname, "password": "pass123456", "role": "viewer"},
+                      headers=admin_token)
+        login = requests.post(f"{BASE}/api/admin/login",
+                              json={"username": uname, "password": "pass123456"})
+        vtoken = {"Authorization": f"Bearer {login.json()['access_token']}", **H}
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": [1], "action": "status", "value": "draft"},
+                          headers=vtoken)
+        assert r.status_code == 403
+        # 清理测试管理员
+        for a in requests.get(f"{BASE}/api/admin/admins", headers=admin_token).json():
+            if a["username"] == uname:
+                requests.delete(f"{BASE}/api/admin/admins/{a['id']}", headers=admin_token)
+
+    # ---------- 审计日志 ----------
+    def test_audit_logs_recorded(self, admin_token):
+        pid = self._make_product(admin_token, "log")
+        # 改价 → 产生 update 记录
+        requests.put(f"{BASE}/api/admin/products/{pid}", json={"base_price": 259},
+                     headers=admin_token)
+        logs = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs",
+                            headers=admin_token).json()
+        actions = [l["action"] for l in logs]
+        assert "create" in actions and "update" in actions
+        assert all(l["operator"] == "admin" for l in logs)
+        upd = [l for l in logs if l["action"] == "update"][0]
+        assert "fields" in upd["detail"] and "base_price" in upd["detail"]["fields"]
+
+    def test_audit_logs_filters_and_auth(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/product-audit-logs?limit=10",
+                         headers=admin_token)
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+        # 按动作过滤
+        r2 = requests.get(f"{BASE}/api/admin/product-audit-logs?action=create&limit=5",
+                          headers=admin_token)
+        assert all(l["action"] == "create" for l in r2.json())
+        # 未登录 401
+        assert requests.get(f"{BASE}/api/admin/product-audit-logs").status_code == 401
+
+    # ---------- 商品列表筛选 ----------
+    def test_product_list_filters(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/products?review_status=approved&limit=5",
+                         headers=admin_token)
+        assert r.status_code == 200
+        assert all(p["review_status"] == "approved" for p in r.json())
+
+        r = requests.get(f"{BASE}/api/admin/products?status=draft&limit=5",
+                         headers=admin_token)
+        assert all(p["status"] == "draft" for p in r.json())
+
+        r = requests.get(f"{BASE}/api/admin/products?source=manual&limit=5",
+                         headers=admin_token)
+        assert all(p["source"] == "manual" for p in r.json())
+
+    # ---------- 接口文档 ----------
+    def test_api_docs(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/api-docs/products", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["auth"]["type"]
+        assert d["review_workflow"]["field"] == "review_status"
+        groups = {g["group"] for g in d["groups"]}
+        assert {"商品查询（状态标签页 / 多字段搜索）", "商品增删改（人工管理）",
+                "上下架与状态流转", "回收站（软删除）", "行内快捷编辑",
+                "批量管理", "人工审核", "操作审计"} <= groups
+        paths = [i["path"] for g in d["groups"] for i in g["items"]]
+        assert "/api/admin/products/bulk" in paths
+        assert "/api/admin/products/{id}/review" in paths
+        assert "/api/admin/products/{id}/publish" in paths
+        assert "/api/admin/products/{id}/purge" in paths
+        assert "/api/admin/products/{id}/price" in paths
+        # 商品状态派生说明
+        assert d["product_status"]["values"]["sold_out"]
+
+    def test_api_docs_requires_auth(self):
+        assert requests.get(f"{BASE}/api/admin/api-docs/products").status_code == 401
+
+
+class TestProductLifecycle:
+    """商品生命周期（PDD 风格）：状态标签页、上下架校验、回收站、行内改价改库存。
+
+    写操作均作用于测试自建商品（`PYTEST-` 前缀），不污染真实数据。
+    """
+
+    @staticmethod
+    def _make(admin_token, suffix: str, *, stock: int = 10, image: bool = True) -> int:
+        sku = f"PYTEST-LC-{suffix}-{ts}"
+        body = {
+            "sku_code": sku,
+            "name_zh": f"生命周期测试 {suffix}",
+            "base_price": 199,
+            "status": "active",
+            "main_image": "/static/uploads/jyt/s1/main.jpg" if image else None,
+            "skus": [{"sku_code": f"{sku}-001", "price": 199, "stock": stock}],
+        }
+        r = requests.post(f"{BASE}/api/admin/products", json=body, headers=admin_token)
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    def _get(self, admin_token, pid):
+        """按 ID 取商品（跨「全部」与「回收站」两个标签查找）"""
+        for tab in ("all", "deleted"):
+            r = requests.get(
+                f"{BASE}/api/admin/products?tab={tab}&product_id={pid}",
+                headers=admin_token,
+            )
+            assert r.status_code == 200, r.text
+            found = [p for p in r.json() if p["id"] == pid]
+            if found:
+                return found[0]
+        raise AssertionError(f"商品 {pid} 未查询到")
+
+    # ---------- 状态标签页与计数 ----------
+    def test_status_counts(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/products-status-counts", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        for k in ("all", "on_sale", "off_shelf", "sold_out",
+                  "pending", "rejected", "draft", "deleted"):
+            assert k in d, f"缺少字段 {k}"
+            assert d[k] >= 0
+
+    def test_status_counts_requires_auth(self):
+        assert requests.get(f"{BASE}/api/admin/products-status-counts").status_code == 401
+
+    def test_tab_filter_and_pagination(self, admin_token):
+        # 分页形状
+        r = requests.get(f"{BASE}/api/admin/products?tab=all&page=1&page_size=5",
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert len(r.json()) <= 5
+
+        # 非法 tab → 400
+        assert requests.get(f"{BASE}/api/admin/products?tab=nope",
+                            headers=admin_token).status_code == 400
+
+    def test_search_by_id_and_sku_code(self, admin_token):
+        pid = self._make(admin_token, "search")
+        # 多 ID 查询（逗号分隔）
+        r = requests.get(f"{BASE}/api/admin/products?product_id={pid},99999999",
+                         headers=admin_token)
+        ids = [p["id"] for p in r.json()]
+        assert pid in ids and 99999999 not in ids
+        # 非法 ID → 400
+        assert requests.get(f"{BASE}/api/admin/products?product_id=abc",
+                            headers=admin_token).status_code == 400
+        # 规格编码查询
+        sku = self._get(admin_token, pid)["sku_code"]
+        r = requests.get(f"{BASE}/api/admin/products?sku_code={sku}-001",
+                         headers=admin_token)
+        assert any(p["id"] == pid for p in r.json())
+
+    # ---------- 状态派生 ----------
+    def test_display_status_derivation(self, admin_token):
+        pid = self._make(admin_token, "status")
+        assert self._get(admin_token, pid)["display_status"] == "on_sale"
+
+        # 库存清零 → 已售罄
+        requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                     json={"mode": "set", "value": 0}, headers=admin_token)
+        assert self._get(admin_token, pid)["display_status"] == "sold_out"
+
+    # ---------- 上下架 ----------
+    def test_publish_check_and_publish(self, admin_token):
+        pid = self._make(admin_token, "pub")
+        chk = requests.get(f"{BASE}/api/admin/products/{pid}/publish-check",
+                           headers=admin_token)
+        assert chk.status_code == 200
+        assert chk.json()["can_publish"] is True
+
+        # 下架
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                          json={"reason": "测试下架"}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["display_status"] == "off_shelf"
+        assert r.json()["off_shelf_reason"] == "测试下架"
+
+        # 上架
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/publish",
+                          headers=admin_token)
+        assert r.json()["display_status"] == "on_sale"
+
+    def test_publish_blocked_without_image(self, admin_token):
+        pid = self._make(admin_token, "noimg", image=False)
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                          json={}, headers=admin_token)
+        assert r.status_code == 200
+        # 无主图 → 上架被拦
+        chk = requests.get(f"{BASE}/api/admin/products/{pid}/publish-check",
+                           headers=admin_token).json()
+        assert chk["can_publish"] is False
+        assert any("主图" in b for b in chk["blockers"])
+
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/publish", headers=admin_token)
+        assert r.status_code == 400
+        assert "blockers" in r.json()["detail"]
+
+    def test_publish_blocked_when_rejected(self, admin_token):
+        pid = self._make(admin_token, "rej")
+        requests.post(f"{BASE}/api/admin/products/{pid}/review",
+                      json={"action": "reject", "note": "驳回测试"}, headers=admin_token)
+        chk = requests.get(f"{BASE}/api/admin/products/{pid}/publish-check",
+                           headers=admin_token).json()
+        assert chk["can_publish"] is False
+        assert any("驳回" in b for b in chk["blockers"])
+
+    # ---------- 回收站 ----------
+    def test_soft_delete_restore_purge(self, admin_token):
+        pid = self._make(admin_token, "bin")
+
+        # 软删除
+        r = requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        assert r.status_code == 200
+        item = self._get(admin_token, pid)
+        assert item["display_status"] == "deleted"
+        assert item["deleted_at"] is not None
+
+        # 回收站商品不出现在 all 标签
+        ids = [p["id"] for p in requests.get(
+            f"{BASE}/api/admin/products?tab=all&page_size=200", headers=admin_token).json()]
+        assert pid not in ids
+        # deleted 标签能看到
+        ids = [p["id"] for p in requests.get(
+            f"{BASE}/api/admin/products?tab=deleted&page_size=200", headers=admin_token).json()]
+        assert pid in ids
+        # 前台不可见
+        assert requests.get(f"{BASE}/api/products/{pid}").status_code == 404
+
+        # 回收站中不能下架
+        assert requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                             json={}, headers=admin_token).status_code == 400
+
+        # 恢复 → 已下架
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/restore", headers=admin_token)
+        assert r.status_code == 200
+        assert r.json()["display_status"] == "off_shelf"
+        # 重复恢复 → 400
+        assert requests.post(f"{BASE}/api/admin/products/{pid}/restore",
+                             headers=admin_token).status_code == 400
+
+        # 彻底删除（需先在回收站）
+        assert requests.delete(f"{BASE}/api/admin/products/{pid}/purge",
+                               headers=admin_token).status_code == 400
+        requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        r = requests.delete(f"{BASE}/api/admin/products/{pid}/purge", headers=admin_token)
+        assert r.status_code == 200
+        assert requests.get(f"{BASE}/api/admin/products?product_id={pid}",
+                            headers=admin_token).json() == []
+
+    def test_soft_delete_is_idempotent(self, admin_token):
+        pid = self._make(admin_token, "idem")
+        r1 = requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        r2 = requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert "回收站" in r2.json()["message"]
+
+    # ---------- 行内改价 / 改库存 ----------
+    def test_quick_price(self, admin_token):
+        pid = self._make(admin_token, "price")
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                         json={"base_price": 88.5, "sync_skus": True, "reason": "促销"},
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert float(d["base_price"]) == 88.5
+        assert all(float(s["price"]) == 88.5 for s in d["skus"])
+        # 价格必须 > 0
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                            json={"base_price": 0}, headers=admin_token).status_code == 422
+
+    def test_quick_stock_total_semantics(self, admin_token):
+        """改库存按「商品总库存」语义：set 后总量应精确等于目标值"""
+        pid = self._make(admin_token, "stock")
+        # 再加一个 SKU，制造多规格场景
+        sku = self._get(admin_token, pid)["sku_code"]
+        requests.post(f"{BASE}/api/admin/products/{pid}/skus",
+                      json={"sku_code": f"{sku}-002", "price": 199, "stock": 3},
+                      headers=admin_token)
+
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                         json={"mode": "set", "value": 100}, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["total_stock"] == 100
+
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                         json={"mode": "add", "value": 30}, headers=admin_token)
+        assert r.json()["total_stock"] == 130
+
+        # 减到负数 → 400
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                            json={"mode": "add", "value": -999},
+                            headers=admin_token).status_code == 400
+        # set 负数 → 400
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                            json={"mode": "set", "value": -1},
+                            headers=admin_token).status_code == 400
+        # 非法 mode → 400
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                            json={"mode": "mul", "value": 2},
+                            headers=admin_token).status_code == 400
+
+    # ---------- 规格（SKU）级改价 / 改库存（不含拼单价）----------
+    def test_sku_prices_batch(self, admin_token):
+        """按规格批量改价：只改提交的规格，基础价跟随最低规格价"""
+        pid = self._make(admin_token, "skup")
+        p = self._get(admin_token, pid)
+        sku_id = p["skus"][0]["id"]                      # 初始 price=199
+        # 再加一个不同价的 SKU
+        requests.post(f"{BASE}/api/admin/products/{pid}/skus",
+                      json={"sku_code": "PYTEST-SKUP-002", "price": 120, "stock": 5},
+                      headers=admin_token)
+
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/sku-prices",
+                         json={"items": [{"sku_id": sku_id, "price": 88.5}],
+                               "reason": "规格促销"},
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        changed = {s["id"]: float(s["price"]) for s in d["skus"]}
+        assert changed[sku_id] == 88.5
+        # 未提交的另一个规格保持原价 120
+        other = [s for s in d["skus"] if s["id"] != sku_id][0]
+        assert float(other["price"]) == 120
+        # 基础价自动跟随最低启用规格价
+        assert float(d["base_price"]) == 88.5
+
+    def test_sku_prices_validation(self, admin_token):
+        pid = self._make(admin_token, "skupv")
+        sku_id = self._get(admin_token, pid)["skus"][0]["id"]
+        # 价格必须 > 0 → 422
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/sku-prices",
+                            json={"items": [{"sku_id": sku_id, "price": 0}]},
+                            headers=admin_token).status_code == 422
+        # 不属于该商品的 SKU → 400
+        other = self._make(admin_token, "skupv2")
+        other_sku = self._get(admin_token, other)["skus"][0]["id"]
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/sku-prices",
+                            json={"items": [{"sku_id": other_sku, "price": 10}]},
+                            headers=admin_token).status_code == 400
+
+    def test_sku_stocks_batch(self, admin_token):
+        """按规格批量改库存：add 增减 / set 设为，逐 SKU 写入库存流水"""
+        pid = self._make(admin_token, "skus")
+        p = self._get(admin_token, pid)
+        sku_id = p["skus"][0]["id"]                       # 初始 stock=10
+
+        # mode=add：+5
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/sku-stocks",
+                         json={"mode": "add",
+                               "items": [{"sku_id": sku_id, "value": 5}],
+                               "reason": "补货"},
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["total_stock"] == 15
+
+        # mode=set：设为 30（覆盖，而不是累加）
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/sku-stocks",
+                         json={"mode": "set", "items": [{"sku_id": sku_id, "value": 30}]},
+                         headers=admin_token)
+        assert r.json()["total_stock"] == 30
+
+        # 减成负数 → 400（当前 30，减 999）
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/sku-stocks",
+                            json={"mode": "add",
+                                  "items": [{"sku_id": sku_id, "value": -999}]},
+                            headers=admin_token).status_code == 400
+        # 非法 mode → 400
+        assert requests.put(f"{BASE}/api/admin/products/{pid}/sku-stocks",
+                            json={"mode": "mul", "items": [{"sku_id": sku_id, "value": 1}]},
+                            headers=admin_token).status_code == 400
+
+        # 库存流水：每次有变更都写一条，且带规格信息字段
+        rows = requests.get(f"{BASE}/api/admin/products/{pid}/stock-movements",
+                            headers=admin_token).json()
+        assert len(rows) >= 2
+        m = rows[0]                                    # 最新一条：set 30
+        assert m["sku_id"] == sku_id and m["balance_after"] == 30
+        assert m["sku_code"]                            # 规格编码
+        assert "attributes" in m and isinstance(m["attributes"], dict)
+        assert m["reason"] and m["operator"] == "admin"
+
+    def test_sku_stock_add_or_delta_inconsistent(self, admin_token):
+        """add 批量时各规格增减量不一致：value 不记录单一口径，摘要走合计"""
+        pid = self._make(admin_token, "skud")
+        p = self._get(admin_token, pid)
+        skus = p["skus"]
+        body = {
+            "sku_code": "PYTEST-SKUD-002", "price": 199, "stock": 5,
+            "attributes": {"颜色": "白", "尺码": "L"},
+        }
+        requests.post(f"{BASE}/api/admin/products/{pid}/skus", json=body,
+                      headers=admin_token)
+        items = [{"sku_id": skus[0]["id"], "value": 3},
+                 {"sku_id": self._get(admin_token, pid)["skus"][1]["id"], "value": -2}]
+        r = requests.put(f"{BASE}/api/admin/products/{pid}/sku-stocks",
+                         json={"mode": "add", "items": items}, headers=admin_token)
+        assert r.status_code == 200, r.text
+
+        logs = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs",
+                            headers=admin_token).json()
+        sku_stock = [l for l in logs if l["action"] == "sku_stock"]
+        assert sku_stock
+        # 摘要应能渲染，不抛错、不含裸 JSON 花括号
+        assert "{" not in sku_stock[0]["summary"]
+        assert "规格" in sku_stock[0]["summary"]
+
+    # ---------- 批量状态流转 ----------
+    def test_bulk_publish_and_unpublish(self, admin_token):
+        ids = [self._make(admin_token, f"bp{i}") for i in range(2)]
+        # 先下架
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "unpublish", "note": "批量下架"},
+                          headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        # 批量上架（含体检）
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "publish"}, headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        for pid in ids:
+            assert self._get(admin_token, pid)["display_status"] == "on_sale"
+
+    def test_bulk_publish_reports_blockers(self, admin_token):
+        """体检不通过的商品应计入 failed 并给出原因"""
+        ok = self._make(admin_token, "bok")
+        bad = self._make(admin_token, "bbad", image=False)
+        requests.post(f"{BASE}/api/admin/products/{bad}/unpublish",
+                      json={}, headers=admin_token)
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": [ok, bad], "action": "publish"}, headers=admin_token)
+        d = r.json()
+        assert d["succeeded"] == 1 and d["failed"] == 1
+        assert any("主图" in e for e in d["errors"])
+
+    def test_bulk_delete_restore_purge(self, admin_token):
+        ids = [self._make(admin_token, f"bb{i}") for i in range(2)]
+        # 移入回收站
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "delete"}, headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        for pid in ids:
+            assert self._get(admin_token, pid)["display_status"] == "deleted"
+        # 重复删除 → skipped
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "delete"}, headers=admin_token)
+        assert r.json()["skipped"] == 2
+        # 恢复
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "restore"}, headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        # 未在回收站的商品不能 purge → skipped
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "purge"}, headers=admin_token)
+        assert r.json()["succeeded"] == 0 and r.json()["skipped"] == 2
+        # 再删除后 purge
+        requests.post(f"{BASE}/api/admin/products/bulk",
+                      json={"ids": ids, "action": "delete"}, headers=admin_token)
+        r = requests.post(f"{BASE}/api/admin/products/bulk",
+                          json={"ids": ids, "action": "purge"}, headers=admin_token)
+        assert r.json()["succeeded"] == 2
+        assert requests.get(f"{BASE}/api/admin/products?product_id={','.join(map(str, ids))}",
+                            headers=admin_token).json() == []
+
+    # ---------- 审计日志覆盖新动作 ----------
+    def test_audit_logs_cover_lifecycle(self, admin_token):
+        pid = self._make(admin_token, "audit")
+        requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                      json={"reason": "审计测试"}, headers=admin_token)
+        requests.post(f"{BASE}/api/admin/products/{pid}/publish", headers=admin_token)
+        requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                     json={"base_price": 77}, headers=admin_token)
+        requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                     json={"mode": "set", "value": 12}, headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+
+        logs = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs",
+                            headers=admin_token).json()
+        actions = {l["action"] for l in logs}
+        assert {"create", "unpublish", "publish",
+                "quick_price", "quick_stock", "delete"} <= actions
+
+    # ---------- 操作日志展示字段（中文动作 / 摘要 / 配色）----------
+    def test_audit_log_display_fields(self, admin_token):
+        """日志必须带中文动作标签、徽标色调与人话摘要，不再裸露 JSON"""
+        pid = self._make(admin_token, "disp")
+        requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                      json={"reason": "展示测试"}, headers=admin_token)
+        requests.post(f"{BASE}/api/admin/products/{pid}/publish", headers=admin_token)
+        requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                     json={"base_price": 88.5, "sync_skus": True}, headers=admin_token)
+        requests.put(f"{BASE}/api/admin/products/{pid}/stock",
+                     json={"mode": "set", "value": 8}, headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+
+        logs = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs",
+                            headers=admin_token).json()
+        by_action = {l["action"]: l for l in logs}
+        for log in logs:
+            assert log["action_label"]          # 中文动作标签非空
+            assert log["tone"] in ("green", "blue", "orange", "red", "gray")
+            assert log["summary"] and log["summary"] != "-"
+
+        assert by_action["create"]["action_label"] == "新增商品"
+        assert by_action["publish"]["tone"] == "green"
+        assert by_action["delete"]["tone"] == "red"
+
+        # 摘要里不应出现裸 JSON 的花括号
+        unpub = by_action["unpublish"]
+        assert "{" not in unpub["summary"] and "}" not in unpub["summary"]
+        assert "→" in unpub["summary"]                    # 已上架？→ 已下架
+        assert "原因：展示测试" in unpub["summary"]
+        assert "¥199.00 → ¥88.50" in by_action["quick_price"]["summary"]
+        assert "总库存 设为 8" in by_action["quick_stock"]["summary"]
+
+    def test_audit_logs_pagination(self, admin_token):
+        """分页：offset/limit 生效，且不重复不遗漏"""
+        pid = self._make(admin_token, "page")
+        for price in range(60, 66):
+            requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                         json={"base_price": price}, headers=admin_token)
+
+        p1 = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs?limit=3",
+                          headers=admin_token).json()
+        p2 = requests.get(f"{BASE}/api/admin/products/{pid}/audit-logs?limit=3&offset=3",
+                          headers=admin_token).json()
+        assert len(p1) == 3 and len(p2) == 3
+        assert not ({l["id"] for l in p1} & {l["id"] for l in p2})   # 无重叠
+        assert p1[0]["id"] > p2[0]["id"]                            # 倒序
+
+        # 按动作过滤
+        only = requests.get(
+            f"{BASE}/api/admin/products/{pid}/audit-logs?action=quick_price",
+            headers=admin_token).json()
+        assert only and all(l["action"] == "quick_price" for l in only)
+
+    def test_audit_meta_endpoint(self, admin_token):
+        """筛选元信息：总数、各动作数量（不受 action 过滤影响）、操作人列表"""
+        pid = self._make(admin_token, "meta")
+        requests.put(f"{BASE}/api/admin/products/{pid}/price",
+                     json={"base_price": 66}, headers=admin_token)
+
+        meta = requests.get(f"{BASE}/api/admin/product-audit-logs/meta?product_id={pid}",
+                            headers=admin_token).json()
+        assert meta["total"] >= 2
+        counts = {a["action"]: a["count"] for a in meta["actions"]}
+        assert counts.get("quick_price") == 1
+        assert counts.get("create") == 1
+        assert all(a["label"] for a in meta["actions"])     # 每个动作都有中文标签
+        assert any(a["action"] == "quick_price" and a["label"] == "修改价格"
+                   for a in meta["actions"])
+        assert "admin" in meta["operators"]
+
+        # 选中某动作后 total 收窄，但动作计数仍保留全部（供下拉展示数量）
+        meta2 = requests.get(
+            f"{BASE}/api/admin/product-audit-logs/meta?product_id={pid}&action=quick_price",
+            headers=admin_token).json()
+        assert meta2["total"] == 1
+        counts2 = {a["action"]: a["count"] for a in meta2["actions"]}
+        assert counts2.get("create") == 1
+
+        # 未登录 401
+        assert requests.get(
+            f"{BASE}/api/admin/product-audit-logs/meta").status_code == 401
+
+    # ---------- 按 ID 精确加载（编辑页修复回归）----------
+    def test_load_single_product_by_id(self, admin_token):
+        """`product_id` 精确查询：老商品也应能查到（不被第一页分页截断）
+
+        回归：编辑页原先用不带参数的 /api/admin/products（只返回第一页 20 条），
+        导致 ID 靠前的商品无法编辑并报「商品不存在」。
+        """
+        pid = self._make(admin_token, "byid")
+        r = requests.get(f"{BASE}/api/admin/products?product_id={pid}&limit=1",
+                         headers=admin_token)
+        assert r.status_code == 200, r.text
+        items = r.json()
+        assert len(items) == 1 and items[0]["id"] == pid
+        assert items[0]["skus"]                      # 带 SKU 明细，编辑页可用
+
+        # 对比：不带参数只返回第一页（默认 20 条）
+        page1 = requests.get(f"{BASE}/api/admin/products", headers=admin_token).json()
+        assert len(page1) <= 20
+
+    def test_admin_product_detail_any_status(self, admin_token):
+        """后台单商品详情：不限状态（草稿/下架/回收站都能取），未登录 401"""
+        pid = self._make(admin_token, "detail")
+        # 下架（前台接口此时会 404）
+        requests.post(f"{BASE}/api/admin/products/{pid}/unpublish",
+                      json={}, headers=admin_token)
+
+        r = requests.get(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["id"] == pid
+        assert d["display_status"] == "off_shelf"
+        assert d["display_name"]                       # 按语言解析出的展示名
+        assert d["skus"]
+
+        # 前台接口此时应拿不到
+        assert requests.get(f"{BASE}/api/products/{pid}").status_code == 404
+
+        # 未登录后台 → 401；不存在 → 404
+        assert requests.get(f"{BASE}/api/admin/products/{pid}").status_code == 401
+        assert requests.get(f"{BASE}/api/admin/products/99999999",
+                            headers=admin_token).status_code == 404
+
+    def test_products_count_matches_filters(self, admin_token):
+        """筛选后的总数接口必须与列表口径一致（分页显示「共 N 条」用）
+
+        回归：后台列表原先用「标签页数量」当总数，筛选后仍显示全量条数、分页也算错。
+        """
+        pid = self._make(admin_token, "cnt")
+        code = self._get(admin_token, pid)["sku_code"]
+
+        # 无筛选：等于该标签页数量
+        base = requests.get(f"{BASE}/api/admin/products-count?tab=all",
+                            headers=admin_token).json()["total"]
+        counts = requests.get(f"{BASE}/api/admin/products-status-counts",
+                              headers=admin_token).json()
+        assert base == counts["all"]
+
+        # 按编码精确筛选：计数必须与列表返回条数一致
+        r = requests.get(f"{BASE}/api/admin/products-count"
+                         f"?tab=all&q={code}", headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["total"] == 1
+        listed = requests.get(f"{BASE}/api/admin/products?tab=all&q={code}&limit=200",
+                              headers=admin_token).json()
+        assert len(listed) == 1
+
+        # 命中 0 条
+        assert requests.get(f"{BASE}/api/admin/products-count?tab=all&q=ZZZ_NO_HIT_ZZZ",
+                            headers=admin_token).json()["total"] == 0
+
+        # 非法 tab → 400
+        assert requests.get(f"{BASE}/api/admin/products-count?tab=bad",
+                            headers=admin_token).status_code == 400
+        # 未登录 → 401
+        assert requests.get(f"{BASE}/api/admin/products-count").status_code == 401
+
+    def test_products_detail_images_use_d_prefix(self, admin_token):
+        """图文详情图 URL 必须带 /d/ 标记，轮播图不带 —— 前台据此区分两类图"""
+        pid = self._make(admin_token, "dmark")
+        main = "/static/uploads/jyt/s1/main.jpg"
+        detail = "/d/static/uploads/jyt/s1/detail_1.png"
+        requests.put(f"{BASE}/api/admin/products/{pid}",
+                     json={"images": [main, detail]}, headers=admin_token)
+
+        p = self._get(admin_token, pid)
+        gallery = [u for u in p["images"] if "/d/" not in u]
+        details = [u for u in p["images"] if "/d/" in u]
+        assert gallery == [main]
+        assert details == [detail]
+
+        # /d/static/... 与 /static/... 指向同一份静态资源，均可访问
+        assert requests.get(f"{BASE}/d/static/uploads/jyt/s1/main.jpg").status_code == 200
+
+    def test_upload_detail_returns_d_prefix(self, admin_token):
+        """kind=detail 上传返回带 /d/ 前缀的 URL；kind 非法返回 400"""
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (20, 20), (180, 90, 90)).save(buf, format="PNG")
+        buf.seek(0)
+
+        r = requests.post(f"{BASE}/api/upload?kind=detail",
+                          files={"file": ("d.png", buf, "image/png")},
+                          headers=admin_token)
+        assert r.status_code == 201, r.text
+        assert r.json()["url"].startswith("/d/static/uploads/")
+        assert r.json()["kind"] == "detail"
+
+        # 轮播图上传不带 /d/
+        buf.seek(0)
+        r2 = requests.post(f"{BASE}/api/upload?kind=image",
+                           files={"file": ("g.png", buf, "image/png")},
+                           headers=admin_token)
+        assert r2.json()["url"].startswith("/static/uploads/")
+        assert "/d/" not in r2.json()["url"]
+
+        # 非法 kind → 400
+        buf.seek(0)
+        assert requests.post(f"{BASE}/api/upload?kind=bad",
+                             files={"file": ("x.png", buf, "image/png")},
+                             headers=admin_token).status_code == 400
+
+    def test_remove_spec_deactivates_skus(self, admin_token):
+        """编辑页删除规格后，对应 SKU 应被停用（前台 / 购物车不再可选）
+
+        回归：原先删规格只重建前端矩阵，被移除的 SKU 在库中仍启用。
+        """
+        pid = self._make(admin_token, "deact")
+        base = self._get(admin_token, pid)["sku_code"]
+        # 补一个 SKU，形成 2 个规格
+        r = requests.post(f"{BASE}/api/admin/products/{pid}/skus",
+                          json={"sku_code": f"{base}-B", "price": 199, "stock": 7,
+                                "attributes": {"颜色": "白", "尺码": "M"}},
+                          headers=admin_token)
+        new_sku_id = r.json()["id"]
+        before = self._get(admin_token, pid)
+        assert before["total_stock"] == 17            # 10 + 7
+
+        # 模拟编辑页「删除规格」：把该 SKU 停用
+        requests.put(f"{BASE}/api/admin/skus/{new_sku_id}",
+                     json={"sku_code": f"{base}-B", "price": 199, "stock": 7,
+                           "attributes": {"颜色": "白", "尺码": "M"},
+                           "is_active": False},
+                     headers=admin_token)
+
+        after = self._get(admin_token, pid)
+        target = [s for s in after["skus"] if s["id"] == new_sku_id][0]
+        assert target["is_active"] is False
+        assert after["total_stock"] == 10             # 只计启用规格
+
+    def test_add_sku_reuses_same_code_in_product(self, admin_token):
+        """同商品内重复 sku_code：复用原 SKU（不报 500）——支持「删规格后重新加回」"""
+        pid = self._make(admin_token, "reuse")
+        base = self._get(admin_token, pid)["sku_code"]
+        code = f"{base}-R"
+
+        r1 = requests.post(f"{BASE}/api/admin/products/{pid}/skus",
+                           json={"sku_code": code, "price": 199, "stock": 5,
+                                 "attributes": {"颜色": "白"}}, headers=admin_token)
+        assert r1.status_code == 201, r1.text
+        first_id = r1.json()["id"]
+
+        # 同编码再次提交 → 复用同一条记录并更新（而非 500）
+        r2 = requests.post(f"{BASE}/api/admin/products/{pid}/skus",
+                           json={"sku_code": code, "price": 88, "stock": 9,
+                                 "attributes": {"颜色": "白"}, "is_active": True},
+                           headers=admin_token)
+        assert r2.status_code == 201, r2.text
+        assert r2.json()["id"] == first_id
+        assert r2.json().get("reused") is True
+
+        skus = self._get(admin_token, pid)["skus"]
+        assert len([s for s in skus if s["sku_code"] == code]) == 1   # 未产生重复记录
+        assert float([s for s in skus if s["id"] == first_id][0]["price"]) == 88
+
+    def test_add_sku_code_taken_by_other_product(self, admin_token):
+        """跨商品占用 sku_code：返回 400 并给出可读原因（而非 500）"""
+        pid1 = self._make(admin_token, "code1")
+        pid2 = self._make(admin_token, "code2")
+        code = self._get(admin_token, pid1)["skus"][0]["sku_code"]
+
+        r = requests.post(f"{BASE}/api/admin/products/{pid2}/skus",
+                          json={"sku_code": code, "price": 10, "stock": 1},
+                          headers=admin_token)
+        assert r.status_code == 400
+        assert "占用" in r.json()["detail"]
+
+        # 更新 SKU 时改用已占编码同样 400
+        sku_id = self._get(admin_token, pid2)["skus"][0]["id"]
+        r2 = requests.put(f"{BASE}/api/admin/skus/{sku_id}",
+                          json={"sku_code": code, "price": 10, "stock": 1,
+                                "attributes": {}, "is_active": True},
+                          headers=admin_token)
+        assert r2.status_code == 400
+        assert "占用" in r2.json()["detail"]

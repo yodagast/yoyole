@@ -106,7 +106,7 @@
     </div>
   </main>
 
-  <script src="/static/js/common.js?v=6"></script>
+  <script src="/static/js/common.js?v=8"></script>
   <script>
     (function () {
       var App = window.App;
@@ -209,16 +209,20 @@
       }
 
       function del() {
-        if (!confirm('确认删除这条用户故事？')) return;
-        api('/api/admin/user-stories/' + storyId, { method: 'DELETE' })
-          .then(function () {
-            App.toast('用户故事已删除', 'success');
-            location.href = '/admin.html?view=cms';
-          })
-          .catch(function (e) { App.toast(e.message, 'error'); });
+        return App.confirmDialog('删除后该故事将从「成长经历」列表中移除。', {
+          title: '删除用户故事', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/user-stories/' + storyId, { method: 'DELETE' })
+            .then(function () {
+              App.toast('用户故事已删除', 'success');
+              location.href = '/admin.html?view=home';
+            })
+            .catch(function (e) { App.toast(e.message, 'error'); });
+        });
       }
 
-      document.getElementById('back-btn').onclick = function () { location.href = '/admin.html?view=cms'; };
+      document.getElementById('back-btn').onclick = function () { location.href = '/admin.html?view=home'; };
       document.getElementById('save-publish-btn').onclick = function () { save(true); };
       document.getElementById('reject-btn').onclick = reject;
       document.getElementById('toggle-btn').onclick = toggle;

@@ -383,6 +383,24 @@
     document.cookie = 'access_token=; path=/; max-age=0';
   }
 
+  /**
+   * 读取后台（管理员）token。
+   * 前台页面用于「后台预览」：管理员已登录时可用后台接口预览未上架/未过审商品。
+   * 口径与 common.js 的 App.getAdminToken 一致（localStorage → cookie 回退）。
+   */
+  function getAdminToken() {
+    try {
+      var tok = localStorage.getItem('admin_token');
+      if (!tok) {
+        var m = document.cookie.match(/(?:^|; )admin_token=([^;]+)/);
+        tok = m ? decodeURIComponent(m[1]) : null;
+      }
+      return tok;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ---------- API ----------
   function api(path, options) {
     options = options || {};
@@ -1013,6 +1031,7 @@
     getToken: getToken,
     setToken: setToken,
     clearToken: clearToken,
+    getAdminToken: getAdminToken,
     login: login,
     register: register,
     logout: logout,

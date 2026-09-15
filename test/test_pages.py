@@ -19,10 +19,13 @@
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 import requests
 
-BASE = "http://127.0.0.1:8010"
+# 目标服务地址：默认 8010，可覆盖（如 export TEST_BASE_URL=http://127.0.0.1:8020）
+BASE = os.environ.get("TEST_BASE_URL", "http://127.0.0.1:8010").rstrip("/")
 
 # 页面 -> 关键内容断言（该页面必须包含的字符串）
 PAGE_ASSERTS = {

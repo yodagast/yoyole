@@ -1,6 +1,8 @@
 """ERP 后台路由：管理员登录、仪表盘、商品/订单/库存管理"""
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -32,6 +34,8 @@ from app.models import (
 from app.schemas import (
     AdminCustomerOut,
     AdminLoginIn,
+    AdminPasswordChangeIn,
+    AdminPasswordResetIn,
     AdminTokenOut,
     AdminUserIn,
     AdminUserOut,
@@ -48,8 +52,11 @@ from app.schemas import (
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.routers.orders import _order_to_out
+from app.routers.product_admin import log_action
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("/login", response_model=AdminTokenOut)
@@ -110,18 +117,179 @@ async def dashboard(
     )
 
 
-@router.get("/products", response_model=list[ProductOut])
-async def admin_list_products(
+def _apply_product_filters(
+    stmt,
+    *,
+    q: str | None,
+    status: str | None,
+    review_status: str | None,
+    category_id: int | None,
+    source: str | None,
+    tab: str,
+    product_id: str | None,
+    sku_code: str | None,
+):
+    """把后台商品列表的全部筛选条件应用到查询上（列表接口与计数接口共用）
+
+    统一在此处维护筛选口径，避免「列表按条件筛、总数按标签页算」这类不一致。
+    """
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    from app.routers.product_admin import TABS, apply_tab_filter
+
+    if tab not in TABS:
+        raise HTTPException(status_code=400, detail=f"tab 必须是 {'/'.join(TABS)}")
+
+    # 状态标签页（默认 all 不含回收站商品）
+    stmt = apply_tab_filter(stmt, tab)
+
+    if q:
+        pattern = f"%{q}%"
+        name_jsonb = Product.name_i18n.cast(JSONB)
+        stmt = stmt.where(
+            Product.sku_code.ilike(pattern)
+            | name_jsonb["zh"].astext.ilike(pattern)
+            | name_jsonb["en"].astext.ilike(pattern)
+        )
+    if status:
+        stmt = stmt.where(Product.status == status)
+    if review_status:
+        stmt = stmt.where(Product.review_status == review_status)
+    if category_id is not None:
+        stmt = stmt.where(Product.category_id == category_id)
+    if source:
+        stmt = stmt.where(Product.source == source)
+    if product_id:
+        # 支持空格/逗号分隔的多 ID 查询
+        raw_ids = [x for x in re.split(r"[\s,]+", product_id.strip()) if x]
+        ids: list[int] = []
+        for x in raw_ids:
+            if not x.isdigit():
+                raise HTTPException(status_code=400, detail=f"商品 ID 必须为数字：{x}")
+            ids.append(int(x))
+        if ids:
+            stmt = stmt.where(Product.id.in_(ids))
+    if sku_code:
+        stmt = stmt.where(
+            Product.id.in_(
+                select(SKU.product_id).where(SKU.sku_code.ilike(f"%{sku_code}%"))
+            )
+        )
+    return stmt
+
+
+async def _fill_favorite_counts(db: AsyncSession, products: list[Product]) -> None:
+    """批量填充商品收藏数（`favorite_count` 不是 Product 表字段，需聚合 WishlistItem）
+
+    后台商品列表有「收藏」列，若不填充会恒显示 0（前台 catalog 另有自己的聚合）。
+    """
+    if not products:
+        return
+    rows = (
+        await db.execute(
+            select(WishlistItem.product_id, func.count(WishlistItem.id))
+            .where(WishlistItem.product_id.in_([p.id for p in products]))
+            .group_by(WishlistItem.product_id)
+        )
+    ).all()
+    counts = {pid: int(n or 0) for pid, n in rows}
+    for p in products:
+        p.favorite_count = counts.get(p.id, 0)
+
+
+@router.get("/products-count")
+async def admin_count_products(
     q: str | None = None,
+    status: str | None = None,
+    review_status: str | None = None,
+    category_id: int | None = None,
+    source: str | None = None,
+    tab: str = Query("all", description="状态标签页：all/on_sale/off_shelf/sold_out/pending/rejected/draft/deleted"),
+    product_id: str | None = Query(None, description="商品 ID，支持空格/逗号分隔多个"),
+    sku_code: str | None = Query(None, description="规格编码（SKU）模糊匹配"),
     admin: AdminUser = Depends(require_admin()),
     db: AsyncSession = Depends(get_db),
 ):
-    """商品列表（后台含下架）"""
-    stmt = select(Product).options(selectinload(Product.skus)).order_by(Product.id.desc())
-    if q:
-        stmt = stmt.where(Product.sku_code.ilike(f"%{q}%"))
+    """筛选后的商品总数（后台分页显示「共 N 条」，与列表接口筛选口径一致）
+
+    不带筛选条件时等价于该标签页的数量；带筛选时才是真正命中的条数。
+    """
+    stmt = select(func.count(Product.id)).select_from(Product)
+    stmt = _apply_product_filters(
+        stmt, q=q, status=status, review_status=review_status,
+        category_id=category_id, source=source, tab=tab,
+        product_id=product_id, sku_code=sku_code,
+    )
+    total = int((await db.execute(stmt)).scalar() or 0)
+    return {"total": total}
+
+
+@router.get("/products", response_model=list[ProductOut])
+async def admin_list_products(
+    q: str | None = None,
+    status: str | None = None,
+    review_status: str | None = None,
+    category_id: int | None = None,
+    source: str | None = None,
+    tab: str = Query("all", description="状态标签页：all/on_sale/off_shelf/sold_out/pending/rejected/draft/deleted"),
+    product_id: str | None = Query(None, description="商品 ID，支持空格/逗号分隔多个"),
+    sku_code: str | None = Query(None, description="规格编码（SKU）模糊匹配"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    limit: int = Query(0, ge=0, le=2000, description=">0 时忽略分页，直接返回前 N 条（兼容旧调用）"),
+    admin: AdminUser = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db),
+):
+    """商品列表（后台）
+
+    - `tab`：单维度状态标签页（已删除商品需显式用 `tab=deleted`）
+    - `page` / `page_size`：分页；**带筛选时**总数请用 `/products-count`（同参数），
+      不带筛选时也可直接用 `/products-status-counts` 的对应标签数量
+    - 兼容旧调用：`limit>0` 时不分页，直接返回前 `limit` 条
+    """
+    stmt = select(Product).options(selectinload(Product.skus))
+    stmt = _apply_product_filters(
+        stmt, q=q, status=status, review_status=review_status,
+        category_id=category_id, source=source, tab=tab,
+        product_id=product_id, sku_code=sku_code,
+    )
+
+    stmt = stmt.order_by(Product.id.desc())
+    if limit:
+        stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
     result = await db.execute(stmt)
-    return result.scalars().all()
+    rows = result.scalars().all()
+    await _fill_favorite_counts(db, rows)
+    return rows
+
+
+@router.get("/products/{product_id}", response_model=ProductOut)
+async def admin_get_product(
+    product_id: int,
+    request: Request,
+    admin: AdminUser = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db),
+):
+    """单个商品详情（后台，**不限状态**）
+
+    与前台 `/api/products/{id}` 不同：草稿 / 已下架 / 待审核 / 已驳回 / 回收站商品
+    都能取到，供后台「预览」「编辑页加载」使用。
+    """
+    product = (
+        await db.execute(
+            select(Product)
+            .options(selectinload(Product.skus))
+            .where(Product.id == product_id)
+        )
+    ).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+
+    product.display_name = product.name(get_lang(request))
+    return product
 
 
 @router.post("/products", response_model=ProductOut, status_code=201)
@@ -151,9 +319,21 @@ async def admin_create_product(
         base_price=payload.base_price,
         status=payload.status,
         is_featured=payload.is_featured,
+        # 后台人工录入的视为已审核；批量导入的会显式设为 pending
+        source="manual",
+        review_status="approved",
+        reviewed_by=admin.username,
+        reviewed_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(product)
     await db.flush()
+    log_action(
+        db, product, "create",
+        {"sku_code": product.sku_code, "base_price": str(product.base_price),
+         "status": product.status, "category_id": product.category_id,
+         "sku_count": len(payload.skus)},
+        admin.username,
+    )
 
     for sku_data in payload.skus:
         db.add(
@@ -233,6 +413,13 @@ async def admin_update_product(
     if payload.is_featured is not None:
         product.is_featured = payload.is_featured
 
+    # 留痕：只记录本次请求实际提交的字段
+    changed = {
+        k: str(v) for k, v in payload.model_dump(exclude_unset=True).items()
+    }
+    if changed:
+        log_action(db, product, "update", {"fields": changed}, admin.username)
+
     await db.commit()
     await db.refresh(product)
     return product
@@ -245,10 +432,39 @@ async def admin_add_sku(
     admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
     db: AsyncSession = Depends(get_db),
 ):
-    """为商品新增 SKU"""
-    result = await db.execute(select(Product).where(Product.id == product_id))
-    if not result.scalar_one_or_none():
+    """为商品新增 SKU
+
+    `sku_code` 全局唯一。若该商品下已存在同编码的 SKU（例如「删规格后重新添加同名规格」
+    导致的停用残留），则**复用该记录**（恢复启用并更新价格/库存），避免唯一约束 500。
+    """
+    product = (
+        await db.execute(
+            select(Product).options(selectinload(Product.skus)).where(Product.id == product_id)
+        )
+    ).scalar_one_or_none()
+    if not product:
         raise HTTPException(status_code=404, detail="商品不存在")
+
+    # 本商品内同编码：复用（含已停用的残留记录）
+    for existing in (product.skus or []):
+        if existing.sku_code == payload.sku_code:
+            existing.price = payload.price
+            existing.cost_price = payload.cost_price
+            existing.stock = payload.stock
+            existing.attributes = payload.attributes
+            existing.is_active = payload.is_active
+            await db.commit()
+            return {"id": existing.id, "sku_code": existing.sku_code, "reused": True}
+
+    # 同编码被**其他商品**占用：明确报错，避免 500
+    taken = (
+        await db.execute(select(SKU).where(SKU.sku_code == payload.sku_code))
+    ).scalar_one_or_none()
+    if taken:
+        raise HTTPException(
+            status_code=400,
+            detail=f"规格编码 {payload.sku_code} 已被其他商品占用，请改用其他编码",
+        )
 
     sku = SKU(
         product_id=product_id,
@@ -277,7 +493,24 @@ async def admin_update_sku(
     if not sku:
         raise HTTPException(status_code=404, detail="SKU 不存在")
 
-    if payload.sku_code:
+    if payload.sku_code and payload.sku_code != sku.sku_code:
+        # 编码全局唯一：被本商品/其他商品的其它 SKU 占用时明确报错，避免唯一约束 500
+        conflict = (
+            await db.execute(
+                select(SKU).where(SKU.sku_code == payload.sku_code, SKU.id != sku.id)
+            )
+        ).scalar_one_or_none()
+        if conflict:
+            if conflict.product_id == sku.product_id:
+                # 同一商品内与本 SKU 属性重合 → 视为重复规格
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"规格编码 {payload.sku_code} 在本商品中已存在",
+                )
+            raise HTTPException(
+                status_code=400,
+                detail=f"规格编码 {payload.sku_code} 已被其他商品占用",
+            )
         sku.sku_code = payload.sku_code
     if payload.price is not None:
         sku.price = payload.price
@@ -637,20 +870,29 @@ async def admin_delete_product(
     admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
     db: AsyncSession = Depends(get_db),
 ):
-    """删除商品（级联删除 SKU、库存流水等）"""
+    """删除商品（**软删除**，移入回收站，可在后台恢复）
+
+    如需不可恢复的抹除，请调用 `DELETE /api/admin/products/{id}/purge`（仅超管）。
+    """
     result = await db.execute(
         select(Product).options(selectinload(Product.skus)).where(Product.id == product_id)
     )
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="商品不存在")
-    # 检查订单项引用（订单保存快照不引用商品，但保留友好提示）
-    await db.execute(StockMovement.__table__.delete().where(
-        StockMovement.sku_id.in_([s.id for s in product.skus])
-    ))
-    await db.delete(product)
+    if product.deleted_at is not None:
+        return Message(message="商品已在回收站中")
+
+    product.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # 留痕（回收站商品仍可恢复，故此处不解除外键）
+    log_action(
+        db, product, "delete",
+        {"sku_code": product.sku_code, "status": product.status,
+         "review_status": product.review_status, "soft": True},
+        admin.username,
+    )
     await db.commit()
-    return Message(message="商品已删除")
+    return Message(message="商品已移入回收站")
 
 
 # ============ 订单详情 ============
@@ -712,6 +954,58 @@ async def admin_create_admin(
     return user
 
 
+@router.put("/me/password", response_model=Message)
+async def admin_change_my_password(
+    payload: AdminPasswordChangeIn,
+    current: AdminUser = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db),
+):
+    """修改**当前登录账号**的密码。
+
+    必须提供 `old_password` 校验身份，防止会话被劫持后直接改密。
+    超管与普通管理员都可用；超管改别人的密码走 `PUT /admins/{id}`。
+    """
+    if not verify_password(payload.old_password, current.password_hash):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if payload.old_password == payload.new_password:
+        raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
+
+    current.password_hash = hash_password(payload.new_password)
+    await db.commit()
+    logger.info("[admin] 管理员 %s 修改了自己的密码", current.username)
+    return Message(message="密码已修改，下次登录请使用新密码")
+
+
+@router.put("/admins/{admin_id}/password", response_model=Message)
+async def admin_reset_admin_password(
+    admin_id: int,
+    payload: AdminPasswordResetIn,
+    current: AdminUser = Depends(require_admin({"superadmin"})),
+    db: AsyncSession = Depends(get_db),
+):
+    """超级管理员重置**他人**密码（无需对方原密码）。
+
+    不允许通过本接口改自己的密码——那会绕过当前密码校验，
+    改自己请走 `PUT /me/password`。
+    """
+    if admin_id == current.id:
+        raise HTTPException(
+            status_code=400,
+            detail="修改自己的密码请使用「修改密码」（需验证当前密码）",
+        )
+    result = await db.execute(select(AdminUser).where(AdminUser.id == admin_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="管理员不存在")
+
+    user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+    logger.info(
+        "[admin] %s 重置了 %s 的密码", current.username, user.username
+    )
+    return Message(message=f"已重置 {user.username} 的密码")
+
+
 @router.put("/admins/{admin_id}", response_model=AdminUserOut)
 async def admin_update_admin(
     admin_id: int,
@@ -737,6 +1031,12 @@ async def admin_update_admin(
             raise HTTPException(status_code=400, detail="不能禁用当前登录的超管账号")
         user.is_active = payload.is_active
     if payload.password:
+        # 改自己的密码必须验证原密码，走 PUT /me/password
+        if user.id == current.id:
+            raise HTTPException(
+                status_code=400,
+                detail="修改自己的密码请使用「修改密码」（需验证当前密码）",
+            )
         user.password_hash = hash_password(payload.password)
 
     await db.commit()

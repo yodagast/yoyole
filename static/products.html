@@ -273,7 +273,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=31"></script>
+  <script src="/static/js/pymall.js?v=32"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -468,8 +468,30 @@
           }
 
           // ---------- 详情 ----------
-          function openDetail(p) {
-            PyMall.api('/api/products/' + p.id).then(function (detail) {
+          /**
+           * 打开商品详情。
+           * opts.admin = true 时（后台「预览」跳转 `?id=xxx`）优先走后台接口，
+           * 这样草稿 / 已下架 / 待审核 / 已驳回商品也能预览；
+           * 未登录后台或后台不可用时回退到前台接口（仅在售已过审商品可见）。
+           */
+          function fetchDetail(id, useAdmin) {
+            var adminTok = useAdmin && PyMall.getAdminToken && PyMall.getAdminToken();
+            if (!adminTok) return PyMall.api('/api/products/' + id);
+            // 用原生 fetch 调后台接口：PyMall.api 在 401 时会清除顾客登录态，
+            // 而这里带的是管理员 token，过期不应影响顾客的登录状态。
+            return fetch('/api/admin/products/' + id + '?lang=' + PyMall.getLang(), {
+              headers: { Authorization: 'Bearer ' + adminTok },
+            }).then(function (res) {
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              return res.json();
+            }).catch(function () {
+              // 管理员未登录 / token 失效 / 无权限 → 回退前台接口（仅在售已过审商品）
+              return PyMall.api('/api/products/' + id);
+            });
+          }
+
+          function openDetail(p, opts) {
+            fetchDetail(p.id, !!(opts && opts.admin)).then(function (detail) {
               state.detail = detail;
               state.detailOpen = true;
               state.imgIdx = 0;
@@ -511,8 +533,11 @@
           var galImgs = Vue.computed(function () {
             var d = state.detail;
             if (!d) return [];
-            var imgs = (d.images && d.images.length) ? d.images : [d.main_image || ''];
-            return imgs.filter(function (x) { return !!x; });
+            // 轮播图 = images 中除图文详情图（/d/ 前缀标记）外的部分；
+            // 全部都是详情图时退化为仅主图
+            var imgs = (d.images || []).filter(function (x) { return x && x.indexOf('/d/') < 0; });
+            if (!imgs.length && d.main_image) imgs = [d.main_image];
+            return imgs;
           });
 
           var currentImg = Vue.computed(function () {
@@ -758,9 +783,10 @@
             loadWishlist().then(function () {
               loadProducts();
               // 支持首页跳转 /products.html?id=xxx 直达详情
+              // 后台「预览」也走这个入口：管理员已登录时用后台接口，可预览任意状态商品
               var idParam = qs('id');
               if (idParam) {
-                openDetail({ id: Number(idParam) });
+                openDetail({ id: Number(idParam) }, { admin: true });
               }
             });
           });
