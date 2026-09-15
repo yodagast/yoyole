@@ -8,8 +8,8 @@
 | 侧边栏 | 视图 key | 说明 |
 |---|---|---|
 | 仪表盘 | `dashboard` | 商品/订单/客户/营收概览 |
-| 商品管理 | `products` | 状态标签页、批量管理、审核、操作记录 |
-| 类目管理 | `categories` | 商品分类 |
+| 商品管理 | `products` | 状态标签页、批量管理、审核、操作记录、**商品包导出/导入**（见 [`product-package.md`](./product-package.md)）|
+| 类目管理 | `categories` | 商品分类（列表 + **独立编辑页** `admin-category-edit.html`）|
 | 订单管理 | `orders` | 订单查询、状态流转、批量操作、导出（见 [`order-admin.md`](./order-admin.md)）|
 | 用户管理 | `customers` | 顾客账号 |
 | 订阅管理 | `newsletter` | 邮件订阅者与群发 |
@@ -22,6 +22,46 @@
 > 用户故事审核 + 首页轮播 → **首页和用户管理**。
 > 旧链接 `?view=cms` 会自动跳转到「品牌管理」，保持向后兼容。
 > 页面数据在切换视图时按需加载（`loadBrandContent()` / `loadHomeContent()`），互不干扰。
+
+---
+
+## 0.4 类目管理
+
+类目列表（`admin.html?view=categories`）展示：ID / 编码 / 中英文名 / 排序 /
+**关联商品数（含在售数）** / 状态 / 操作。
+
+### 独立编辑页 `admin-category-edit.html`
+
+「新增类目」与行内「编辑」都跳转到**完整页面**，一次性编辑全部字段，
+不再用「编码 → 中文名 → 英文名」三步弹窗：
+
+| 字段 | 校验 |
+|---|---|
+| 中文名称 | 必填，≤100 字 |
+| 英文名称 | 可留空，留空时后端回填中文名 |
+| 类目编码 | 必填，**仅小写字母/数字/下划线/连字符**（输入时即时规整），全局唯一，前端本地查重 + 后端 409 |
+| 上级类目 | 下拉，**排除自己与自己的所有后代**（防环）；支持两级结构 |
+| 排序值 | 整数，越小越靠前 |
+| 启用状态 | 停用后不在前台筛选面板展示，已归类商品不受影响 |
+
+页面顶部展示**类目概览**（关联商品数 / 前台在售数 / 子类目数），
+编辑已有类目时显示「删除类目」。有未保存改动时返回会二次确认。
+
+URL：`?new=1` 新增；`?id=<id>` 编辑（保存新建后会 `replaceState` 到 `?id=`，便于继续调整）。
+
+### 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/admin/categories` | 列表（含派生统计 `product_count` / `active_product_count` / `children_count` / `parent_name`）|
+| `GET` | `/api/admin/categories/{id}` | 单条详情（编辑页加载用，同样带统计）|
+| `POST` | `/api/admin/categories` | 新增，兼容扁平字段（`name_zh`/`name_en`）与 `name_i18n` 字典两种 body |
+| `PUT` | `/api/admin/categories/{id}` | 编辑全部字段 |
+| `DELETE` | `/api/admin/categories/{id}` | 删除；**有关联商品或有子类目时 409** |
+
+> 统计字段由 `admin.py::_fill_category_stats()` 批量计算（避免 N+1）。
+> `parent_name` 会**单独查询父类目**，因为单条详情时父类目不在传入列表里
+> （曾只在传入列表内查找 → 单条详情的 `parent_name` 恒为空）。
 
 ---
 
@@ -461,7 +501,10 @@ if (reason === null) return;
 | `static/js/common.js` | `App.dialog` / `App.confirmDialog` / `App.promptDialog`（页面内弹窗，替代原生对话框） |
 | `test/test_api.py::TestProductLifecycle` | 生命周期自动化测试 |
 | `test/test_api.py::TestProductReviewAndBulk` | 审核与批量测试 |
+| `test/test_api.py::TestCategoryManagement` | 类目管理（详情 / 统计 / 防环 / 删除约束）|
+| `test/test_api.py::TestProductPackage` | 商品包导出与导入 |
 | `docs/product-import.md` | 产品册 PPT 批量导入 |
+| `docs/product-package.md` | 文件夹商品包导出 / 导入 |
 
 ---
 

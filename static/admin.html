@@ -310,9 +310,13 @@
           <h2 style="margin:0">商品管理</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn btn-outline" id="audit-log-btn">商品操作记录</button>
+            <button class="btn btn-outline" data-need-write id="pkg-import-btn">导入商品包</button>
+            <button class="btn btn-outline" data-need-write id="pkg-exports-btn">已导出商品包</button>
             <button class="btn btn-primary" id="add-product-btn" data-need-write>发布新商品</button>
           </div>
         </div>
+        <!-- 商品包导入的文件选择器：接受 .zip（内部含 manifest.json 与 images/） -->
+        <input type="file" id="pkg-import-file" accept=".zip,application/zip" style="display:none">
 
         <!-- 状态标签页 -->
         <div id="product-tabs" class="pd-tabs"></div>
@@ -395,6 +399,7 @@
           <input type="text" id="bulk-note" class="hidden" placeholder="驳回理由 / 下架原因"
                  style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;width:190px">
           <button class="btn btn-primary btn-sm" id="bulk-apply-btn" data-need-write>执行</button>
+          <button class="btn btn-outline btn-sm" id="pkg-export-btn" data-need-write>导出选中商品</button>
           <span style="font-size:13px;color:#9a3412">已选 <b id="bulk-count">0</b> 项</span>
           <button class="btn btn-outline btn-sm" id="bulk-clear-btn">清空选择</button>
         </div>
@@ -832,6 +837,83 @@
       <div style="display:flex;gap:10px;margin-top:14px">
         <button class="btn btn-primary" id="pd-stock-save" data-need-write>提交</button>
         <button class="btn btn-outline" id="pd-stock-cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 商品包导出（文件夹 / zip 下载） -->
+  <div id="pkg-export-modal" class="modal-mask hidden">
+    <div class="modal-panel" style="max-width:560px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">导出商品包</h3>
+        <button class="btn btn-outline btn-sm" id="pkg-export-close">✕</button>
+      </div>
+      <div class="pd-sku-alert" style="background:#f0f9ff;border-color:#bae6fd;color:#075985">
+        <span>i</span>
+        <span>商品包是一个文件夹：<code>manifest.json</code>（商品清单）+
+          <code>images/</code>（图片）。可直接拷走，也能用「导入商品包」还原。</span>
+      </div>
+      <div class="form-group">
+        <label>商品包名称</label>
+        <input type="text" id="pkg-export-name" placeholder="如 2026春夏瑜伽裤"
+               style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;width:100%">
+        <div class="pd-muted" style="margin-top:6px">留空则自动按时间命名；同名包会自动加时间后缀，不覆盖。</div>
+      </div>
+      <div class="form-group" style="display:flex;gap:18px;flex-wrap:wrap;margin-top:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px">
+          <input type="checkbox" id="pkg-export-images" checked> 打包商品图片
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px">
+          <input type="checkbox" id="pkg-export-zip" checked> 同时打包 zip
+        </label>
+      </div>
+      <div class="pd-muted" id="pkg-export-summary" style="margin-top:12px"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="pkg-export-server">导出到服务器文件夹</button>
+        <button class="btn btn-primary" id="pkg-export-download" style="background:#16a34a;border-color:#16a34a">
+          下载 zip 到本地
+        </button>
+        <button class="btn btn-outline" id="pkg-export-cancel">取消</button>
+      </div>
+      <div class="pd-muted" id="pkg-export-result" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- 已导出商品包列表 -->
+  <div id="pkg-list-modal" class="modal-mask hidden">
+    <div class="modal-panel" style="max-width:720px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">已导出商品包</h3>
+        <button class="btn btn-outline btn-sm" id="pkg-list-close">✕</button>
+      </div>
+      <div class="pd-muted" style="margin-bottom:10px">
+        位于服务器 <code>static/exports/</code>，可通过 <code>/static/exports/…</code> 直接下载。
+      </div>
+      <div class="pd-sku-scroll" style="max-height:52vh">
+        <table class="pd-record-table">
+          <thead><tr>
+            <th>包名</th><th style="width:90px">商品数</th>
+            <th style="width:150px">导出时间</th><th style="width:150px">操作</th>
+          </tr></thead>
+          <tbody id="pkg-list-body"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-outline" id="pkg-list-cancel">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 商品包导入结果 -->
+  <div id="pkg-import-modal" class="modal-mask hidden">
+    <div class="modal-panel" style="max-width:620px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">商品包导入结果</h3>
+        <button class="btn btn-outline btn-sm" id="pkg-import-close">✕</button>
+      </div>
+      <div id="pkg-import-body"></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+        <button class="btn btn-primary" id="pkg-import-ok">知道了</button>
       </div>
     </div>
   </div>
@@ -1882,6 +1964,249 @@
 
       function pdPreview(id) {
         window.open('/products.html?id=' + id, '_blank');
+      }
+
+      // ---------- 商品包导出 / 导入（文件夹形式，不走 PPT）----------
+      // 导出：把选中商品写成 manifest.json + categories.json + images/ 的目录，
+      //       可落盘到服务器（static/exports/）或直接下载 zip 到本地。
+      // 导入：上传商品包 zip，按 sku_code 合并（跳过已存在）或覆盖更新。
+      var pkgExportIds = [];
+
+      function pkgOpenExport() {
+        var ids = selectedIds();
+        if (!ids.length) { App.toast('请先勾选要导出的商品', 'error'); return; }
+        pkgExportIds = ids;
+        document.getElementById('pkg-export-result').textContent = '';
+        document.getElementById('pkg-export-summary').textContent =
+          '已选 ' + ids.length + ' 款商品，将导出为一个商品包文件夹。';
+        document.getElementById('pkg-export-modal').classList.remove('hidden');
+      }
+
+      function pkgCloseExport() {
+        document.getElementById('pkg-export-modal').classList.add('hidden');
+      }
+
+      function pkgExportBody(zip) {
+        return {
+          ids: pkgExportIds,
+          package_name: document.getElementById('pkg-export-name').value.trim(),
+          include_images: document.getElementById('pkg-export-images').checked,
+          zip_output: zip,
+        };
+      }
+
+      function pkgExportToServer() {
+        var btn = document.getElementById('pkg-export-server');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = '导出中...';
+        api('/api/admin/product-package/export', {
+          method: 'POST', body: pkgExportBody(true),
+        }).then(function (d) {
+          btn.disabled = false;
+          btn.textContent = '导出到服务器文件夹';
+          var msg = '已导出到服务器：' + d.out_dir
+            + '\n商品 ' + d.product_count + ' 款 · SKU ' + d.sku_count
+            + ' 个 · 图片 ' + d.image_count + ' 张';
+          document.getElementById('pkg-export-result').innerHTML =
+            '<div style="padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;'
+            + 'border-radius:8px;color:#166534;font-size:13px;line-height:1.7;word-break:break-all">'
+            + escHtml(msg).replace(/\n/g, '<br>')
+            + '<br>可拷贝该目录，或到「已导出商品包」下载 zip。</div>';
+          App.toast('已导出到服务器', 'success');
+        }).catch(function (e) {
+          btn.disabled = false;
+          btn.textContent = '导出到服务器文件夹';
+          App.toast(e.message, 'error');
+        });
+      }
+
+      function pkgExportDownload() {
+        var btn = document.getElementById('pkg-export-download');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = '打包中...';
+        // 直接下载：需要原始 fetch（App.api 会强解 JSON），并带上管理员 token
+        fetch('/api/admin/product-package/export-zip', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (adminToken || App.getAdminToken() || ''),
+          },
+          body: JSON.stringify(pkgExportBody(true)),
+        }).then(function (res) {
+          if (!res.ok) {
+            return res.json().catch(function () { return {}; }).then(function (d) {
+              throw new Error(d.detail || ('导出失败（HTTP ' + res.status + '）'));
+            });
+          }
+          var name = res.headers.get('X-Package-Name')
+            || document.getElementById('pkg-export-name').value.trim()
+            || ('products_' + Date.now());
+          return res.blob().then(function (blob) { return { blob: blob, name: name }; });
+        }).then(function (r) {
+          btn.disabled = false;
+          btn.textContent = '下载 zip 到本地';
+          var url = URL.createObjectURL(r.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = r.name + '.zip';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          App.toast('已开始下载 ' + r.name + '.zip', 'success');
+        }).catch(function (e) {
+          btn.disabled = false;
+          btn.textContent = '下载 zip 到本地';
+          App.toast(e.message, 'error');
+        });
+      }
+
+      // ---- 已导出包列表 ----
+      function pkgOpenList() {
+        document.getElementById('pkg-list-body').innerHTML =
+          '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">加载中...</td></tr>';
+        document.getElementById('pkg-list-modal').classList.remove('hidden');
+        api('/api/admin/product-package/exports').then(function (list) {
+          list = list || [];
+          document.getElementById('pkg-list-body').innerHTML = list.length
+            ? list.map(function (p) {
+                var dl = p.zip_url
+                  ? '<a class="pd-link" href="' + escHtml(p.zip_url) + '" download>下载 zip</a> '
+                  : '';
+                return '<tr>'
+                  + '<td style="word-break:break-all">' + escHtml(p.name) + '</td>'
+                  + '<td>' + (p.product_count || 0) + '</td>'
+                  + '<td style="font-size:12px;color:#64748b">'
+                  + escHtml(String(p.created_at || '').replace('T', ' ')) + '</td>'
+                  + '<td>' + dl
+                  + '<a class="pd-link danger" onclick="Admin.pkgDeleteExport(\''
+                  + escHtml(p.name) + '\')">删除</a></td></tr>';
+              }).join('')
+            : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:24px">'
+              + '还没有导出过商品包</td></tr>';
+        }).catch(function (e) {
+          document.getElementById('pkg-list-body').innerHTML =
+            '<tr><td colspan="4" style="color:#dc2626;padding:16px">' + escHtml(e.message) + '</td></tr>';
+        });
+      }
+
+      function pkgDeleteExport(name) {
+        App.confirmDialog('将删除服务器上的商品包「' + name + '」（含同名 zip）。', {
+          title: '删除商品包', tone: 'danger', okText: '确认删除',
+        }).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/product-package/exports/' + encodeURIComponent(name),
+                     { method: 'DELETE' })
+            .then(function () { App.toast('已删除', 'success'); pkgOpenList(); });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---- 导入 ----
+      function pkgStartImport() {
+        document.getElementById('pkg-import-file').click();
+      }
+
+      function pkgDoImport(file) {
+        App.dialog({
+          title: '导入商品包', tone: 'info', okText: '开始导入',
+          message: '文件：' + file.name
+            + '\n包内需包含 manifest.json（商品清单）与 images/ 目录。',
+          field: {
+            label: '已存在的货号如何处理？输入 merge 跳过 / update 覆盖更新',
+            value: 'merge', placeholder: 'merge',
+          },
+        }).then(function (mode) {
+          if (mode === null) return;
+          mode = (String(mode).trim().toLowerCase() || 'merge');
+          if (mode !== 'merge' && mode !== 'update') {
+            App.toast('只能填 merge 或 update', 'error');
+            return;
+          }
+          return App.confirmDialog(
+            mode === 'merge'
+              ? '货号已存在的商品会被跳过，只新增商品包里的新商品。'
+              : '已存在的商品会被商品包内容覆盖（名称/描述/价格/图片/SKU），且包内未出现的旧规格会被停用。',
+            { title: '确认导入方式', tone: mode === 'merge' ? 'info' : 'warn',
+              okText: '确认导入' }
+          ).then(function (ok) {
+            if (!ok) return;
+            return pkgUpload(file, mode);
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pkgUpload(file, mode) {
+        var form = new FormData();
+        form.append('file', file);
+        form.append('mode', mode);
+        form.append('review_status', 'pending');
+
+        App.toast('正在上传并导入，请稍候...', 'success');
+        // 上传用原生 fetch：App.api 会设置 JSON Content-Type，破坏 multipart
+        return fetch('/api/admin/product-package/import', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + (adminToken || App.getAdminToken() || '') },
+          body: form,
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (d) {
+            if (!res.ok) throw new Error(d.detail || ('导入失败（HTTP ' + res.status + '）'));
+            return d;
+          });
+        }).then(pkgShowImportResult)
+          .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      function pkgShowImportResult(d) {
+        var head = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">';
+        function box(v, l, color) {
+          return '<div style="flex:1;min-width:96px;background:#f8fafc;border:1px solid #eef2f7;'
+            + 'border-radius:8px;padding:11px 13px">'
+            + '<div style="font-size:20px;font-weight:700;color:' + color + '">' + v + '</div>'
+            + '<div style="font-size:12px;color:#94a3b8;margin-top:3px">' + l + '</div></div>';
+        }
+        head += box(d.imported, '新增商品', '#16a34a');
+        head += box(d.updated, '覆盖更新', '#2563eb');
+        head += box(d.skipped, '跳过（已存在）', '#94a3b8');
+        head += box(d.failed, '失败', d.failed ? '#dc2626' : '#94a3b8');
+        head += '</div>';
+
+        var detail = '<table class="pd-record-table"><tbody>'
+          + pkgRow('规格新增/更新', d.sku_created + ' / ' + d.sku_updated)
+          + pkgRow('自动创建类目', d.categories_created)
+          + pkgRow('导入图片', d.images_imported)
+          + pkgRow('库中商品总数', d.products_total)
+          + pkgRow('库中 SKU 总数', d.skus_total)
+          + '</tbody></table>';
+
+        function listBlock(title, arr, color) {
+          if (!arr || !arr.length) return '';
+          return '<div style="margin-top:14px"><div style="font-size:13px;font-weight:600;color:'
+            + color + ';margin-bottom:6px">' + title + '</div>'
+            + '<div style="font-size:12.5px;color:#475569;line-height:1.8;max-height:150px;'
+            + 'overflow:auto;background:#f8fafc;border-radius:6px;padding:9px 12px">'
+            + arr.slice(0, 20).map(escHtml).join('<br>') + '</div></div>';
+        }
+        detail += listBlock('提示', d.warnings, '#b45309');
+        detail += listBlock('错误', d.errors, '#dc2626');
+        detail += listBlock('缺失图片', d.missing_images, '#dc2626');
+
+        if (d.imported || d.updated) {
+          detail += '<div style="margin-top:14px;padding:10px 12px;background:#fffbeb;'
+            + 'border:1px solid #fde68a;border-radius:8px;color:#92400e;font-size:13px">'
+            + '导入的商品为「待审核」状态，前台暂不展示。请到商品管理点「一键通过待审核」。</div>';
+        }
+
+        document.getElementById('pkg-import-body').innerHTML = head + detail;
+        document.getElementById('pkg-import-modal').classList.remove('hidden');
+        App.toast('导入完成：新增 ' + d.imported + '，更新 ' + d.updated, 'success');
+        loadProducts(); loadStatusCounts(); loadDashboard(); loadCategories();
+      }
+
+      function pkgRow(k, v) {
+        return '<tr><td style="color:#64748b;width:150px">' + k + '</td>'
+          + '<td style="font-weight:600;color:#0f172a">' + v + '</td></tr>';
       }
 
       // ---------- 批量选择与批量操作 ----------
@@ -3617,6 +3942,11 @@
         pdPublish: pdPublish, pdUnpublish: pdUnpublish, pdDelete: pdDelete,
         pdRestore: pdRestore, pdPurge: pdPurge, pdPreview: pdPreview,
         bulkPublish: bulkPublish, bulkUnpublish: bulkUnpublish,
+        // 商品包导出 / 导入
+        pkgOpenExport: pkgOpenExport, pkgCloseExport: pkgCloseExport,
+        pkgExportToServer: pkgExportToServer, pkgExportDownload: pkgExportDownload,
+        pkgOpenList: pkgOpenList, pkgDeleteExport: pkgDeleteExport,
+        pkgStartImport: pkgStartImport, pkgShowImportResult: pkgShowImportResult,
         // 订单查询（PDD 风格）
         odSwitchTab: odSwitchTab, odGoPage: odGoPage, odSearch: odSearch,
         odReset: odReset, odToggleExtra: odToggleExtra, odQuickRange: odQuickRange,
@@ -3655,6 +3985,38 @@
       document.getElementById('bulk-action').onchange = syncBulkInputs;
       document.getElementById('bulk-apply-btn').onclick = applyBulk;
       document.getElementById('bulk-clear-btn').onclick = clearSelection;
+      // 商品包导出 / 导入
+      document.getElementById('pkg-export-btn').onclick = pkgOpenExport;
+      document.getElementById('pkg-export-server').onclick = pkgExportToServer;
+      document.getElementById('pkg-export-download').onclick = pkgExportDownload;
+      document.getElementById('pkg-export-close').onclick = pkgCloseExport;
+      document.getElementById('pkg-export-cancel').onclick = pkgCloseExport;
+      document.getElementById('pkg-export-modal').onclick = function (e) {
+        if (e.target === this) pkgCloseExport();     // 点遮罩关闭
+      };
+      document.getElementById('pkg-exports-btn').onclick = pkgOpenList;
+      document.getElementById('pkg-list-close').onclick = function () {
+        document.getElementById('pkg-list-modal').classList.add('hidden');
+      };
+      document.getElementById('pkg-list-cancel').onclick =
+        document.getElementById('pkg-list-close').onclick;
+      document.getElementById('pkg-list-modal').onclick = function (e) {
+        if (e.target === this) document.getElementById('pkg-list-close').onclick();
+      };
+      document.getElementById('pkg-import-btn').onclick = pkgStartImport;
+      document.getElementById('pkg-import-file').onchange = function () {
+        var f = this.files && this.files[0];
+        this.value = '';                             // 允许重复选择同一文件
+        if (f) pkgDoImport(f);
+      };
+      document.getElementById('pkg-import-ok').onclick = function () {
+        document.getElementById('pkg-import-modal').classList.add('hidden');
+      };
+      document.getElementById('pkg-import-close').onclick =
+        document.getElementById('pkg-import-ok').onclick;
+      document.getElementById('pkg-import-modal').onclick = function (e) {
+        if (e.target === this) document.getElementById('pkg-import-ok').onclick();
+      };
       // 订单查询页事件
       document.getElementById('od-search-btn').onclick = odSearch;
       document.getElementById('od-reset-btn').onclick = odReset;
@@ -3913,76 +4275,67 @@
       function loadCategories() {
         api('/api/admin/categories').then(function (list) {
           categoriesCache = list || [];
+          var canWrite = adminRole === 'superadmin' || adminRole === 'operator';
           var rows = categoriesCache.map(function (c) {
-            var state = c.is_active ? '启用' : '停用';
-            var actions = (adminRole === 'superadmin' || adminRole === 'operator')
-              ? '<button class="btn btn-outline btn-sm" onclick="Admin.editCategory(' + c.id + ')">编辑</button> '
-                + '<button class="btn btn-danger btn-sm" onclick="Admin.delCategory(' + c.id + ')">删除</button>' : '-';
-            return '<tr><td>' + c.id + '</td><td>' + c.code + '</td><td>' + (c.name_i18n.zh || '') + '</td><td>' + (c.name_i18n.en || '') + '</td><td>' + state + '</td><td class="actions-cell">'
-              + actions + '</td></tr>';
+            var state = c.is_active
+              ? '<span class="badge" style="background:#dcfce7;color:#166534">启用</span>'
+              : '<span class="badge" style="background:#f1f5f9;color:#64748b">停用</span>';
+            var parent = c.parent_name
+              ? '<span style="color:#94a3b8">' + escHtml(c.parent_name) + ' / </span>'
+              : '';
+            var prod = (c.product_count || 0) + ' 款';
+            if (c.active_product_count) {
+              prod += ' <span style="color:#16a34a;font-size:12px">('
+                + c.active_product_count + ' 在售)</span>';
+            }
+            var acts = canWrite
+              ? '<a class="pd-link" onclick="Admin.editCategory(' + c.id + ')">编辑</a>'
+                + '<a class="pd-link danger" onclick="Admin.delCategory(' + c.id + ')">删除</a>'
+              : '<span style="color:#cbd5e1">-</span>';
+            return '<tr>'
+              + '<td class="pd-mid">' + c.id + '</td>'
+              + '<td class="pd-mid"><code style="font-size:12px">' + escHtml(c.code) + '</code></td>'
+              + '<td class="pd-mid">' + parent + escHtml(c.name_i18n.zh || '') + '</td>'
+              + '<td class="pd-mid">' + escHtml(c.name_i18n.en || '') + '</td>'
+              + '<td class="pd-mid">' + (c.sort_order || 0) + '</td>'
+              + '<td class="pd-mid">' + prod + '</td>'
+              + '<td class="pd-mid">' + state + '</td>'
+              + '<td class="pd-mid"><div class="pd-row-actions">' + acts + '</div></td>'
+              + '</tr>';
           }).join('');
-          document.getElementById('category-table').innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>编码</th><th>中文名称</th><th>英文名称</th><th>状态</th><th>操作</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6">暂无类目</td></tr>') + '</tbody></table>';
+          document.getElementById('category-table').innerHTML =
+            '<table class="admin-table"><thead><tr>'
+            + '<th style="width:60px">ID</th><th style="width:150px">编码</th>'
+            + '<th>中文名称</th><th>英文名称</th>'
+            + '<th style="width:80px">排序</th><th style="width:130px">关联商品</th>'
+            + '<th style="width:80px">状态</th><th style="width:130px">操作</th>'
+            + '</tr></thead><tbody>'
+            + (rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:36px">'
+                + '暂无类目，点击右上角「新增类目」创建</td></tr>')
+            + '</tbody></table>';
           renderCategoryOptions();
         }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function addCategory() {
-        ask({
-          title: '新增类目', tone: 'info', okText: '下一步',
-          message: '类目编码用于前台 URL 与接口标识，创建后不建议修改。',
-          field: { label: '类目编码（英文 / 数字 / 下划线）',
-                   placeholder: '如 yoga_pants', required: true, requiredMsg: '请填写类目编码' },
-        }).then(function (code) {
-          if (code === null) return null;
-          return ask({
-            title: '新增类目', tone: 'info', okText: '下一步',
-            message: '编码：' + code,
-            field: { label: '中文名称', required: true, requiredMsg: '请填写中文名称' },
-          }).then(function (nameZh) {
-            if (nameZh === null) return null;
-            return ask({
-              title: '新增类目', tone: 'info', okText: '创建',
-              message: '中文名称：' + nameZh,
-              field: { label: '英文名称', value: nameZh },
-            }).then(function (nameEn) {
-              if (nameEn === null) return null;
-              return api('/api/admin/categories', {
-                method: 'POST',
-                body: { code: code, name_i18n: { zh: nameZh, en: nameEn },
-                        sort_order: categoriesCache.length + 1, is_active: true },
-              }).then(function () { App.toast('类目已创建', 'success'); loadCategories(); });
-            });
-          });
-        }).catch(function (e) { App.toast(e.message, 'error'); });
+        // 改为跳转独立编辑页：一次性填写全部字段，不再逐个弹窗
+        location.href = '/admin-category-edit.html?new=1';
       }
 
       function editCategory(id) {
-        var c = categoriesCache.filter(function (x) { return x.id === id; })[0];
-        if (!c) return;
-        ask({
-          title: '编辑类目', tone: 'info', okText: '下一步',
-          message: '编码 ' + (c.code || '') + ' 不可修改。',
-          field: { label: '中文名称', value: c.name_i18n.zh || '',
-                   required: true, requiredMsg: '请填写中文名称' },
-        }).then(function (nameZh) {
-          if (nameZh === null) return null;
-          return ask({
-            title: '编辑类目', tone: 'info', okText: '保存',
-            message: '中文名称：' + nameZh,
-            field: { label: '英文名称', value: c.name_i18n.en || '' },
-          }).then(function (nameEn) {
-            if (nameEn === null) return null;
-            return api('/api/admin/categories/' + id, {
-              method: 'PUT', body: { name_i18n: { zh: nameZh, en: nameEn } },
-            }).then(function () { App.toast('类目已更新', 'success'); loadCategories(); });
-          });
-        }).catch(function (e) { App.toast(e.message, 'error'); });
+        location.href = '/admin-category-edit.html?id=' + encodeURIComponent(id);
       }
 
       function delCategory(id) {
-        askConfirm('若该类目下仍有商品则无法删除，需先转移或删除商品。', {
-          title: '删除类目', tone: 'danger', okText: '确认删除',
-        }).then(function (ok) {
+        var c = categoriesCache.filter(function (x) { return x.id === id; })[0] || {};
+        var warns = [];
+        if (c.product_count) warns.push('该类目下有 ' + c.product_count + ' 款商品');
+        if (c.children_count) warns.push('该类目有 ' + c.children_count + ' 个子类目');
+        askConfirm(
+          '删除「' + (c.name_i18n ? (c.name_i18n.zh || c.code) : id) + '」后不可恢复。'
+          + (warns.length ? '\n\n注意：' + warns.join('、') + '，将导致无法删除。' : ''),
+          { title: '删除类目', tone: 'danger', okText: '确认删除' }
+        ).then(function (ok) {
           if (!ok) return;
           return api('/api/admin/categories/' + id, { method: 'DELETE' })
             .then(function () { App.toast('类目已删除', 'success'); loadCategories(); });

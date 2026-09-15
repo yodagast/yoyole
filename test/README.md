@@ -51,6 +51,11 @@
   - 用例内部 `track` fixture 兜底取消测试订单，不残留锁定库存
   - 详见 [`docs/order-admin.md`](../docs/order-admin.md)
 - **收藏数 / 批量下架原因**：`GET /api/admin/products` 返回 `favorite_count`（聚合 `wishlist_items`，曾恒为 0）、`POST /api/admin/products/bulk` 的 `status` 动作写入并清空 `off_shelf_reason`
+- **类目管理（独立编辑页）**：`GET /api/admin/categories/{id}` 单条详情、列表与详情的派生统计（`product_count` / `active_product_count` / `children_count` / `parent_name`）、扁平字段（`name_zh`/`name_en`）与 `name_i18n` 双协议、编码小写规整、重复编码 409、父类目关系与**防环**（不能选自己或自己的后代）、**删除约束**（有关联商品 409 / 有子类目 409）
+  - 详见 [`docs/product-admin.md`](../docs/product-admin.md) 第 0.4 节
+- **商品包导出 / 导入（文件夹形式，不涉及 PPT）**：`POST /api/admin/product-package/export`（生成 `manifest.json` + `categories.json` + `images/` + `README.txt`，图片相对化、内容哈希去重、不含审核/上下架状态）、`POST …/export-zip`（直接返回 zip 流）、`GET …/exports`（**同名目录与 zip 合并为一行**）、`DELETE …/exports/{name}`、`POST …/import`（`merge` 跳过已存在 / `update` 覆盖并停用包内未出现的旧 SKU）、`GET …/format`
+  - 容错与安全：缺 manifest / 格式不符 / 版本过高 / 空 products / 路径穿越 / 非 zip / 伪 zip → 400；SKU 被其他商品占用只跳过该规格；单商品失败走 savepoint 只回滚自己；缺图记 warning 不失败；zip 外层多套一层目录可识别
+  - 详见 [`docs/product-package.md`](../docs/product-package.md)
 
 ### 页面（`test_pages.py`）
 

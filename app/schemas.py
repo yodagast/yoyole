@@ -1,11 +1,19 @@
 """Pydantic 请求/响应模型"""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 # ---------- 通用 ----------
@@ -42,6 +50,43 @@ class CategoryOut(BaseModel):
     name_i18n: dict[str, str]
     sort_order: int
     is_active: bool
+    # 派生字段：关联商品数 / 未删除商品数 / 子类目数（路由填充，供后台列表展示）
+    product_count: int = 0
+    active_product_count: int = 0
+    children_count: int = 0
+    parent_name: str = ""
+    created_at: datetime | None = None
+
+
+class CategoryIn(BaseModel):
+    """类目新增/编辑（完整字段，供独立编辑页提交）"""
+
+    code: str = Field(min_length=1, max_length=50, description="类目编码，全局唯一")
+    name_zh: str = Field(min_length=1, max_length=100, description="中文名称")
+    name_en: str = Field(default="", max_length=100, description="英文名称")
+    parent_id: int | None = Field(default=None, description="父类目 ID，留空为顶级")
+    sort_order: int = Field(default=0, description="排序值，越小越靠前")
+    is_active: bool = Field(default=True, description="是否启用")
+
+    @field_validator("code")
+    @classmethod
+    def _norm_code(cls, v: str) -> str:
+        """编码统一小写并只保留字母/数字/下划线/连字符"""
+        code = (v or "").strip().lower()
+        if not re.fullmatch(r"[a-z0-9_\-]+", code):
+            raise ValueError("类目编码只能包含小写字母、数字、下划线或连字符")
+        return code
+
+    @field_validator("name_zh")
+    @classmethod
+    def _strip_zh(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("中文名称不能为空")
+        return v
+
+    def to_name_i18n(self) -> dict[str, str]:
+        return {"zh": self.name_zh, "en": (self.name_en or "").strip() or self.name_zh}
 
 
 # ---------- 商品 ----------
@@ -838,6 +883,61 @@ class ProductImportResultOut(BaseModel):
 
 class OrderStatusIn(BaseModel):
     status: str
+
+
+# ---------- 商品包（文件夹）导出 / 导入 ----------
+class ProductPackageExportIn(BaseModel):
+    """商品包导出请求"""
+
+    ids: list[int] = Field(
+        min_length=1, max_length=2000, description="要导出的商品 ID 列表"
+    )
+    package_name: str = Field(
+        default="", max_length=120,
+        description="商品包名（作为文件夹名 / ZIP 内顶层目录名），留空则自动生成",
+    )
+    include_images: bool = Field(
+        default=True, description="是否把商品图片一并打包进 images/"
+    )
+    zip_output: bool = Field(
+        default=False, description="是否同时生成 .zip 供浏览器下载"
+    )
+
+
+class ProductPackageExportOut(BaseModel):
+    """商品包导出结果"""
+
+    package_name: str
+    out_dir: str                      # 服务器上的绝对路径
+    manifest_path: str                # manifest.json 路径
+    product_count: int
+    sku_count: int
+    image_count: int
+    missing_images: list[str] = []    # 未能打包的图片 URL
+    warnings: list[str] = []
+    zip_path: str | None = None       # 生成 zip 时的路径
+    zip_bytes: int = 0
+    zip_url: str | None = None        # 可下载 URL（/static/... 下的相对路径）
+
+
+class ProductPackageImportOut(BaseModel):
+    """商品包导入结果"""
+
+    source: str                       # 包名 / 上传文件名
+    mode: str                         # merge / update
+    imported: int                     # 新增商品数
+    updated: int                      # 覆盖更新的商品数
+    skipped: int                      # 已存在被跳过的商品数
+    failed: int                       # 失败数
+    sku_created: int
+    sku_updated: int
+    categories_created: int
+    images_imported: int
+    missing_images: list[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+    products_total: int = 0
+    skus_total: int = 0
 
 
 class DashboardOut(BaseModel):

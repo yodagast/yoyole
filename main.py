@@ -21,6 +21,7 @@ from app.routers import (
     orders,
     payments,
     product_admin,
+    product_package,
     order_admin,
     reviews,
     uploads,
@@ -70,6 +71,7 @@ app.include_router(newsletter.router)
 app.include_router(uploads.router)
 app.include_router(admin.router)
 app.include_router(product_admin.router)
+app.include_router(product_package.router)
 app.include_router(order_admin.router)
 app.include_router(imports.router)
 

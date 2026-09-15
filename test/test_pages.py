@@ -70,6 +70,14 @@ PAGE_ASSERTS = {
         "saveProduct",           # 保存逻辑
         "params.get('new')",     # 新增商品独立页面模式
     ],
+    "admin-category-edit.html": [
+        "类目编辑",              # 页面标题
+        "类目概览",              # 顶部统计卡
+        "关联商品",              # 关联商品数统计
+        "上级类目",              # 父类目下拉
+        "'/api/admin/categories/'",  # 详情接口（独立编辑页加载）
+        "params.get('new')",     # 新增类目模式
+    ],
     "about.html": [
         "mountPyMall",
         "story-section",           # 品牌故事区块

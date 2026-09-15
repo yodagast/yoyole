@@ -12,9 +12,13 @@
 """
 from __future__ import annotations
 
+import itertools
+import json
 import os
 import subprocess
 import time
+import zipfile
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
@@ -1780,6 +1784,669 @@ class TestAdminOrderManagement:
         lines = r.content.decode("utf-8-sig").strip().splitlines()
         assert len(lines) == 2, lines
         assert no in lines[1]
+
+
+class TestCategoryManagement:
+    """类目管理（独立编辑页）：单条详情、商品数统计、父类目、防环、删除约束。"""
+
+    # 全局递增计数器：保证跨用例的类目编码唯一（用 len(created) 会与其它用例撞码）
+    _seq = itertools.count()
+
+    @pytest.fixture()
+    def cats(self, admin_token):
+        """创建测试类目，结束后删除（反序删除，先子后父）"""
+        created: list[int] = []
+
+        def make(**over):
+            n = next(TestCategoryManagement._seq)
+            code = f"pytest-cat-{ts}-{n}"
+            body = {
+                "code": code,
+                "name_zh": f"测试类目 {ts}-{n}",
+                "name_en": f"Test Cat {n}",
+                "sort_order": 900,
+                "is_active": True,
+            }
+            body.update(over)
+            r = requests.post(f"{BASE}/api/admin/categories", json=body, headers=admin_token)
+            assert r.status_code == 201, r.text
+            created.append(r.json()["id"])
+            return r.json()
+
+        yield make
+
+        for cid in reversed(created):
+            requests.delete(f"{BASE}/api/admin/categories/{cid}", headers=admin_token)
+
+    # ---------- 单条详情 ----------
+    def test_get_category_detail(self, admin_token, cats):
+        c = cats()
+        r = requests.get(f"{BASE}/api/admin/categories/{c['id']}", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["id"] == c["id"] and d["code"] == c["code"]
+        for key in ("product_count", "active_product_count", "children_count"):
+            assert key in d and isinstance(d[key], int)
+
+    def test_get_category_unknown(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/categories/99999999", headers=admin_token)
+        assert r.status_code == 404
+
+    def test_category_detail_requires_auth(self):
+        assert requests.get(f"{BASE}/api/admin/categories/1").status_code == 401
+
+    # ---------- 列表统计 ----------
+    def test_list_includes_stats(self, admin_token):
+        rows = requests.get(f"{BASE}/api/admin/categories", headers=admin_token).json()
+        assert rows, "种子类目应存在"
+        seeded = [c for c in rows if c["product_count"] > 0]
+        assert seeded, "至少有一个类目关联了商品"
+        for c in rows:
+            assert c["active_product_count"] <= c["product_count"]
+            assert isinstance(c["parent_name"], str)
+
+    def test_product_count_is_real(self, admin_token, cats):
+        """类目商品数必须与实际命中的商品数一致（不是恒为 0）"""
+        c = cats()
+        sku = f"PYTEST-CATCNT-{ts}"
+        body = {
+            "sku_code": sku,
+            "name_zh": "类目计数测试",
+            "base_price": 50,
+            "status": "active",
+            "category_id": c["id"],
+            "main_image": "/static/uploads/jyt/s1/main.jpg",
+            "skus": [{"sku_code": f"{sku}-001", "price": 50, "stock": 5}],
+        }
+        created = requests.post(f"{BASE}/api/admin/products", json=body, headers=admin_token)
+        assert created.status_code == 201, created.text
+        pid = created.json()["id"]
+
+        d = requests.get(f"{BASE}/api/admin/categories/{c['id']}", headers=admin_token).json()
+        assert d["product_count"] == 1
+        assert d["active_product_count"] == 1
+
+        # 移入回收站后不再计入
+        requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        d2 = requests.get(f"{BASE}/api/admin/categories/{c['id']}", headers=admin_token).json()
+        assert d2["product_count"] == 0
+
+    # ---------- 扁平字段与完整编辑 ----------
+    def test_create_with_flat_fields(self, admin_token, cats):
+        """独立编辑页提交的是 name_zh/name_en 扁平字段（非 name_i18n）"""
+        c = cats(name_zh="扁平字段类目", name_en="Flat Cat")
+        assert c["name_i18n"]["zh"] == "扁平字段类目"
+        assert c["name_i18n"]["en"] == "Flat Cat"
+
+    def test_create_defaults_en_to_zh(self, admin_token, cats):
+        c = cats(name_zh="无英文名", name_en="")
+        assert c["name_i18n"]["en"] == "无英文名"
+
+    def test_update_all_fields_at_once(self, admin_token, cats):
+        c = cats()
+        r = requests.put(f"{BASE}/api/admin/categories/{c['id']}", json={
+            "name_zh": "改名后", "name_en": "Renamed",
+            "sort_order": 3, "is_active": False,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["name_i18n"]["zh"] == "改名后"
+        assert d["name_i18n"]["en"] == "Renamed"
+        assert d["sort_order"] == 3
+        assert d["is_active"] is False
+
+    def test_code_normalized_to_lowercase(self, admin_token, cats):
+        c = cats(code=f"PyTest-UPPER-{ts}")
+        assert c["code"] == c["code"].lower()
+
+    def test_duplicate_code_conflict(self, admin_token, cats):
+        c = cats()
+        r = requests.post(f"{BASE}/api/admin/categories", json={
+            "code": c["code"], "name_zh": "重复编码", "name_en": "",
+        }, headers=admin_token)
+        assert r.status_code == 409
+
+    def test_empty_name_rejected(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/categories", json={
+            "code": f"pytest-bad-{ts}", "name_zh": "   ", "name_en": "",
+        }, headers=admin_token)
+        assert r.status_code == 400
+
+    # ---------- 父类目 / 防环 ----------
+    def test_parent_child_relationship(self, admin_token, cats):
+        parent = cats()
+        child = cats(parent_id=parent["id"])
+        assert child["parent_id"] == parent["id"]
+
+        # 父类目的 children_count 增加，子类目能拿到 parent_name
+        p = requests.get(f"{BASE}/api/admin/categories/{parent['id']}", headers=admin_token).json()
+        assert p["children_count"] == 1
+        c = requests.get(f"{BASE}/api/admin/categories/{child['id']}", headers=admin_token).json()
+        assert c["parent_name"] == p["name_i18n"]["zh"]
+
+    def test_cannot_be_own_parent(self, admin_token, cats):
+        c = cats()
+        r = requests.put(f"{BASE}/api/admin/categories/{c['id']}",
+                         json={"parent_id": c["id"]}, headers=admin_token)
+        assert r.status_code == 400 and "自己" in r.json()["detail"]
+
+    def test_cannot_set_descendant_as_parent(self, admin_token, cats):
+        """父类目不能是自己的子类目（防止形成环）"""
+        parent = cats()
+        child = cats(parent_id=parent["id"])
+        r = requests.put(f"{BASE}/api/admin/categories/{parent['id']}",
+                         json={"parent_id": child["id"]}, headers=admin_token)
+        assert r.status_code == 400 and "子类目" in r.json()["detail"]
+
+    def test_parent_must_exist(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/categories", json={
+            "code": f"pytest-noparent-{ts}", "name_zh": "父不存在", "parent_id": 99999999,
+        }, headers=admin_token)
+        assert r.status_code == 400
+
+    # ---------- 删除约束 ----------
+    def test_cannot_delete_with_children(self, admin_token, cats):
+        parent = cats()
+        cats(parent_id=parent["id"])
+        r = requests.delete(f"{BASE}/api/admin/categories/{parent['id']}", headers=admin_token)
+        assert r.status_code == 409 and "子类目" in r.json()["detail"]
+
+    def test_cannot_delete_in_use(self, admin_token):
+        products = requests.get(f"{BASE}/api/admin/products", headers=admin_token).json()
+        category_id = next(p["category_id"] for p in products if p.get("category_id"))
+        r = requests.delete(f"{BASE}/api/admin/categories/{category_id}", headers=admin_token)
+        assert r.status_code == 409
+
+
+class TestProductPackage:
+    """商品包（文件夹）导出 / 导入：manifest 结构、图片落地、merge/update 语义。
+
+    只测「文件夹商品包」链路，不涉及 PPT。
+    """
+
+    @pytest.fixture()
+    def pkg_product(self, admin_token):
+        """创建一个自建商品（含主图+详情图），测试后可彻底删除"""
+        sku = f"PYTEST-PKG-{ts}"
+        body = {
+            "sku_code": sku,
+            "name_zh": f"商品包测试 {ts}",
+            "name_en": "Package Test",
+            "description_zh": "用于商品包导出导入测试",
+            "base_price": "88.00",
+            "status": "active",
+            "main_image": "/static/uploads/jyt/s1/main.jpg",
+            "images": [
+                "/static/uploads/jyt/s1/main.jpg",
+                "/d/static/uploads/jyt/s1/detail_1.jpg",
+            ],
+            "skus": [
+                {"sku_code": f"{sku}-001", "attributes": {"颜色": "黑", "尺码": "S"},
+                 "price": "88.00", "stock": 12},
+                {"sku_code": f"{sku}-002", "attributes": {"颜色": "白", "尺码": "M"},
+                 "price": "99.00", "stock": 7},
+            ],
+        }
+        r = requests.post(f"{BASE}/api/admin/products", json=body, headers=admin_token)
+        assert r.status_code == 201, r.text
+        pid = r.json()["id"]
+        yield r.json()
+        requests.delete(f"{BASE}/api/admin/products/{pid}", headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{pid}/purge", headers=admin_token)
+
+    def test_format_help(self, admin_token):
+        r = requests.get(f"{BASE}/api/admin/product-package/format", headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["format"] == "yoyole-product-package"
+        assert "manifest.json" in d["layout"]
+        assert set(d["modes"]) == {"merge", "update"}
+
+    def test_requires_auth(self):
+        assert requests.post(f"{BASE}/api/admin/product-package/export",
+                             json={"ids": [1]}).status_code == 401
+        assert requests.get(f"{BASE}/api/admin/product-package/exports").status_code == 401
+        assert requests.get(f"{BASE}/api/admin/product-package/format").status_code == 401
+
+    def test_export_creates_folder_and_zip(self, admin_token, pkg_product):
+        name = f"pytest-pkg-{ts}"
+        r = requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name, "zip_output": True,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["package_name"] == name
+        assert d["product_count"] == 1
+        assert d["sku_count"] == 2
+        assert d["image_count"] >= 1
+        assert d["zip_path"] and d["zip_url"], "应生成可下载的 zip"
+        assert not d["missing_images"], d["missing_images"]
+
+        # 服务器上目录结构完整
+        out = Path(d["out_dir"])
+        assert (out / "manifest.json").exists()
+        assert (out / "categories.json").exists()
+        assert (out / "README.txt").exists()
+        assert (out / "images").is_dir()
+
+        manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["format"] == "yoyole-product-package"
+        assert manifest["product_count"] == 1
+        p = manifest["products"][0]
+        assert p["sku_code"] == pkg_product["sku_code"]
+        assert p["base_price"] == "88.00"
+        # 图片必须相对化（不是 /static/uploads 绝对路径）
+        assert p["main_image"].startswith("images/")
+        assert all(i.startswith("images/") for i in p["images"])
+        assert len(p["skus"]) == 2
+        # 清单里不含内部字段（审核/上下架状态由导入参数决定）
+        assert "review_status" not in p
+        assert "deleted_at" not in p
+
+        # 清理导出产物
+        requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                        headers=admin_token)
+
+    def test_export_unknown_ids(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/product-package/export",
+                          json={"ids": [99999999]}, headers=admin_token)
+        assert r.status_code == 404
+
+    def test_export_without_images(self, admin_token, pkg_product):
+        name = f"pytest-noimg-{ts}"
+        r = requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name, "include_images": False,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["image_count"] == 0
+        assert not (Path(r.json()["out_dir"]) / "images").exists()
+        requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                        headers=admin_token)
+
+    def test_export_empty_ids_rejected(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/product-package/export",
+                          json={"ids": []}, headers=admin_token)
+        assert r.status_code == 422
+
+    def test_export_listed(self, admin_token, pkg_product):
+        name = f"pytest-listed-{ts}"
+        requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name,
+        }, headers=admin_token)
+        rows = requests.get(f"{BASE}/api/admin/product-package/exports",
+                            headers=admin_token).json()
+        found = [x for x in rows if x["name"] == name]
+        assert found, rows
+        assert found[0]["product_count"] == 1
+        requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                        headers=admin_token)
+
+    def test_export_list_dedupes_dir_and_zip(self, admin_token, pkg_product):
+        """同名目录与 .zip 必须合并为一行，且都带商品数
+
+        曾按名称混排导致 `X.zip` 排在 `X/` 之前，列表里出现两行同名包，
+        其中 zip 那行的 product_count 还是 0。
+        """
+        name = f"pytest-dedup-{ts}"
+        r = requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name, "zip_output": True,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        assert r.json()["zip_url"], "应生成 zip"
+
+        rows = requests.get(f"{BASE}/api/admin/product-package/exports",
+                            headers=admin_token).json()
+        found = [x for x in rows if x["name"] == name]
+        assert len(found) == 1, f"同名包应只出现一行，实际 {len(found)} 行：{found}"
+        assert found[0]["product_count"] == 1
+        assert found[0]["has_zip"] is True
+        assert found[0]["zip_url"], "合并行应带 zip 下载地址"
+
+        # 删除时目录与 zip 一并清除
+        requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                        headers=admin_token)
+        rows2 = requests.get(f"{BASE}/api/admin/product-package/exports",
+                             headers=admin_token).json()
+        assert not [x for x in rows2 if x["name"] == name]
+
+    def test_delete_unknown_export(self, admin_token):
+        r = requests.delete(f"{BASE}/api/admin/product-package/exports/no-such-pkg-xyz",
+                            headers=admin_token)
+        assert r.status_code == 404
+
+    # ---------- 导入 ----------
+    @staticmethod
+    def _make_zip(tmp_path, manifest: dict, *, images: dict | None = None,
+                  categories: dict | None = None) -> Path:
+        """按给定 manifest 组装一个商品包 zip"""
+        buf_dir = tmp_path / "pkg"
+        (buf_dir / "images").mkdir(parents=True, exist_ok=True)
+        (buf_dir / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+        if categories is not None:
+            (buf_dir / "categories.json").write_text(
+                json.dumps(categories, ensure_ascii=False), encoding="utf-8"
+            )
+        for name, content in (images or {}).items():
+            (buf_dir / "images" / name).write_bytes(content)
+        zip_path = tmp_path / "pkg.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            for p in buf_dir.rglob("*"):
+                if p.is_file():
+                    zf.write(p, p.relative_to(buf_dir).as_posix())
+        return zip_path
+
+    def _manifest(self, sku_code: str, *, images: list[str] | None = None) -> dict:
+        return {
+            "format": "yoyole-product-package",
+            "version": 1,
+            "package_name": f"pytest-import-{ts}",
+            "product_count": 1,
+            "products": [{
+                "sku_code": sku_code,
+                "name_i18n": {"zh": f"导入商品 {sku_code}", "en": "Imported"},
+                "description_i18n": {"zh": "描述", "en": "desc"},
+                "category_code": "other",
+                "brand": "YOYOLE",
+                "base_price": "66.00",
+                "main_image": (images[0] if images else None),
+                "images": images or [],
+                "is_featured": False,
+                "skus": [
+                    {"sku_code": f"{sku_code}-001",
+                     "attributes": {"颜色": "蓝", "尺码": "L"},
+                     "price": "66.00", "stock": 9, "is_active": True},
+                ],
+            }],
+        }
+
+    def test_import_new_product(self, admin_token, tmp_path):
+        """完整还原：商品字段 + SKU + 图片落地"""
+        sku = f"PYTEST-IMP-{ts}"
+        # 用真实存在的图片文件充当包内图片
+        src = Path("/Users/huangyong/git/yoyole/static/uploads/jyt/s1/main.jpg")
+        if not src.exists():
+            pytest.skip("缺少用于构造商品包的样例图片")
+        # main_image 与 images 各自落地：主图 1 张 + 画廊 2 张 = 3
+        zip_path = self._make_zip(
+            tmp_path,
+            self._manifest(sku, images=["images/m.jpg", "images/d.jpg"]),
+            images={"m.jpg": src.read_bytes(), "d.jpg": src.read_bytes()},
+        )
+
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "merge", "review_status": "approved"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["imported"] == 1 and d["failed"] == 0, d
+        assert d["sku_created"] == 1
+        # 主图单独落地一次 + images 里两张，共 3 个文件
+        assert d["images_imported"] == 3
+        assert not d["errors"]
+        assert not d["missing_images"]
+
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}",
+                           headers=admin_token).json()
+        row = [p for p in got if p["sku_code"] == sku][0]
+        assert row["name_i18n"]["zh"] == f"导入商品 {sku}"
+        assert row["status"] == "active" and row["review_status"] == "approved"
+        assert str(row["base_price"]) == "66.00"
+        assert len(row["skus"]) == 1
+        assert row["skus"][0]["attributes"] == {"颜色": "蓝", "尺码": "L"}
+        assert row["skus"][0]["stock"] == 9
+        # 图片换成新的上传 URL（不是包内相对路径）
+        assert row["main_image"].startswith("/static/uploads/")
+        assert len(row["images"]) == 2
+
+        # 清理
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}", headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}/purge",
+                        headers=admin_token)
+
+    def test_import_merge_skips_existing(self, admin_token, tmp_path, pkg_product):
+        zip_path = self._make_zip(tmp_path, self._manifest(pkg_product["sku_code"]))
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "merge"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["skipped"] == 1 and d["imported"] == 0
+
+    def test_import_update_overwrites(self, admin_token, tmp_path, pkg_product):
+        sku = pkg_product["sku_code"]
+        manifest = self._manifest(sku)
+        manifest["products"][0]["name_i18n"]["zh"] = "被覆盖后的名称"
+        manifest["products"][0]["base_price"] = "11.00"
+        manifest["products"][0]["skus"][0]["sku_code"] = f"{sku}-001"
+        manifest["products"][0]["skus"][0]["price"] = "11.00"
+        zip_path = self._make_zip(tmp_path, manifest)
+
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "update"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["updated"] == 1 and d["imported"] == 0
+        # 包内未出现的 -002 应被停用（保留历史）
+        assert any("-002" in w for w in d["warnings"]), d["warnings"]
+
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}",
+                           headers=admin_token).json()
+        row = [p for p in got if p["sku_code"] == sku][0]
+        assert row["name_i18n"]["zh"] == "被覆盖后的名称"
+        assert str(row["base_price"]) == "11.00"
+        sku_002 = [s for s in row["skus"] if s["sku_code"].endswith("-002")][0]
+        assert sku_002["is_active"] is False
+
+    def test_import_auto_creates_category(self, admin_token, tmp_path):
+        """包内类目不存在时自动创建，不因缺类目而失败"""
+        sku = f"PYTEST-IMPCAT-{ts}"
+        cat_code = f"pytest-pkgcat-{ts}"
+        manifest = self._manifest(sku)
+        manifest["products"][0]["category_code"] = cat_code
+        zip_path = self._make_zip(
+            tmp_path, manifest,
+            categories={"categories": [
+                {"code": cat_code, "name_i18n": {"zh": "包内新类目", "en": "Pkg Cat"},
+                 "sort_order": 950, "is_active": True},
+            ]},
+        )
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "merge", "review_status": "approved"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["categories_created"] == 1, d
+
+        rows = requests.get(f"{BASE}/api/admin/categories", headers=admin_token).json()
+        made = [c for c in rows if c["code"] == cat_code]
+        assert made and made[0]["name_i18n"]["zh"] == "包内新类目"
+
+        # 清理商品与类目
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}", headers=admin_token).json()
+        if got:
+            requests.delete(f"{BASE}/api/admin/products/{got[0]['id']}", headers=admin_token)
+            requests.delete(f"{BASE}/api/admin/products/{got[0]['id']}/purge",
+                            headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/categories/{made[0]['id']}", headers=admin_token)
+
+    def test_import_missing_images_is_not_fatal(self, admin_token, tmp_path):
+        """缺图只记 warning，商品仍应导入成功"""
+        sku = f"PYTEST-IMPNOIMG-{ts}"
+        manifest = self._manifest(sku, images=["images/not-exist.jpg"])
+        zip_path = self._make_zip(tmp_path, manifest)
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "merge", "review_status": "approved"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["imported"] == 1 and d["failed"] == 0
+        assert "images/not-exist.jpg" in d["missing_images"]
+
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}", headers=admin_token).json()
+        row = [p for p in got if p["sku_code"] == sku][0]
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}", headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}/purge",
+                        headers=admin_token)
+
+    def test_import_rejects_non_zip(self, admin_token, tmp_path):
+        bad = tmp_path / "x.txt"
+        bad.write_text("not a zip", encoding="utf-8")
+        with bad.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("x.txt", fh, "text/plain")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400 and "zip" in r.json()["detail"].lower()
+
+    def test_import_rejects_bad_zip(self, admin_token, tmp_path):
+        fake = tmp_path / "fake.zip"
+        fake.write_bytes(b"PK\x03\x04 not really a zip")
+        with fake.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("fake.zip", fh, "application/zip")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400
+
+    def test_import_rejects_missing_manifest(self, admin_token, tmp_path):
+        zip_path = tmp_path / "empty.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("readme.txt", "no manifest here")
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("empty.zip", fh, "application/zip")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400 and "manifest" in r.json()["detail"]
+
+    def test_import_rejects_wrong_format(self, admin_token, tmp_path):
+        zip_path = self._make_zip(tmp_path, {"format": "something-else", "products": [{}]})
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400 and "格式" in r.json()["detail"] or \
+            "format" in r.json()["detail"]
+
+    def test_import_rejects_empty_products(self, admin_token, tmp_path):
+        zip_path = self._make_zip(tmp_path, {
+            "format": "yoyole-product-package", "version": 1, "products": [],
+        })
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400
+
+    def test_import_rejects_bad_mode(self, admin_token, tmp_path):
+        zip_path = self._make_zip(tmp_path, self._manifest(f"PYTEST-BADMODE-{ts}"))
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "replace"},
+                headers=admin_token,
+            )
+        assert r.status_code == 400 and "mode" in r.json()["detail"]
+
+    def test_import_rejects_path_traversal(self, admin_token, tmp_path):
+        """压缩包内的 ../ 路径必须被拒绝"""
+        zip_path = tmp_path / "evil.zip"
+        manifest = self._manifest(f"PYTEST-EVIL-{ts}")
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False))
+            zf.writestr("../escaped.txt", "pwned")
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("evil.zip", fh, "application/zip")},
+                headers=admin_token,
+            )
+        assert r.status_code == 400 and "非法路径" in r.json()["detail"]
+
+    def test_import_tolerates_nested_folder(self, admin_token, tmp_path):
+        """zip 外层多套一层目录（macOS 压缩常见）也要能导入"""
+        sku = f"PYTEST-IMPNEST-{ts}"
+        manifest = self._manifest(sku)
+        zip_path = tmp_path / "nested.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("外层目录/manifest.json",
+                        json.dumps(manifest, ensure_ascii=False))
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("nested.zip", fh, "application/zip")},
+                data={"mode": "merge", "review_status": "approved"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        assert r.json()["imported"] == 1
+
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}", headers=admin_token).json()
+        row = [p for p in got if p["sku_code"] == sku][0]
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}", headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}/purge",
+                        headers=admin_token)
+
+    def test_import_skips_sku_owned_by_other_product(self, admin_token, tmp_path,
+                                                     pkg_product):
+        """SKU 编码被其他商品占用时只跳过该规格，不影响其它规格导入"""
+        sku = f"PYTEST-IMPCONFLICT-{ts}"
+        taken = pkg_product["skus"][0]["sku_code"]
+        manifest = self._manifest(sku)
+        manifest["products"][0]["skus"] = [
+            {"sku_code": taken, "attributes": {"颜色": "冲突"}, "price": "5.00", "stock": 1},
+            {"sku_code": f"{sku}-001", "attributes": {"颜色": "正常"}, "price": "5.00", "stock": 1},
+        ]
+        zip_path = self._make_zip(tmp_path, manifest)
+        with zip_path.open("rb") as fh:
+            r = requests.post(
+                f"{BASE}/api/admin/product-package/import",
+                files={"file": ("pkg.zip", fh, "application/zip")},
+                data={"mode": "merge", "review_status": "approved"},
+                headers=admin_token,
+            )
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["imported"] == 1 and d["failed"] == 0
+        assert d["sku_created"] == 1, d
+        assert any(taken in w for w in d["warnings"]), d["warnings"]
+
+        got = requests.get(f"{BASE}/api/admin/products?q={sku}", headers=admin_token).json()
+        row = [p for p in got if p["sku_code"] == sku][0]
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}", headers=admin_token)
+        requests.delete(f"{BASE}/api/admin/products/{row['id']}/purge",
+                        headers=admin_token)
 
 
 class TestBanner:

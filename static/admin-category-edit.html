@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>类目编辑 - YOYOLE 管理后台</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    :root {
+      --pdd-primary: #e02e24;
+      --pdd-primary-light: #fff0ef;
+      --pdd-bg: #f4f6f8;
+      --pdd-border: #e3e6ea;
+    }
+    .hidden { display: none !important; }
+    body { background: var(--pdd-bg); }
+
+    /* ===== 顶部导航（与商品编辑页一致） ===== */
+    .edit-nav {
+      position: sticky; top: 0; z-index: 50; background: #fff;
+      border-bottom: 1px solid var(--pdd-border); padding: 0 28px;
+      display: flex; align-items: center; gap: 20px; height: 58px;
+    }
+    .edit-nav .nav-back { color: #1c1e21; cursor: pointer; font-size: 14px; }
+    .edit-nav h1 { font-size: 17px; font-weight: 600; margin: 0; color: #1c1e21; }
+    .edit-nav .nav-status { margin-left: auto; font-size: 13px; color: #999; }
+    .edit-nav .nav-save {
+      background: var(--pdd-primary); color: #fff; border: 0; border-radius: 18px;
+      padding: 8px 30px; font-size: 14px; cursor: pointer; font-weight: 500;
+    }
+    .edit-nav .nav-save:hover { background: #c2241b; }
+    .edit-nav .nav-save:disabled { opacity: .6; cursor: not-allowed; }
+    .edit-nav .nav-del {
+      background: #fff; color: #dc2626; border: 1px solid #fecaca;
+      border-radius: 18px; padding: 7px 20px; font-size: 14px; cursor: pointer;
+    }
+    .edit-nav .nav-del:hover { background: #fef2f2; }
+
+    .edit-main { max-width: 900px; margin: 0 auto; padding: 22px 28px 60px; }
+
+    .form-card {
+      background: #fff; border-radius: 8px; border: 1px solid var(--pdd-border);
+      margin-bottom: 16px; overflow: hidden;
+    }
+    .form-card .card-head {
+      padding: 15px 22px; border-bottom: 1px solid var(--pdd-border);
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .form-card .card-head h2 { font-size: 16px; font-weight: 600; margin: 0; color: #1c1e21; }
+    .form-card .card-head .card-hint { font-size: 12px; color: #999; }
+    .form-card .card-body { padding: 20px 22px; }
+
+    .form-row { display: flex; margin-bottom: 18px; gap: 16px; }
+    .form-row:last-child { margin-bottom: 0; }
+    .form-row .form-label {
+      flex: 0 0 116px; padding-top: 9px; font-size: 13px;
+      color: #5f6368; text-align: right;
+    }
+    .form-row .form-label.required::before { content: '*'; color: #e02e24; margin-right: 3px; }
+    .form-row .form-control { flex: 1; min-width: 0; }
+    .form-row .form-control .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.6; }
+
+    .pdd-input {
+      width: 100%; box-sizing: border-box; padding: 9px 12px;
+      border: 1px solid var(--pdd-border); border-radius: 4px;
+      font-size: 14px; color: #1c1e21; font-family: inherit; background: #fff;
+    }
+    .pdd-input:focus {
+      outline: none; border-color: var(--pdd-primary);
+      box-shadow: 0 0 0 3px rgba(224, 46, 36, .1);
+    }
+    .pdd-input[readonly] { background: #f8fafc; color: #64748b; cursor: not-allowed; }
+    .pdd-input.invalid { border-color: #dc2626; }
+    .err-msg { font-size: 12px; color: #dc2626; margin-top: 6px; min-height: 16px; }
+
+    .switch-row { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+    .switch-row input { width: 16px; height: 16px; accent-color: var(--pdd-primary); }
+    .switch-row label { font-size: 14px; color: #1c1e21; cursor: pointer; }
+
+    /* 统计卡 */
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-box {
+      background: #f8fafc; border: 1px solid #eef2f7; border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .stat-box .v { font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+    .stat-box .l { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+    .loading-box { padding: 30px; text-align: center; color: #888; }
+    .error-box { padding: 30px; text-align: center; color: #e02e24; }
+
+    @media (max-width: 820px) {
+      .edit-nav { padding: 0 16px; gap: 12px; }
+      .edit-nav h1 { font-size: 15px; }
+      .edit-main { padding: 16px 14px 50px; }
+      .form-row { flex-direction: column; gap: 6px; }
+      .form-row .form-label { flex: none; text-align: left; padding-top: 0; }
+      .stat-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="edit-nav">
+    <span class="nav-back" id="back-btn">← 返回类目管理</span>
+    <h1 id="page-title">类目编辑</h1>
+    <span class="nav-status" id="save-status"></span>
+    <button class="nav-del hidden" id="del-btn">删除类目</button>
+    <button class="nav-save hidden" id="save-btn">保存</button>
+  </header>
+
+  <main class="edit-main">
+    <div id="loading" class="form-card loading-box">正在准备类目编辑页...</div>
+    <div id="error" class="form-card error-box hidden"></div>
+
+    <section id="editor" class="hidden">
+      <!-- 统计概览（仅编辑已有类目时展示） -->
+      <div class="form-card hidden" id="stat-card">
+        <div class="card-head">
+          <h2>类目概览</h2>
+          <span class="card-hint" id="stat-meta"></span>
+        </div>
+        <div class="card-body">
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="v" id="stat-products">0</div>
+              <div class="l">关联商品（不含回收站）</div>
+            </div>
+            <div class="stat-box">
+              <div class="v" id="stat-active">0</div>
+              <div class="l">前台在售</div>
+            </div>
+            <div class="stat-box">
+              <div class="v" id="stat-children">0</div>
+              <div class="l">子类目</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="form-card">
+        <div class="card-head">
+          <h2>基本信息</h2>
+          <span class="card-hint">一次性编辑全部字段，保存后立即生效</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-label required">中文名称</div>
+            <div class="form-control">
+              <input class="pdd-input" id="name-zh" placeholder="如：瑜伽裤" maxlength="100">
+              <div class="hint">展示在前台导航与筛选面板。</div>
+              <div class="err-msg" id="err-name-zh"></div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-label">英文名称</div>
+            <div class="form-control">
+              <input class="pdd-input" id="name-en" placeholder="如：Yoga Pants" maxlength="100">
+              <div class="hint">留空时自动使用中文名称。</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-label required">类目编码</div>
+            <div class="form-control">
+              <input class="pdd-input" id="code" placeholder="如：yoga_pants" maxlength="50">
+              <div class="hint">
+                全局唯一，仅允许小写字母、数字、下划线、连字符。
+                <strong id="code-lock-hint"></strong>
+              </div>
+              <div class="err-msg" id="err-code"></div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-label">上级类目</div>
+            <div class="form-control">
+              <select class="pdd-input" id="parent-id">
+                <option value="">无（顶级类目）</option>
+              </select>
+              <div class="hint">支持两级结构；不能选择自己或自己的子类目。</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-label">排序值</div>
+            <div class="form-control" style="max-width:220px">
+              <input class="pdd-input" id="sort-order" type="number" step="1" value="0">
+              <div class="hint">数值越小越靠前。</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-label">启用状态</div>
+            <div class="form-control">
+              <div class="switch-row">
+                <input type="checkbox" id="is-active" checked>
+                <label for="is-active">启用该类目</label>
+              </div>
+              <div class="hint">停用后该类目不在前台筛选面板展示，已归类商品不受影响。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/common.js?v=8"></script>
+  <script>
+    (function () {
+      var App = window.App;
+      var token = App.getAdminToken();
+      var params = new URLSearchParams(location.search);
+      var isCreate = params.get('new') === '1';
+      var categoryId = Number(params.get('id')) || 0;
+
+      var category = null;      // 编辑时的当前类目
+      var allCategories = [];   // 用于「上级类目」下拉
+      var descendantIds = [];   // 自己的后代（禁选）
+      var dirty = false;
+
+      function $(id) { return document.getElementById(id); }
+
+      function api(path, options) {
+        return App.api(path, Object.assign({}, options, {
+          token: token, includeLang: false,
+        })).catch(function (e) {
+          // 管理员 token 失效时给出明确提示（App.api 已负责清理 token）
+          if (e.status === 401) {
+            throw new Error('登录已过期，请重新登录管理后台');
+          }
+          throw e;
+        });
+      }
+
+      function showError(msg) {
+        $('loading').classList.add('hidden');
+        $('error').classList.remove('hidden');
+        $('error').textContent = msg;
+      }
+
+      function setStatus(text, ok) {
+        var el = $('save-status');
+        el.textContent = text;
+        el.style.color = ok ? '#16a34a' : '#999';
+      }
+
+      function setDirty() { dirty = true; setStatus('未保存', false); }
+
+      // ---------- 上级类目下拉 ----------
+      function fillParentOptions() {
+        var sel = $('parent-id');
+        var cur = category ? (category.parent_id || '') : '';
+        var blocked = {};
+        blocked[categoryId] = true;
+        descendantIds.forEach(function (id) { blocked[id] = true; });
+
+        sel.innerHTML = '<option value="">无（顶级类目）</option>'
+          + allCategories.filter(function (c) {
+              return !blocked[c.id];
+            }).map(function (c) {
+              var tag = c.parent_id ? '　└ ' : '';
+              return '<option value="' + c.id + '">' + tag
+                + esc(c.name_i18n.zh || c.code) + '（' + esc(c.code) + '）</option>';
+            }).join('');
+        sel.value = cur === null ? '' : String(cur);
+      }
+
+      function esc(v) {
+        return String(v === null || v === undefined ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      // 用后端返回的 children_count 递归推出自己的后代（后端未提供树接口）
+      function computeDescendants() {
+        var byParent = {};
+        allCategories.forEach(function (c) {
+          if (c.parent_id) (byParent[c.parent_id] = byParent[c.parent_id] || []).push(c.id);
+        });
+        var out = [];
+        var stack = (byParent[categoryId] || []).slice();
+        while (stack.length) {
+          var cur = stack.pop();
+          if (out.indexOf(cur) >= 0) continue;
+          out.push(cur);
+          stack = stack.concat(byParent[cur] || []);
+        }
+        return out;
+      }
+
+      // ---------- 表单填充 ----------
+      function fillForm() {
+        $('page-title').textContent = isCreate
+          ? '新增类目'
+          : '编辑类目 #' + category.id;
+
+        if (isCreate) {
+          $('name-zh').value = '';
+          $('name-en').value = '';
+          $('code').value = '';
+          $('sort-order').value = 0;
+          $('is-active').checked = true;
+          $('stat-card').classList.add('hidden');
+          $('del-btn').classList.add('hidden');
+          $('code-lock-hint').textContent = '创建后仍可修改，但前台链接会随之变化，请谨慎操作。';
+        } else {
+          $('name-zh').value = (category.name_i18n || {}).zh || '';
+          $('name-en').value = (category.name_i18n || {}).en || '';
+          $('code').value = category.code || '';
+          $('sort-order').value = category.sort_order || 0;
+          $('is-active').checked = category.is_active !== false;
+          $('del-btn').classList.remove('hidden');
+          $('code-lock-hint').textContent = '修改编码会影响已收藏的前台筛选链接。';
+
+          $('stat-card').classList.remove('hidden');
+          $('stat-products').textContent = category.product_count || 0;
+          $('stat-active').textContent = category.active_product_count || 0;
+          $('stat-children').textContent = category.children_count || 0;
+          $('stat-meta').textContent = category.parent_name
+            ? ('上级类目：' + category.parent_name)
+            : '顶级类目';
+        }
+
+        $('save-btn').classList.remove('hidden');
+        $('save-btn').disabled = false;
+        $('del-btn').disabled = false;
+        $('editor').classList.remove('hidden');
+        $('loading').classList.add('hidden');
+        $('error').classList.add('hidden');
+        setStatus('', false);
+      }
+
+      // ---------- 校验 ----------
+      function validate() {
+        var ok = true;
+        $('name-zh').classList.remove('invalid');
+        $('code').classList.remove('invalid');
+        $('err-name-zh').textContent = '';
+        $('err-code').textContent = '';
+
+        var nameZh = $('name-zh').value.trim();
+        if (!nameZh) {
+          $('name-zh').classList.add('invalid');
+          $('err-name-zh').textContent = '请填写中文名称';
+          ok = false;
+        }
+
+        var code = $('code').value.trim().toLowerCase();
+        if (!code) {
+          $('code').classList.add('invalid');
+          $('err-code').textContent = '请填写类目编码';
+          ok = false;
+        } else if (!/^[a-z0-9_-]+$/.test(code)) {
+          $('code').classList.add('invalid');
+          $('err-code').textContent = '只能包含小写字母、数字、下划线或连字符';
+          ok = false;
+        } else {
+          // 本地查重（后端也会校验，这里提前给出提示）
+          var dup = allCategories.filter(function (c) {
+            return c.code === code && c.id !== categoryId;
+          })[0];
+          if (dup) {
+            $('code').classList.add('invalid');
+            $('err-code').textContent = '该编码已被「'
+              + (dup.name_i18n.zh || dup.code) + '」占用';
+            ok = false;
+          }
+        }
+        return ok;
+      }
+
+      function collect() {
+        var parentVal = $('parent-id').value;
+        return {
+          code: $('code').value.trim().toLowerCase(),
+          name_zh: $('name-zh').value.trim(),
+          name_en: $('name-en').value.trim(),
+          parent_id: parentVal ? Number(parentVal) : null,
+          sort_order: Number($('sort-order').value) || 0,
+          is_active: $('is-active').checked,
+        };
+      }
+
+      // ---------- 保存 / 删除 ----------
+      function save() {
+        if (!validate()) { App.toast('请修正表单中标红的问题', 'error'); return; }
+        var body = collect();
+        var btn = $('save-btn');
+        btn.disabled = true;
+        setStatus('保存中...', false);
+
+        var req = isCreate
+          ? api('/api/admin/categories', { method: 'POST', body: body })
+          : api('/api/admin/categories/' + categoryId, { method: 'PUT', body: body });
+
+        req.then(function (saved) {
+          dirty = false;
+          App.toast(isCreate ? '类目已创建' : '类目已保存', 'success');
+          setStatus('已保存', true);
+          // 新增成功后切到编辑模式，方便继续调整
+          if (isCreate) {
+            isCreate = false;
+            categoryId = saved.id;
+            history.replaceState(null, '', '?id=' + saved.id);
+          }
+          return loadAll();
+        }).catch(function (e) {
+          btn.disabled = false;
+          setStatus('保存失败', false);
+          App.toast(e.message, 'error');
+        });
+      }
+
+      function remove() {
+        App.confirmDialog(
+          '删除后不可恢复。若该类目下仍有商品或子类目，将无法删除。',
+          { title: '删除类目', tone: 'danger', okText: '确认删除' }
+        ).then(function (ok) {
+          if (!ok) return;
+          return api('/api/admin/categories/' + categoryId, { method: 'DELETE' })
+            .then(function () {
+              App.toast('类目已删除', 'success');
+              dirty = false;
+              location.href = '/admin.html?view=categories';
+            });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // ---------- 加载 ----------
+      function loadAll() {
+        // 列表用于「上级类目」下拉；详情用于表单
+        return Promise.all([
+          api('/api/admin/categories'),
+          isCreate ? Promise.resolve(null)
+                   : api('/api/admin/categories/' + categoryId),
+        ]).then(function (res) {
+          allCategories = res[0] || [];
+          category = res[1];
+          descendantIds = isCreate ? [] : computeDescendants();
+          fillParentOptions();
+          fillForm();
+        });
+      }
+
+      // 角色：只读角色不允许保存/删除
+      (function applyRole() {
+        var role = localStorage.getItem('admin_role') || '';
+        var canWrite = role === 'superadmin' || role === 'operator';
+        if (!canWrite) {
+          $('save-btn').classList.add('hidden');
+          $('del-btn').classList.add('hidden');
+        }
+      })();
+
+      $('back-btn').onclick = function () {
+        if (dirty && !window.confirm('有未保存的修改，确定离开？')) return;
+        location.href = '/admin.html?view=categories';
+      };
+
+      $('save-btn').onclick = save;
+      $('del-btn').onclick = remove;
+      ['name-zh', 'name-en', 'code', 'sort-order'].forEach(function (id) {
+        $(id).addEventListener('input', setDirty);
+      });
+      $('parent-id').addEventListener('change', setDirty);
+      $('is-active').addEventListener('change', setDirty);
+      // 编码输入时规整为小写，避免大小写造成的重复
+      $('code').addEventListener('input', function () {
+        var v = this.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (v !== this.value) this.value = v;
+      });
+      // Esc 返回列表
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') $('back-btn').onclick();
+      });
+
+      if (!token) {
+        showError('请先登录管理后台');
+        return;
+      }
+      if (!isCreate && !categoryId) {
+        showError('缺少类目 ID');
+        return;
+      }
+
+      loadAll().catch(function (e) {
+        showError(e.message || '类目加载失败');
+      });
+    })();
+  </script>
+</body>
+</html>

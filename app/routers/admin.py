@@ -610,8 +610,92 @@ async def admin_list_categories(
     admin: AdminUser = Depends(require_admin()),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Category).order_by(Category.sort_order, Category.id))
-    return result.scalars().all()
+    """类目列表（含派生统计：关联商品数 / 子类目数 / 父类目名）
+
+    后台「类目管理」表与独立编辑页共用此接口。
+    """
+    cats = list(
+        (await db.execute(select(Category).order_by(Category.sort_order, Category.id)))
+        .scalars()
+        .all()
+    )
+    await _fill_category_stats(db, cats)
+    return cats
+
+
+async def _fill_category_stats(db: AsyncSession, cats: list[Category]) -> None:
+    """批量填充类目派生统计（避免 N+1 查询）"""
+    if not cats:
+        return
+
+    # 商品数：按 category_id 分组，只统计未进回收站的
+    rows = (
+        await db.execute(
+            select(Product.category_id, func.count(Product.id))
+            .where(Product.deleted_at.is_(None))
+            .group_by(Product.category_id)
+        )
+    ).all()
+    by_cat = {cid: int(n or 0) for cid, n in rows}
+
+    # 上架中的商品数（前台可见口径：status=active 且已过审）
+    active_rows = (
+        await db.execute(
+            select(Product.category_id, func.count(Product.id))
+            .where(
+                Product.deleted_at.is_(None),
+                Product.status == "active",
+                Product.review_status == "approved",
+            )
+            .group_by(Product.category_id)
+        )
+    ).all()
+    active_by_cat = {cid: int(n or 0) for cid, n in active_rows}
+
+    # 子类目数
+    child_rows = (
+        await db.execute(
+            select(Category.parent_id, func.count(Category.id))
+            .where(Category.parent_id.is_not(None))
+            .group_by(Category.parent_id)
+        )
+    ).all()
+    child_by_cat = {cid: int(n or 0) for cid, n in child_rows}
+
+    # 父类目名：父类目可能不在传入的列表里（单条详情场景），因此单独查一遍
+    parent_ids = {c.parent_id for c in cats if c.parent_id}
+    label_by_id: dict[int, str] = {}
+    if parent_ids:
+        parent_rows = (
+            await db.execute(
+                select(Category.id, Category.name_i18n, Category.code)
+                .where(Category.id.in_(parent_ids))
+            )
+        ).all()
+        for pid, name_i18n, code in parent_rows:
+            label_by_id[pid] = (name_i18n or {}).get("zh") or code
+
+    for c in cats:
+        c.product_count = by_cat.get(c.id, 0)
+        c.active_product_count = active_by_cat.get(c.id, 0)
+        c.children_count = child_by_cat.get(c.id, 0)
+        c.parent_name = label_by_id.get(c.parent_id, "") if c.parent_id else ""
+
+
+@router.get("/categories/{category_id}", response_model=CategoryOut)
+async def admin_get_category(
+    category_id: int,
+    admin: AdminUser = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db),
+):
+    """单个类目详情（供独立编辑页加载，含统计字段）"""
+    cat = (
+        await db.execute(select(Category).where(Category.id == category_id))
+    ).scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="分类不存在")
+    await _fill_category_stats(db, [cat])
+    return cat
 
 
 @router.post("/categories", response_model=CategoryOut, status_code=201)
@@ -620,23 +704,45 @@ async def admin_create_category(
     admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
     db: AsyncSession = Depends(get_db),
 ):
+    """新增类目（兼容两种 body：扁平字段 `name_zh` 或 `name_i18n` 字典）"""
     code = str(payload.get("code") or "").strip().lower()
-    name_i18n = payload.get("name_i18n") or {"zh": "", "en": ""}
-    if not code or not name_i18n.get("zh"):
+    name_i18n = payload.get("name_i18n")
+    if not isinstance(name_i18n, dict):
+        name_i18n = {
+            "zh": str(payload.get("name_zh") or "").strip(),
+            "en": str(payload.get("name_en") or "").strip(),
+        }
+    if not name_i18n.get("zh"):
         raise HTTPException(status_code=400, detail="分类编码和中文名称不能为空")
+    if not code:
+        raise HTTPException(status_code=400, detail="分类编码和中文名称不能为空")
+    name_i18n["en"] = name_i18n.get("en") or name_i18n["zh"]
+
     existing = await db.execute(select(Category).where(Category.code == code))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="分类编码已存在")
+
+    parent_id = payload.get("parent_id")
+    if parent_id is not None:
+        ok = (
+            await db.execute(select(Category.id).where(Category.id == parent_id))
+        ).scalar_one_or_none()
+        if ok is None:
+            raise HTTPException(status_code=400, detail="父类目不存在")
+        # 防止形成环：新建时父类目不可能等于自身
+        parent_id = int(parent_id)
+
     cat = Category(
         code=code,
-        parent_id=payload.get("parent_id"),
+        parent_id=parent_id,
         name_i18n=name_i18n,
-        sort_order=int(payload.get("sort_order", 0)),
-        is_active=payload.get("is_active", True),
+        sort_order=int(payload.get("sort_order") or 0),
+        is_active=bool(payload.get("is_active", True)),
     )
     db.add(cat)
     await db.commit()
     await db.refresh(cat)
+    await _fill_category_stats(db, [cat])
     return cat
 
 
@@ -647,29 +753,74 @@ async def admin_update_category(
     admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
     db: AsyncSession = Depends(get_db),
 ):
+    """编辑类目（独立编辑页一次性提交全部字段）"""
     result = await db.execute(select(Category).where(Category.id == category_id))
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=404, detail="分类不存在")
+
     if "code" in payload:
         code = str(payload["code"] or "").strip().lower()
         if not code:
             raise HTTPException(status_code=400, detail="分类编码不能为空")
-        duplicate = await db.execute(select(Category).where(Category.code == code, Category.id != category_id))
+        duplicate = await db.execute(
+            select(Category).where(Category.code == code, Category.id != category_id)
+        )
         if duplicate.scalar_one_or_none():
             raise HTTPException(status_code=409, detail="分类编码已存在")
         category.code = code
-    if "name_i18n" in payload:
-        name_i18n = payload["name_i18n"] or {}
+
+    name_i18n = payload.get("name_i18n")
+    if not isinstance(name_i18n, dict) and ("name_zh" in payload):
+        name_i18n = {
+            "zh": str(payload.get("name_zh") or "").strip(),
+            "en": str(payload.get("name_en") or "").strip(),
+        }
+    if isinstance(name_i18n, dict):
         if not name_i18n.get("zh"):
             raise HTTPException(status_code=400, detail="中文名称不能为空")
+        name_i18n["en"] = name_i18n.get("en") or name_i18n["zh"]
         category.name_i18n = name_i18n
+
+    if "parent_id" in payload and payload["parent_id"] is not None:
+        parent_id = int(payload["parent_id"])
+        if parent_id == category_id:
+            raise HTTPException(status_code=400, detail="父类目不能是自己")
+        # 防环：父类目不能是自己的后代
+        descendants = await _category_descendant_ids(db, category_id)
+        if parent_id in descendants:
+            raise HTTPException(status_code=400, detail="父类目不能是自己的子类目")
+
     for field in ("parent_id", "sort_order", "is_active"):
         if field in payload:
             setattr(category, field, payload[field])
+
     await db.commit()
     await db.refresh(category)
+    await _fill_category_stats(db, [category])
     return category
+
+
+async def _category_descendant_ids(db: AsyncSession, category_id: int) -> set[int]:
+    """收集某类目的全部后代 ID（用于父类目防环校验）"""
+    children = (
+        await db.execute(
+            select(Category.id, Category.parent_id).where(Category.parent_id.is_not(None))
+        )
+    ).all()
+    by_parent: dict[int, list[int]] = {}
+    for cid, pid in children:
+        by_parent.setdefault(pid, []).append(cid)
+
+    out: set[int] = set()
+    stack = list(by_parent.get(category_id, []))
+    while stack:
+        cur = stack.pop()
+        if cur in out:
+            continue
+        out.add(cur)
+        stack.extend(by_parent.get(cur, []))
+    return out
 
 
 @router.delete("/categories/{category_id}", response_model=Message)
@@ -678,13 +829,27 @@ async def admin_delete_category(
     admin: AdminUser = Depends(require_admin({"superadmin", "operator"})),
     db: AsyncSession = Depends(get_db),
 ):
+    """删除类目。
+
+    阻止条件：该类目下仍有商品，或仍有子类目（避免留下孤儿节点）。
+    """
     result = await db.execute(select(Category).where(Category.id == category_id))
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=404, detail="分类不存在")
-    used = await db.execute(select(Product.id).where(Product.category_id == category_id).limit(1))
+
+    used = await db.execute(
+        select(Product.id).where(Product.category_id == category_id).limit(1)
+    )
     if used.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="该分类仍有关联商品，不能删除")
+
+    child = await db.execute(
+        select(Category.id).where(Category.parent_id == category_id).limit(1)
+    )
+    if child.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="该类目下仍有子类目，请先删除子类目")
+
     await db.delete(category)
     await db.commit()
     return Message(message="分类已删除")
