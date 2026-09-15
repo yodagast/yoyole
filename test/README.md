@@ -60,6 +60,8 @@
 ### 页面（`test_pages.py`）
 
 - `index.html`、`products.html`、`cart.html`、`orders.html`、`admin.html`：HTTP 200 + 关键内容
+- **关于我们（`about.html`）设计回归**：衬线字体栈与设计令牌、深浅交替区块节奏、中轴交替时间线（中轴线/半宽项/奇偶反向/轴点/窄屏退化）、旧类名无残留、CMS 字段绑定完整
+  - 详见 [`docs/about-page.md`](../docs/about-page.md)
 - 静态资源：`/static/css/jjshouse.css`、`/static/css/style.css`、`/static/js/pymall.js` 可访问
 - 首页导航不再出现 `href="/admin.html"`（隐藏 admin 入口）
 

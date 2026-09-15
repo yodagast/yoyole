@@ -4,413 +4,482 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>关于 YOYOLE - 瑜伽与户外生活</title>
-  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=3">
   <style>
-    /* ---------- About Us 品牌故事页样式 ---------- */
-    /* 标题字体：无衬线为主，融入一丝衬线衬出品牌人文感（Patagonia/Arc'teryx 风格） */
-    .about-hero h1,
-    .story-grid h2,
-    .milestones-header h2,
-    .values-header h2 {
-      font-family: var(--font);
+    /* ============================================================
+       关于我们（品牌故事页）—— 编辑杂志风
+       参考独立设计师品牌故事页的排版语言：
+         · 衬线标题 + 无衬线正文
+         · 奶油色 / near-black 深浅交替的区块节奏
+         · 满幅图片 Hero、中轴交替时间线、锐角（无圆角）卡片
+       品牌主色仍为玫红 --jjs-primary，仅用作强调色。
+       ============================================================ */
+    .about-page {
+      --ab-serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC",
+                  "SimSun", "Songti TC", Georgia, "Times New Roman", serif;
+      --ab-cream: #f7f4f1;
+      --ab-cream-deep: #efe9e3;
+      /* 与页脚同色（--jjs-dark），让深色区块与页脚无缝相接，不出现色差接缝 */
+      --ab-ink: var(--jjs-dark);
+      --ab-line: #ddd6cf;
+      --ab-line-dark: rgba(255, 255, 255, 0.14);
+      --ab-accent: var(--jjs-primary);
+      --ab-accent-deep: #8e1240;
+      --ab-text-soft: #5c5751;
+      background: var(--ab-cream);
+    }
+    .about-page .ab-container {
+      max-width: var(--container-w);
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    /* 衬线标题统一处理 */
+    .about-page h1,
+    .about-page h2,
+    .about-page h3 {
+      font-family: var(--ab-serif);
+      font-weight: 700;
+      letter-spacing: 0.02em;
       font-feature-settings: "kern" 1;
       text-rendering: optimizeLegibility;
     }
-    .about-hero {
-      position: relative;
-      background: linear-gradient(135deg, var(--jjs-primary) 0%, #8e1240 100%);
-      color: #fff;
-      padding: 88px 20px 96px;
-      text-align: center;
-      overflow: hidden;
-    }
-    .about-hero::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(circle at 15% 25%, rgba(255,255,255,0.14) 0%, transparent 38%),
-        radial-gradient(circle at 85% 70%, rgba(255,143,178,0.16) 0%, transparent 42%),
-        radial-gradient(circle at 50% 110%, rgba(255,255,255,0.10) 0%, transparent 44%);
-      pointer-events: none;
-    }
-    .about-hero-inner {
-      position: relative;
-      max-width: 860px;
-      margin: 0 auto;
-    }
-    .about-hero .hero-tag {
-      display: inline-block;
-      letter-spacing: 5px;
-      font-size: 14px;
-      font-weight: 600;
-      background: rgba(255,255,255,0.16);
-      border: 1px solid rgba(255,255,255,0.32);
-      border-radius: 999px;
-      padding: 7px 22px;
-      margin-bottom: 30px;
-      text-transform: uppercase;
-      text-indent: 5px;
-    }
-    .about-hero h1 {
-      font-size: clamp(30px, 5vw, 54px);
-      font-weight: 600;
-      line-height: 1.3;
-      letter-spacing: 2px;
-      margin-bottom: 20px;
-      text-shadow: 0 2px 24px rgba(0,0,0,0.18);
-    }
-    .about-hero p.sub {
-      font-size: clamp(15px, 1.7vw, 18px);
-      line-height: 2;
-      opacity: 0.94;
-      font-weight: 300;
-      max-width: 660px;
-      margin: 0 auto;
-    }
-
-    /* 品牌故事 */
-    .story-section {
-      padding: 76px 0 60px;
-    }
-    .story-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 56px;
-      align-items: center;
-    }
-    .story-grid .kicker {
-      color: var(--jjs-primary);
-      letter-spacing: 5px;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 14px;
-      text-indent: 5px;
-    }
-    .story-grid h2 {
-      font-size: clamp(26px, 3vw, 34px);
-      font-weight: 700;
-      letter-spacing: 1px;
-      line-height: 1.4;
-      margin-bottom: 22px;
-    }
-    .story-grid .story-p {
-      color: #3f3f3f;
-      line-height: 2.1;
-      margin-bottom: 18px;
-      font-size: 15.5px;
-      font-weight: 400;
-    }
-    .story-grid .story-p:last-child {
-      margin-bottom: 0;
-    }
-    .story-visual {
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      box-shadow: var(--shadow-lg);
-      position: relative;
-      isolation: isolate;
-    }
-    /* 层叠装饰边框：品牌玫红勾边，参考 Allbirds/On 品牌故事图排版 */
-    .story-visual::before {
-      content: '';
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      right: -16px;
-      bottom: -16px;
-      border: 1px solid rgba(216,30,83,0.28);
-      border-radius: var(--radius-lg);
-      z-index: -1;
-      pointer-events: none;
-    }
-    .story-visual img {
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      object-fit: cover;
-    }
-    .story-visual .sv-tag {
-      position: absolute;
-      left: 18px;
-      top: 18px;
-      background: rgba(255,255,255,0.92);
-      color: var(--jjs-primary);
-      font-weight: 700;
+    .about-page .ab-kicker {
       font-size: 12px;
-      letter-spacing: 3px;
-      border-radius: 999px;
-      padding: 7px 16px;
-    }
-
-    /* 成长历程时间线：深色底 + 玫红浅色变体点缀（lululemon 深区块配色手法） */
-    .milestones {
-      background:
-        radial-gradient(circle at 10% 15%, rgba(216,30,83,0.20) 0%, transparent 32%),
-        radial-gradient(circle at 90% 85%, rgba(216,30,83,0.14) 0%, transparent 34%),
-        var(--jjs-dark);
-      color: #fff;
-      padding: 76px 0 68px;
-    }
-    .milestones-header {
-      text-align: center;
-      margin-bottom: 52px;
-    }
-    .milestones-header .kicker {
-      color: #ff9dbd;
-      letter-spacing: 5px;
-      font-size: 13px;
       font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--ab-accent);
       margin-bottom: 14px;
-      text-indent: 5px;
     }
-    .milestones-header h2 {
-      font-size: clamp(24px, 2.8vw, 32px);
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-    .milestones-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 22px;
-    }
-    .milestone-card {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: var(--radius-lg);
-      padding: 30px 24px;
-      text-align: center;
-      transition: transform 0.3s ease, border-color 0.3s ease, background 0.3s ease;
-    }
-    .milestone-card:hover {
-      transform: translateY(-5px);
-      border-color: rgba(255,157,189,0.45);
-      background: rgba(216,30,83,0.10);
-    }
-    .milestone-card .ml-time {
-      /* 玫红渐变文字：品牌主色在深底上的浅色变体 */
-      background: linear-gradient(180deg, #ff9dbd 0%, #e8356b 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      font-weight: 700;
-      font-size: 26px;
-      margin-bottom: 12px;
-      letter-spacing: 2px;
-      line-height: 1.2;
-    }
-    .milestone-card .ml-title {
-      font-weight: 600;
-      font-size: 16px;
-      margin-bottom: 10px;
-      letter-spacing: 0.5px;
-    }
-    .milestone-card .ml-desc {
-      color: rgba(255,255,255,0.66);
-      font-size: 13px;
+    .about-page .ab-sub {
+      font-size: 14.5px;
       line-height: 1.9;
+      color: var(--ab-text-soft);
     }
 
-    /* 价值观 */
-    .values-section {
-      padding: 76px 0 68px;
-    }
-    .values-header {
-      text-align: center;
-      margin-bottom: 46px;
-    }
-    .values-header .kicker {
-      color: var(--jjs-primary);
-      letter-spacing: 5px;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 14px;
-      text-indent: 5px;
-    }
-    .values-header h2 {
-      font-size: clamp(24px, 2.8vw, 32px);
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-    .values-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-    .value-card {
-      text-align: center;
-      padding: 40px 28px 36px;
-      border-radius: var(--radius-lg);
-      background: var(--jjs-bg-light);
-      border: 1px solid var(--jjs-border);
-      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    }
-    .value-card:hover {
-      transform: translateY(-5px);
-      border-color: rgba(216,30,83,0.35);
-      box-shadow: var(--shadow-md);
-    }
-    .value-card .v-ic {
-      /* 玫红浅底圆形图标：Allbirds/On 价值观卡片统一图标底衬 */
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 18px;
+    /* ================= Hero：满幅图 + 居中衬线标题 ================= */
+    .ab-hero {
+      position: relative;
+      min-height: clamp(440px, 62vh, 680px);
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 50%;
-      background: var(--jjs-primary-light);
-      color: var(--jjs-primary);
-      border: 1px solid rgba(216,30,83,0.16);
-      font-size: 30px;
+      overflow: hidden;
+      background: var(--ab-ink);
     }
-    .value-card:hover .v-ic {
-      background: var(--jjs-primary);
+    .ab-hero-bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transform: scale(1.04);
+      animation: abHeroZoom 12s ease-out both;
+    }
+    @keyframes abHeroZoom {
+      from { transform: scale(1.10); }
+      to   { transform: scale(1.04); }
+    }
+    .ab-hero-veil {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to bottom, rgba(15,15,15,0.55) 0%, rgba(15,15,15,0.42) 45%, rgba(15,15,15,0.68) 100%),
+        radial-gradient(circle at 50% 50%, transparent 30%, rgba(15,15,15,0.35) 100%);
+    }
+    .ab-hero-inner {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 900px;
+      padding: 96px 24px 104px;
+      text-align: center;
       color: #fff;
     }
-    .value-card .v-title {
-      font-weight: 700;
-      font-size: 17px;
-      margin-bottom: 10px;
-      letter-spacing: 0.5px;
-      color: var(--jjs-dark);
+    .ab-hero-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      text-indent: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.42);
+      padding: 8px 22px;
+      margin-bottom: 34px;
     }
-    .value-card .v-desc {
-      color: var(--jjs-gray);
-      font-size: 13.5px;
-      line-height: 1.9;
+    .ab-hero h1 {
+      font-size: clamp(30px, 4.6vw, 56px);
+      line-height: 1.34;
+      margin-bottom: 24px;
+      text-shadow: 0 2px 30px rgba(0,0,0,0.35);
+    }
+    .ab-hero .ab-hero-sub {
+      font-size: clamp(14.5px, 1.5vw, 17px);
+      line-height: 2;
+      font-weight: 300;
+      color: rgba(255,255,255,0.88);
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    /* 底部细线 + 呼吸动效的滚动提示 */
+    .ab-hero-hint {
+      position: absolute;
+      left: 50%;
+      bottom: 26px;
+      z-index: 2;
+      width: 1px;
+      height: 46px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.65), transparent);
+      animation: abHintDrop 2.4s ease-in-out infinite;
+    }
+    @keyframes abHintDrop {
+      0%, 100% { opacity: 0.25; transform: translateX(-50%) scaleY(0.6); }
+      50%      { opacity: 1;    transform: translateX(-50%) scaleY(1); }
     }
 
-    /* 品牌名片：底部统一玫红品牌色 CTA（与 Hero/故事/价值观呼应） */
-    .brand-cta {
-      text-align: center;
-      padding: 64px 0 72px;
-    }
-    .brand-cta .bc-inner {
-      background:
-        radial-gradient(circle at 85% 20%, rgba(255,255,255,0.12) 0%, transparent 40%),
-        linear-gradient(135deg, var(--jjs-primary) 0%, #8e1240 100%);
-      color: #fff;
-      border-radius: var(--radius-lg);
-      padding: 52px 40px;
-      max-width: 860px;
-      margin: 0 auto;
-      box-shadow: var(--shadow-lg);
-    }
-    .brand-cta h2 {
-      font-size: clamp(24px, 2.8vw, 32px);
-      font-weight: 700;
-      letter-spacing: 1px;
+    /* ================= 通用区块节奏 ================= */
+    .ab-section { padding: 84px 0; }
+    .ab-section--cream { background: var(--ab-cream); }
+    .ab-section--ink { background: var(--ab-ink); color: #fff; }
+    .ab-section--ink .ab-kicker { color: #ff9dbd; }
+    .ab-section--ink .ab-sub { color: rgba(255,255,255,0.66); }
+
+    .ab-head-center { text-align: center; max-width: 720px; margin: 0 auto 56px; }
+    .ab-head-center h2 {
+      font-size: clamp(26px, 3.1vw, 38px);
+      line-height: 1.4;
       margin-bottom: 14px;
     }
-    .brand-cta p {
-      color: rgba(255,255,255,0.9);
-      font-size: 15px;
-      line-height: 1.9;
-      max-width: 560px;
-      margin: 0 auto 26px;
-    }
-    .brand-cta .bc-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    .ab-head-center .ab-sub { max-width: 560px; margin: 0 auto; }
+
+    /* ================= 我们的故事：图文双栏 + 引文 ================= */
+    .ab-story-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch;
       background: #fff;
-      color: var(--jjs-primary);
-      font-weight: 700;
-      font-size: 15px;
-      letter-spacing: 0.5px;
-      border-radius: 999px;
-      padding: 13px 34px;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      border: 1px solid var(--ab-line);
     }
-    .brand-cta .bc-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    .ab-story-copy {
+      padding: clamp(30px, 4vw, 60px) clamp(26px, 3.6vw, 54px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .ab-story-copy h2 {
+      font-size: clamp(24px, 2.8vw, 34px);
+      line-height: 1.42;
+      margin-bottom: 24px;
+    }
+    .ab-story-copy .ab-p {
+      font-size: 15.5px;
+      line-height: 2.05;
+      color: var(--ab-text-soft);
+      margin-bottom: 16px;
+    }
+    /* 引文：左侧强调竖条（对齐模板的 blockquote 处理） */
+    .ab-quote {
+      margin-top: 26px;
+      padding: 4px 0 4px 18px;
+      border-left: 2px solid var(--ab-accent);
+      font-family: var(--ab-serif);
+      font-size: 16px;
+      line-height: 1.9;
+      color: #1c1c1c;
+    }
+    .ab-quote span {
+      display: block;
+      margin-top: 8px;
+      font-family: var(--font);
+      font-size: 12.5px;
+      letter-spacing: 0.08em;
+      color: var(--ab-text-soft);
+    }
+    .ab-story-visual {
+      position: relative;
+      min-height: 320px;
+      background: var(--ab-cream-deep);
+      overflow: hidden;
+    }
+    .ab-story-visual img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.9s ease;
+    }
+    .ab-story-visual:hover img { transform: scale(1.04); }
+    .ab-story-mark {
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+      z-index: 2;
+      font-family: var(--ab-serif);
+      font-size: 13px;
+      letter-spacing: 0.3em;
+      text-indent: 0.3em;
+      color: #fff;
+      text-transform: uppercase;
+      text-shadow: 0 1px 12px rgba(0,0,0,0.5);
     }
 
-    @media (max-width: 900px) {
-      .story-grid { grid-template-columns: 1fr; gap: 28px; }
-      .milestones-grid { grid-template-columns: repeat(2, 1fr); }
-      .values-grid { grid-template-columns: 1fr; }
-      .brand-cta .bc-inner { padding: 40px 24px; }
+    /* ================= 价值观：深色三栏编辑风 ================= */
+    .ab-values-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--ab-line-dark);
     }
-    @media (max-width: 560px) {
-      .milestones-grid { grid-template-columns: 1fr; }
+    .ab-value {
+      padding: 40px 34px 44px;
+      border-right: 1px solid var(--ab-line-dark);
+      border-bottom: 1px solid var(--ab-line-dark);
+      transition: background 0.35s ease;
+    }
+    .ab-value:last-child { border-right: none; }
+    .ab-value:hover { background: rgba(255,255,255,0.04); }
+    .ab-value-no {
+      font-family: var(--ab-serif);
+      font-size: 34px;
+      line-height: 1;
+      color: var(--ab-accent);
+      margin-bottom: 20px;
+      letter-spacing: 0.04em;
+    }
+    .ab-value-title {
+      font-family: var(--ab-serif);
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: 0.03em;
+    }
+    .ab-value-desc {
+      font-size: 14px;
+      line-height: 1.95;
+      color: rgba(255,255,255,0.62);
+    }
+
+    /* ================= 成长历程：中轴交替时间线 ================= */
+    .ab-timeline { position: relative; padding: 6px 0; }
+    .ab-timeline::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: var(--ab-line);
+      transform: translateX(-0.5px);
+    }
+    .ab-tl-item {
+      position: relative;
+      width: 50%;
+      padding: 0 46px 30px 0;
+      text-align: right;
+    }
+    .ab-tl-item:nth-child(even) {
+      margin-left: 50%;
+      padding: 0 0 30px 46px;
+      text-align: left;
+    }
+    .ab-tl-card {
+      display: inline-block;
+      width: 100%;
+      background: #fff;
+      border: 1px solid var(--ab-line);
+      padding: 28px 30px;
+      transition: box-shadow 0.35s ease, transform 0.35s ease;
+    }
+    .ab-tl-item:hover .ab-tl-card {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(28,28,28,0.10);
+    }
+    .ab-tl-year {
+      font-family: var(--ab-serif);
+      font-size: clamp(26px, 2.6vw, 34px);
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--ab-accent-deep);
+      margin-bottom: 10px;
+      letter-spacing: 0.03em;
+    }
+    .ab-tl-title {
+      font-family: var(--ab-serif);
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .ab-tl-desc {
+      font-size: 13.5px;
+      line-height: 1.9;
+      color: var(--ab-text-soft);
+    }
+    /* 轴线上的圆点（外圈用页面底色描边，遮挡住轴线） */
+    .ab-tl-dot {
+      position: absolute;
+      top: 40px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--ab-accent);
+      box-shadow: 0 0 0 4px var(--ab-cream);
+    }
+    .ab-tl-item:nth-child(odd) .ab-tl-dot { right: -4.5px; }
+    .ab-tl-item:nth-child(even) .ab-tl-dot { left: -4.5px; }
+
+    /* ================= 收尾 CTA：深色居中 ================= */
+    .ab-cta-inner {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .ab-cta-inner h2 {
+      font-size: clamp(25px, 3vw, 36px);
+      line-height: 1.42;
+      margin-bottom: 16px;
+    }
+    .ab-cta-inner .ab-sub { margin-bottom: 32px; }
+    /* 收尾 CTA 紧接页脚，且两者同为品牌深色：
+       1) 屏蔽 .footer 的 40px 外边距 —— 否则中间会露出页面奶油底色，
+          形成一条割裂两片深色的空白带；
+       2) 去掉底部留白，改由页脚自身的内边距承接，避免出现大片空区。 */
+    .about-page .footer { margin-top: 0; }
+    /* 用 .about-page 提高优先级：断点里的 .ab-section 简写 padding 会覆盖单条 padding-bottom */
+    .about-page .ab-cta { padding-bottom: 0; }
+    .ab-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--ab-cream);
+      color: var(--ab-ink);
+      font-weight: 700;
+      font-size: 14.5px;
+      letter-spacing: 0.06em;
+      padding: 15px 40px;
+      border-radius: 0;              /* 锐角：与模板一致的编辑风 */
+      transition: background 0.25s ease, transform 0.25s ease;
+    }
+    .ab-cta-btn:hover {
+      background: #fff;
+      transform: translateY(-2px);
+    }
+
+    /* ================= 响应式 ================= */
+    @media (max-width: 1024px) {
+      .ab-section { padding: 66px 0; }
+      .ab-head-center { margin-bottom: 44px; }
+    }
+    @media (max-width: 900px) {
+      .ab-story-grid { grid-template-columns: 1fr; }
+      .ab-story-visual { min-height: 280px; order: -1; }
+      .ab-values-grid { grid-template-columns: 1fr; }
+      .ab-value { border-right: none; padding: 30px 0; }
+      .ab-value:last-child { border-bottom: 1px solid var(--ab-line-dark); }
+    }
+    @media (max-width: 768px) {
+      /* 时间线改为左轴单列，避免窄屏左右交错难以阅读 */
+      .ab-timeline::before { left: 4px; transform: none; }
+      .ab-tl-item,
+      .ab-tl-item:nth-child(even) {
+        width: 100%;
+        margin-left: 0;
+        padding: 0 0 22px 30px;
+        text-align: left;
+      }
+      .ab-tl-item:nth-child(odd) .ab-tl-dot,
+      .ab-tl-item:nth-child(even) .ab-tl-dot { left: -0.5px; right: auto; }
+      .ab-tl-card { padding: 22px 22px; }
+      .ab-section { padding: 50px 0; }
+      .ab-hero-inner { padding: 72px 20px 84px; }
+      .ab-hero-hint { display: none; }
     }
   </style>
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="about-page">
     <top-bar></top-bar>
     <main-nav active="about"></main-nav>
 
-    <!-- Hero：品牌口号（后台「内容管理」可编辑） -->
-    <section class="about-hero">
-      <div class="about-hero-inner">
-        <span class="hero-tag">{{ heroTag }}</span>
+    <!-- Hero：满幅品牌图 + 居中衬线标题（文案由后台「品牌管理」维护） -->
+    <section class="ab-hero">
+      <div class="ab-hero-bg" :style="{ backgroundImage: 'url(' + heroImage + ')' }"></div>
+      <div class="ab-hero-veil"></div>
+      <div class="ab-hero-inner">
+        <span class="ab-hero-tag">{{ heroTag }}</span>
         <h1>{{ heroTitle }}</h1>
-        <p class="sub">{{ heroSub }}</p>
+        <p class="ab-hero-sub">{{ heroSub }}</p>
       </div>
+      <span class="ab-hero-hint"></span>
     </section>
 
-    <!-- 品牌故事（内容由后台 ERP「内容管理」维护） -->
-    <section class="story-section">
-      <div class="container">
-        <div class="story-grid">
-          <div>
-            <div class="kicker">{{ t('our_story_kicker') }}</div>
+    <!-- 我们的故事：图文双栏 + 引文 -->
+    <section class="ab-section ab-section--cream">
+      <div class="ab-container">
+        <div class="ab-story-grid">
+          <div class="ab-story-copy">
+            <div class="ab-kicker">{{ t('our_story_kicker') }}</div>
             <h2>{{ storyTitle }}</h2>
-            <p class="story-p" v-for="(para, i) in storyParagraphs" :key="i">{{ para }}</p>
+            <p class="ab-p" v-for="(para, i) in storyParagraphs" :key="i">{{ para }}</p>
+            <blockquote class="ab-quote">
+              {{ t('about_story_quote') }}
+              <span>{{ t('about_story_quote_by') }}</span>
+            </blockquote>
           </div>
-          <div class="story-visual">
-            <img v-if="storyImage" :src="storyImage" alt="Story">
-            <img v-else src="https://picsum.photos/seed/yoyole-nature/760/500" alt="YOYOLE yoga and outdoor life">
-            <span class="sv-tag">YOYOLE</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 成长历程 -->
-    <section class="milestones">
-      <div class="container">
-        <div class="milestones-header">
-          <div class="kicker">{{ milestonesKicker }}</div>
-          <h2>{{ milestonesTitle }}</h2>
-        </div>
-        <div class="milestones-grid">
-          <div class="milestone-card" v-for="item in milestones" :key="item.time">
-            <div class="ml-time">{{ item.time }}</div>
-            <div class="ml-title">{{ item.title }}</div>
-            <div class="ml-desc">{{ item.desc }}</div>
+          <div class="ab-story-visual">
+            <img :src="storyImage || 'https://picsum.photos/seed/yoyole-nature/900/760'"
+                 alt="YOYOLE yoga and outdoor life">
+            <span class="ab-story-mark">YOYOLE</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 价值观 -->
-    <section class="values-section">
-      <div class="container">
-        <div class="values-header">
-          <div class="kicker">{{ valuesKicker }}</div>
+    <!-- 我们的价值观：深色三栏编辑风（编号 01/02/03） -->
+    <section class="ab-section ab-section--ink">
+      <div class="ab-container">
+        <div class="ab-head-center">
+          <div class="ab-kicker">{{ valuesKicker }}</div>
           <h2>{{ valuesTitle }}</h2>
+          <p class="ab-sub">{{ t('about_values_sub') }}</p>
         </div>
-        <div class="values-grid">
-          <div class="value-card" v-for="(item, index) in values" :key="item.title">
-            <div class="v-ic"><base-icon :name="index === 1 ? 'handshake' : (index === 2 ? 'globe' : 'bulb')" :size="24"></base-icon></div>
-            <div class="v-title">{{ item.title }}</div>
-            <div class="v-desc">{{ item.desc }}</div>
+        <div class="ab-values-grid">
+          <div class="ab-value" v-for="(item, index) in values" :key="item.title">
+            <div class="ab-value-no">{{ String(index + 1).padStart(2, '0') }}</div>
+            <div class="ab-value-title">{{ item.title }}</div>
+            <div class="ab-value-desc">{{ item.desc }}</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 品牌收尾 CTA：统一玫红品牌色，与 Hero 首尾呼应（参考 Shopify 优秀 About 页收尾惯例） -->
-    <section class="brand-cta">
-      <div class="container">
-        <div class="bc-inner">
+    <!-- 成长历程：中轴交替时间线 -->
+    <section class="ab-section ab-section--cream">
+      <div class="ab-container">
+        <div class="ab-head-center">
+          <div class="ab-kicker">{{ milestonesKicker }}</div>
+          <h2>{{ milestonesTitle }}</h2>
+          <p class="ab-sub">{{ t('about_milestones_sub') }}</p>
+        </div>
+        <div class="ab-timeline">
+          <div class="ab-tl-item" v-for="item in milestones" :key="item.time">
+            <span class="ab-tl-dot"></span>
+            <div class="ab-tl-card">
+              <div class="ab-tl-year">{{ item.time }}</div>
+              <div class="ab-tl-title">{{ item.title }}</div>
+              <div class="ab-tl-desc">{{ item.desc }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 收尾 CTA：深色居中，与 Hero 首尾呼应；与页脚同色无缝衔接 -->
+    <section class="ab-section ab-section--ink ab-cta">
+      <div class="ab-container">
+        <div class="ab-cta-inner">
           <h2>{{ ctaTitle }}</h2>
-          <p>{{ ctaDesc }}</p>
-          <a href="/products.html" class="bc-btn">
+          <p class="ab-sub">{{ ctaDesc }}</p>
+          <a href="/products.html" class="ab-cta-btn">
             {{ t('shop_now') }}
             <base-icon name="arrowRight" :size="16"></base-icon>
           </a>
@@ -425,20 +494,25 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=32"></script>
+  <script src="/static/js/pymall.js?v=36"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
       var Vue = PyMall.Vue;
       var t = PyMall.t;
 
+      // Hero 默认底图：未上传品牌图时用固定的自然场景占位，
+      // 与「我们的故事」的默认图区分开，避免两处出现同一张
+      var DEFAULT_HERO_IMG = 'https://picsum.photos/seed/yoyole-about-hero/1600/900';
+
       window.mountPyMall({
         setup() {
-          // 品牌故事内容（后台 ERP「内容管理」维护，前端实时展示）
+          // 品牌故事内容（后台 ERP「品牌管理」维护，前端实时展示）
           var state = Vue.reactive({
             heroTag: t('about_hero_tag'),
             heroTitle: t('about_hero_title'),
             heroSub: t('about_hero_sub'),
+            heroImage: '',
             storyTitle: t('our_story'),
             storyParagraphs: [t('our_story_p1'), t('our_story_p2')],
             storyImage: '',
@@ -452,52 +526,84 @@
             values: [],
           });
 
+          // 后台的图片字段可能是 {zh, en} 对象，也可能直接是字符串
+          function pickImage(value) {
+            if (!value) return '';
+            if (typeof value === 'object') {
+              var lang = PyMall.getLang();
+              return value[lang] || value.zh || value.en || '';
+            }
+            return value;
+          }
+
           PyMall.api('/api/site-content?page=about', { noLang: true })
             .then(function (d) {
               if (!d) return;
               var lang = PyMall.getLang();
-              // Hero 区（后台可编辑）
-              if (d.hero_tag) state.heroTag = d.hero_tag[lang] || d.hero_tag.zh || state.heroTag;
-              if (d.hero_title) state.heroTitle = d.hero_title[lang] || d.hero_title.zh || state.heroTitle;
-              if (d.hero_subtitle) state.heroSub = d.hero_subtitle[lang] || d.hero_subtitle.zh || state.heroSub;
-              // 品牌故事
-              if (d.story_title) state.storyTitle = d.story_title[lang] || d.story_title.zh || state.storyTitle;
-              if (d.story_content) {
-                var c = d.story_content[lang] || d.story_content.zh || '';
-                if (c) state.storyParagraphs = c.split('\n').filter(function (x) { return x.trim(); });
+              function loc(key, fallback) {
+                var v = d[key];
+                if (!v) return fallback;
+                return v[lang] || v.zh || v.en || fallback;
               }
-              if (d.story) {
-                var si = d.story.image;
-                if (typeof si === 'object' && si) si = si.zh || si.en || '';
-                if (si) state.storyImage = si;
-              }
-              // 区块标题（成长历程/价值观，后台可编辑）
-              if (d.milestones_kicker) state.milestonesKicker = d.milestones_kicker[lang] || d.milestones_kicker.zh || state.milestonesKicker;
-              if (d.milestones_title) state.milestonesTitle = d.milestones_title[lang] || d.milestones_title.zh || state.milestonesTitle;
-              if (d.values_kicker) state.valuesKicker = d.values_kicker[lang] || d.values_kicker.zh || state.valuesKicker;
-              if (d.values_title) state.valuesTitle = d.values_title[lang] || d.values_title.zh || state.valuesTitle;
-              // 品牌收尾 CTA（后台可编辑）
-              if (d.cta_title) state.ctaTitle = d.cta_title[lang] || d.cta_title.zh || state.ctaTitle;
-              if (d.cta_desc) state.ctaDesc = d.cta_desc[lang] || d.cta_desc.zh || state.ctaDesc;
-              var lang = PyMall.getLang();
               function localize(item, field) {
                 var value = item && item[field];
-                return value && typeof value === 'object' ? (value[lang] || value.zh || value.en || '') : (value || '');
+                return value && typeof value === 'object'
+                  ? (value[lang] || value.zh || value.en || '')
+                  : (value || '');
               }
+
+              // Hero 区
+              state.heroTag = loc('hero_tag', state.heroTag);
+              state.heroTitle = loc('hero_title', state.heroTitle);
+              state.heroSub = loc('hero_subtitle', state.heroSub);
+
+              // 品牌故事
+              state.storyTitle = loc('story_title', state.storyTitle);
+              var c = d.story_content && (d.story_content[lang] || d.story_content.zh || '');
+              if (c) {
+                state.storyParagraphs = c.split('\n').filter(function (x) { return x.trim(); });
+              }
+
+              var storyImg = d.story ? pickImage(d.story.image) : '';
+              if (storyImg) {
+                state.storyImage = storyImg;
+                // 未单独配置 Hero 图时，用品牌图作为 Hero 满幅底图
+                state.heroImage = pickImage(d.story.hero_image) || storyImg;
+              }
+
+              // 区块标题
+              state.milestonesKicker = loc('milestones_kicker', state.milestonesKicker);
+              state.milestonesTitle = loc('milestones_title', state.milestonesTitle);
+              state.valuesKicker = loc('values_kicker', state.valuesKicker);
+              state.valuesTitle = loc('values_title', state.valuesTitle);
+
+              // 收尾 CTA
+              state.ctaTitle = loc('cta_title', state.ctaTitle);
+              state.ctaDesc = loc('cta_desc', state.ctaDesc);
+
               state.milestones = (d.milestones || []).map(function (item) {
-                return { time: localize(item, 'time'), title: localize(item, 'title'), desc: localize(item, 'desc') };
+                return {
+                  time: localize(item, 'time'),
+                  title: localize(item, 'title'),
+                  desc: localize(item, 'desc'),
+                };
               });
               state.values = (d.values || []).map(function (item) {
                 return { title: localize(item, 'title'), desc: localize(item, 'desc') };
               });
             })
-            .catch(function () { /* 保持默认文案 */ });
+            .catch(function () { /* 接口异常时保持默认文案 */ })
+            .then(function () {
+              // 兜底：Hero 图缺失时用默认占位，保证版式不塌
+              if (!state.heroImage) state.heroImage = DEFAULT_HERO_IMG;
+            });
 
           return {
             t: t,
             heroTag: Vue.computed(function () { return state.heroTag; }),
             heroTitle: Vue.computed(function () { return state.heroTitle; }),
             heroSub: Vue.computed(function () { return state.heroSub; }),
+            heroImage: Vue.computed(function () { return state.heroImage || DEFAULT_HERO_IMG; }),
             storyTitle: Vue.computed(function () { return state.storyTitle; }),
             storyParagraphs: Vue.computed(function () { return state.storyParagraphs; }),
             storyImage: Vue.computed(function () { return state.storyImage; }),

@@ -124,11 +124,15 @@
       comment_posted: '评论已发表',
       comment_failed: '评论失败',
       milestones_title: '成长历程', milestones_kicker: 'MILESTONES',
+      about_milestones_sub: '一步一步，把想法做成穿在身上的装备',
       m1_time: '2020', m1_title: '品牌创立', m1_desc: 'YOYOLE 从瑜伽与户外爱好者的真实需求出发',
       m2_time: '2022', m2_title: '走进山野', m2_desc: '推出轻量、耐用的户外出行系列',
       m3_time: '2024', m3_title: '练习相遇', m3_desc: '与更多瑜伽社群分享身体与呼吸的练习',
       m4_time: '2026', m4_title: '继续出发', m4_desc: '让自然友好的设计陪伴更多日常旅程',
       values_title: '我们的价值观', values_kicker: 'VALUES',
+      about_values_sub: '支撑我们做每一个决定的三件事',
+      about_story_quote: '装备是身体的延伸，而不是对身体的限制。',
+      about_story_quote_by: '— YOYOLE',
       v1_title: '自然真实', v1_desc: '尊重身体感受，也尊重自然节律',
       v2_title: '简洁耐用', v2_desc: '减少多余设计，让装备经得起时间',
       v3_title: '一起成长', v3_desc: '与练习者和户外伙伴共同探索',
@@ -291,11 +295,15 @@
       comment_posted: 'Comment posted',
       comment_failed: 'Failed to post comment',
       milestones_title: 'Milestones', milestones_kicker: 'MILESTONES',
+      about_milestones_sub: 'Step by step, turning ideas into gear you can wear',
       m1_time: '2020', m1_title: 'Founded', m1_desc: 'PyMall launched with 50 designers on board',
       m2_time: '2022', m2_title: 'Global Expansion', m2_desc: 'Serving customers in 30+ countries',
       m3_time: '2024', m3_title: '1M Members', m3_desc: '1 million members, leading community',
       m4_time: '2026', m4_title: 'Keep Innovating', m4_desc: 'AI-powered recommendations & immersive shopping',
       values_title: 'Our Values', values_kicker: 'VALUES',
+      about_values_sub: 'Three things behind every decision we make',
+      about_story_quote: 'Gear should extend the body, never confine it.',
+      about_story_quote_by: '\u2014 YOYOLE',
       v1_title: 'Creativity First', v1_desc: 'Respect every expression of creativity',
       v2_title: 'Sincere Service', v2_desc: 'User-centric, sincere and responsible',
       v3_title: 'Global Vision', v3_desc: 'Connecting artists and enthusiasts worldwide',
@@ -957,18 +965,10 @@
 
   // ---------- 页脚公共组件 ----------
   var SiteFooter = {
+    // 订阅优惠信息不再单独占一条通栏色带，而是作为页脚最后一列，
+    // 紧邻「支付方式」右侧，避免通栏区块两侧大片留白、也让页脚更紧凑。
     template: `
       <footer class="footer">
-        <div class="newsletter">
-          <div class="newsletter-inner">
-            <h3><base-icon name="mail" :size="20"></base-icon> {{ t('subscribe_title') }}</h3>
-            <p>{{ t('subscribe_desc') }}</p>
-            <div class="newsletter-form">
-              <input :placeholder="t('subscribe_ph')" v-model="email" @keyup.enter="sub" />
-              <button @click="sub">{{ t('subscribe_btn') }}</button>
-            </div>
-          </div>
-        </div>
         <div class="footer-inner">
           <div class="footer-col">
             <h4>{{ t('about_us') }}</h4>
@@ -994,6 +994,14 @@
             <h4>{{ t('payment_method') }}</h4>
             <ul><li>{{ t('payment_icons') }}</li></ul>
           </div>
+          <div class="footer-col footer-news">
+            <h4><base-icon name="mail" :size="14"></base-icon> {{ t('subscribe_title') }}</h4>
+            <p>{{ t('subscribe_desc') }}</p>
+            <div class="footer-news-form">
+              <input :placeholder="t('subscribe_ph')" v-model="email" @keyup.enter="sub" />
+              <button @click="sub">{{ t('subscribe_btn') }}</button>
+            </div>
+          </div>
         </div>
         <div class="copyright">© 2026 PyMall. All rights reserved.</div>
       </footer>`,
@@ -1010,7 +1018,14 @@
           })
           .catch(function (e) { toast(e.message, 'error'); });
       }
-      return { t, email: Vue.computed(() => state.email), sub };
+      // 用可写 computed 暴露 email：v-model 需要能写回，
+      // 只给 getter 的 computed 是只读的，输入值永远进不到 state.email，
+      // 点「订阅」必然报「请输入您的邮箱」（历史 bug）。
+      const emailModel = Vue.computed({
+        get: function () { return state.email; },
+        set: function (v) { state.email = v; },
+      });
+      return { t, email: emailModel, sub };
     },
   };
 

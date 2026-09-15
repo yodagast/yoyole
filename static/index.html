@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YOYOLE | 瑜伽与户外生活</title>
-  <link rel="stylesheet" href="/static/css/jjshouse.css">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=3">
   <style>
     /* ------- 首页 Hero 轮播展示优化（满幅大图 + 遮罩） ------- */
     .hero {
@@ -114,6 +114,32 @@
     }
     /* ------- 热销 / 推荐区块标题 ------- */
     .hot-sale-card .product-tag { background: var(--jjs-accent); color: #232323; }
+
+    /* ------- 首页商品网格：固定列数，保证每行铺满 -------
+       通用 .product-grid 用 auto-fill，列数随视口变化（1920px 下为 6 列），
+       而后端各区块返回 12 款 → 最后一行只占 4 格，右侧留出大片空白。
+       这里改为按断点固定列数，12 能被 6 / 4 / 3 / 2 整除，任何宽度下都是整行。
+       （products.html 仍用 auto-fill，不受影响） */
+    .home-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (min-width: 1700px) {
+      .home-grid { grid-template-columns: repeat(6, 1fr); }
+    }
+    @media (max-width: 1280px) {
+      .home-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .home-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ------- 区块纵向节奏：让首屏更饱满 -------
+       同样只能写纵向 padding：写成 `padding: Xpx 0 Ypx` 会把 .container 的
+       左右留白也置 0，导致本区块网格比下一区块宽 40px、两者左边缘错位。 */
+    .section { padding-top: 54px; padding-bottom: 34px; }
+    @media (max-width: 768px) {
+      .section { padding-top: 34px; padding-bottom: 22px; }
+    }
   </style>
 </head>
 <body>
@@ -161,7 +187,7 @@
         <h2>{{ t('hot_sale') }}</h2>
         <div class="line-deco"></div>
       </div>
-      <div class="product-grid" v-if="hotProducts.length">
+      <div class="product-grid home-grid" v-if="hotProducts.length">
         <div class="product-card hot-sale-card" v-for="p in hotProducts" :key="p.id" @click="goDetail(p)">
           <div class="imgwrap">
             <img :src="p.main_image || 'https://picsum.photos/seed/' + p.id + '/600/400'"
@@ -200,7 +226,7 @@
           <h2>{{ t('featured') }}</h2>
           <div class="line-deco"></div>
         </div>
-        <div class="product-grid" v-if="products.length">
+        <div class="product-grid home-grid" v-if="products.length">
           <div class="product-card" v-for="p in products" :key="p.id" @click="goDetail(p)">
             <div class="imgwrap">
               <img :src="p.main_image || 'https://picsum.photos/seed/' + p.id + '/600/400'"
@@ -240,7 +266,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=32"></script>
+  <script src="/static/js/pymall.js?v=36"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -366,52 +392,76 @@
           }, 5000);
           Vue.onUnmounted(function () { clearInterval(timer); });
 
-          // 热销商品：按销量倒序，只展示有销量的商品；若都无销量则回退展示全部
-          var hotReq = PyMall.api('/api/products?sort_by=sales_desc&page_size=8', { noLang: false })
-            .then(function (data) {
-              var list = Array.isArray(data) ? data : (data.items || []);
-              var sold = list.filter(function (p) { return (p.sales_count || 0) > 0; });
-              state.hotProducts = sold.length ? sold : list;
+          // 首页每区块固定取 12 款：12 能被 6/4/3/2 整除，
+          // 配合 .home-grid 的固定列数可保证最后一行也铺满（右侧不留空位）。
+          var HOME_PAGE_SIZE = 12;
+
+          function toList(data) {
+            return Array.isArray(data) ? data : ((data && data.items) || []);
+          }
+          function fetchProducts(query) {
+            return PyMall.api('/api/products?' + query, { noLang: false }).then(toList);
+          }
+
+          // 热销商品：按销量倒序即可——有销量的自然排在前面。
+          // 注意不要再 filter 出「仅有销量」的商品：实测多数商品销量为 0 时
+          // 只会剩下 1~2 张卡，网格右侧空一大片（正是「铺不满」的主因之一）。
+          var hotReq = fetchProducts('sort_by=sales_desc&page_size=' + HOME_PAGE_SIZE)
+            .then(function (list) {
+              state.hotProducts = list;
               state.loadingHot = false;
             })
             .catch(function () {
               state.loadingHot = false;
-              return PyMall.api('/api/products?page_size=8').then(function (d) {
-                state.hotProducts = Array.isArray(d) ? d : (d.items || []);
-              }).catch(function () {});
+              return fetchProducts('page_size=' + HOME_PAGE_SIZE)
+                .then(function (list) { state.hotProducts = list; })
+                .catch(function () {});
             });
 
-          // 推荐商品：优先展示后台标记为「推荐」的商品，并尽量与热销区块去重；
-          // 若去重后为空（商品总数较少时常见），则回退，保证推荐区块始终有内容
+          // 推荐商品：优先展示后台标记为「推荐」的商品，并剔除已在热销区块出现的；
+          // 数量不足 HOME_PAGE_SIZE 时用其余商品补齐，让两个区块等长、行数整齐。
           function loadFeatured() {
             var hotIds = state.hotProducts.map(function (p) { return p.id; });
             function excludeHot(list) {
               return list.filter(function (p) { return hotIds.indexOf(p.id) === -1; });
             }
-            function toList(data) { return Array.isArray(data) ? data : (data.items || []); }
             function done() { state.loadingProducts = false; }
 
-            PyMall.api('/api/products?featured=true').then(function (data) {
-              var featured = toList(data);
-              var unique = excludeHot(featured);
-              if (unique.length) {
-                state.products = unique;
-                return done();
+            function topUp(picked) {
+              if (picked.length >= HOME_PAGE_SIZE) {
+                return Promise.resolve(picked.slice(0, HOME_PAGE_SIZE));
               }
-              // 推荐商品与热销完全重合：改用未在热销区出现的商品
-              return PyMall.api('/api/products?page_size=8').then(function (d) {
-                var rest = excludeHot(toList(d));
-                // 全部商品都在热销区时，直接展示推荐商品，避免区块空白
-                state.products = rest.length ? rest : featured;
+              return fetchProducts('page_size=' + (HOME_PAGE_SIZE * 2))
+                .then(function (list) {
+                  var seen = {};
+                  picked.forEach(function (p) { seen[p.id] = true; });
+                  hotIds.forEach(function (id) { seen[id] = true; });
+                  var merged = picked.slice();
+                  for (var i = 0; i < list.length && merged.length < HOME_PAGE_SIZE; i++) {
+                    if (!seen[list[i].id]) { seen[list[i].id] = true; merged.push(list[i]); }
+                  }
+                  return merged;
+                })
+                .catch(function () { return picked; });
+            }
+
+            return fetchProducts('featured=true&page_size=' + (HOME_PAGE_SIZE * 2))
+              .then(function (featured) {
+                return topUp(excludeHot(featured)).then(function (merged) {
+                  // 推荐与热销完全重合且无可补商品时，仍展示推荐本身，避免区块空白
+                  state.products = merged.length
+                    ? merged
+                    : featured.slice(0, HOME_PAGE_SIZE);
+                  done();
+                });
+              })
+              .catch(function () {
                 done();
+                // 推荐接口异常：退化为「尽量凑满 12 款」
+                return topUp([]).then(function (merged) {
+                  state.products = merged;
+                }).catch(function () {});
               });
-            }).catch(function () {
-              done();
-              PyMall.api('/api/products?page_size=8').then(function (d) {
-                var rest = excludeHot(toList(d));
-                state.products = rest.length ? rest : toList(d);
-              }).catch(function () {});
-            });
           }
 
           hotReq.then(loadFeatured);

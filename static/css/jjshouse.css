@@ -613,7 +613,11 @@ img {
 
 /* ================= 区块标题 ================= */
 .section {
-  padding: 46px 0 30px;
+  /* 只设纵向内边距：写成 `padding: Xpx 0 Ypx` 会把左右内边距也置 0，
+     而 .section 在 .container 之后定义、优先级相同 → 覆盖掉 .container 的 20px 左右留白，
+     导致 `class="section container"` 的区块比内部再套一层 .container 的区块宽 40px（错位）。 */
+  padding-top: 54px;
+  padding-bottom: 34px;
 }
 
 .section-header {
@@ -1920,70 +1924,70 @@ img {
   margin-top: 40px;
 }
 
-.newsletter {
-  background: linear-gradient(135deg, var(--jjs-primary), var(--jjs-primary-dark));
-  padding: 40px 0;
-  text-align: center;
-}
-
-.newsletter-inner {
-  max-width: 620px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-
-.newsletter h3 {
-  font-size: 22px;
-  font-weight: 800;
-  margin-bottom: 6px;
-  color: #fff;
-}
-
-.newsletter p {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 18px;
-}
-
-.newsletter-form {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-
-.newsletter-form input {
-  flex: 1;
-  max-width: 380px;
-  height: 44px;
-  padding: 0 18px;
-  border: none;
-  border-radius: 22px;
-  font-size: 14px;
-  outline: none;
-}
-
-.newsletter-form button {
-  height: 44px;
-  padding: 0 26px;
-  background: var(--jjs-dark);
-  color: #fff;
-  border-radius: 22px;
-  font-weight: 700;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.newsletter-form button:hover {
-  background: #000;
-}
-
 .footer-inner {
   max-width: var(--container-w);
   margin: 0 auto;
   padding: 46px 20px 30px;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  /* 关于 / 客服 / 联系 / 支付方式 / 订阅优惠信息 —— 订阅列在支付方式右侧 */
+  grid-template-columns: 1.9fr 0.9fr 1.1fr 1fr 1.6fr;
   gap: 30px;
+}
+
+/* 页脚内的订阅表单（替代原先独立通栏色带） */
+.footer-col.footer-news h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-col.footer-news p {
+  margin-bottom: 12px;
+}
+
+.footer-news-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.footer-news-form input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.footer-news-form input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.footer-news-form input:focus {
+  border-color: var(--jjs-primary);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.footer-news-form button {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 20px;
+  background: var(--jjs-primary);
+  color: #fff;
+  border-radius: 19px;
+  font-weight: 700;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.footer-news-form button:hover {
+  background: var(--jjs-primary-dark);
 }
 
 .footer-col h4 {
@@ -2207,6 +2211,17 @@ img {
   .benefits-inner {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* 5 列页脚在平板上过窄：订阅列换成整行，避免输入框被压到不可用 */
+  .footer-inner {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 26px;
+  }
+  .footer-col.footer-news {
+    grid-column: 1 / -1;
+  }
+  .footer-news-form input {
+    max-width: 340px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2247,8 +2262,8 @@ img {
   .footer-inner {
     grid-template-columns: 1fr 1fr;
   }
-  .hero h1 {
-    font-size: 34px;
+  .footer-news-form input {
+    max-width: none;
   }
 }
 

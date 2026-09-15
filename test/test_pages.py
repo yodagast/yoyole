@@ -38,6 +38,8 @@ PAGE_ASSERTS = {
         "hero-slide-box",        # 首页轮播（优化后大图卡片）
         "hot_sale",              # 热销商品区块
         "featured",              # 推荐商品区块
+        "home-grid",             # 首页专用网格（固定列数，保证每行铺满）
+        "HOME_PAGE_SIZE",        # 每区块取 12 款（12 能被 6/4/3/2 整除）
     ],
     "products.html": [
         "mountPyMall",
@@ -80,10 +82,14 @@ PAGE_ASSERTS = {
     ],
     "about.html": [
         "mountPyMall",
-        "story-section",           # 品牌故事区块
-        "milestones",              # 成长历程
+        "about-page",              # 品牌故事页专属设计令牌作用域
+        "ab-hero",                 # 满幅图 Hero
+        "ab-story-grid",           # 品牌故事（图文双栏 + 引文）
+        "ab-values-grid",          # 价值观（深色三栏编辑风）
+        "ab-timeline",             # 成长历程（中轴交替时间线）
+        "ab-cta-btn",              # 收尾 CTA
+        "/api/site-content?page=about",   # 文案由后台品牌管理维护
         "site-footer",             # 页脚（含统一邮箱订阅入口）
-        "about-hero",              # Hero 区域
     ],
     "stories.html": [
         "mountPyMall",
@@ -168,9 +174,179 @@ def test_nav_has_about_link():
     assert 'href="/stories.html"' in r.text
 
 
+def test_footer_newsletter_sits_after_payment():
+    """「订阅优惠信息」应是页脚最后一列、紧邻「支付方式」右侧，且不再有独立通栏色带
+
+    历史形态是一条通栏渐变带（.newsletter），两侧留白很大；
+    现已并入 .footer-inner 的第 5 列 .footer-news。
+    """
+    r = requests.get(f"{BASE}/static/js/pymall.js")
+    assert r.status_code == 200
+    js = r.text
+
+    # 通栏色带已移除
+    assert 'class="newsletter"' not in js
+    assert "newsletter-inner" not in js
+
+    # 订阅列存在且在支付方式之后
+    assert "footer-col footer-news" in js
+    pay_at = js.index("payment_method")
+    news_at = js.index("footer-col footer-news")
+    assert news_at > pay_at, "订阅列应排在「支付方式」列之后"
+
+    # 表单与提交逻辑仍在
+    assert "footer-news-form" in js
+    assert "/api/subscribe" in js
+
+
+def test_footer_newsletter_email_is_writable():
+    """页脚订阅的 email 必须用可写 computed 暴露给 v-model
+
+    只给 getter 的 computed 是只读的：v-model 写不进去，state.email 永远为空，
+    点「订阅」必然提示「请输入您的邮箱」——表单完全不可用。
+    """
+    r = requests.get(f"{BASE}/static/js/pymall.js")
+    assert r.status_code == 200
+    js = r.text
+    # 不应再出现只读 computed 的写法
+    assert "Vue.computed(() => state.email)" not in js
+    # 应使用带 setter 的可写 computed
+    assert "set: function (v) { state.email = v; }" in js
+
+
+def test_css_has_version_param():
+    """jjshouse.css 必须带 ?v= 版本号，否则改动后浏览器会继续用旧缓存"""
+    r = requests.get(f"{BASE}/index.html")
+    assert r.status_code == 200
+    assert "jjshouse.css?v=" in r.text
+
+
+def test_section_does_not_clobber_container_padding():
+    """`.section` 只能设纵向内边距
+
+    若写成 `padding: Xpx 0 Ypx`，会连带把左右内边距置 0；而 .section 在 .container
+    之后定义、优先级相同 → 覆盖掉 .container 的 20px 左右留白，
+    使 `class="section container"` 的网格比内部套 .container 的网格宽 40px（错位）。
+    """
+    r = requests.get(f"{BASE}/static/css/jjshouse.css")
+    assert r.status_code == 200
+    css = r.text
+    assert "padding-top: 54px" in css and "padding-bottom: 34px" in css
+    assert ".section {\n  padding: 54px 0 34px;" not in css
+    assert "padding: 46px 0 30px" not in css
+
+
+def test_home_grid_has_fixed_columns():
+    """首页网格必须按断点固定列数（12 能被 6/4/3/2 整除），否则最后一行会留空"""
+    r = requests.get(f"{BASE}/index.html")
+    assert r.status_code == 200
+    html = r.text
+    assert ".home-grid" in html
+    for cols in ("repeat(4, 1fr)", "repeat(6, 1fr)", "repeat(3, 1fr)", "repeat(2, 1fr)"):
+        assert cols in html, f"首页网格缺少固定列数：{cols}"
+
+
+def test_index_inline_section_padding_keeps_side_gutter():
+    """index.html 内联样式里的 .section 也不能用 `padding: Xpx 0 Ypx`
+
+    内联 <style> 在外部样式表之后生效，写四值简写同样会把 .container 的
+    左右留白置 0，让两个商品区块左右错位 20px。
+    """
+    r = requests.get(f"{BASE}/index.html")
+    assert r.status_code == 200
+    html = r.text
+    assert ".section { padding-top: 54px; padding-bottom: 34px; }" in html
+    assert ".section { padding: 54px 0 34px; }" not in html
+    assert ".section { padding: 34px 0 22px; }" not in html
+
+
 @pytest.mark.parametrize("page", ["index.html", "products.html", "cart.html", "orders.html", "about.html", "stories.html", "wishlist.html", "story-detail.html", "account.html"])
 def test_common_components_present(page):
     """所有前端页面都应引用 pymall.js（含共享组件）"""
     r = requests.get(f"{BASE}/{page}")
     html = r.text
     assert "pymall.js" in html, f"{page} 缺少 pymall.js 引用"
+
+
+# ---------- 「关于我们」品牌故事页（编辑杂志风）----------
+def test_about_uses_editorial_serif_and_palette():
+    """关于我们页要有衬线标题栈、奶油底与深色块的设计令牌"""
+    r = requests.get(f"{BASE}/about.html")
+    assert r.status_code == 200
+    html = r.text
+    for token in ("--ab-serif", "--ab-cream", "--ab-ink", "--ab-accent"):
+        assert token in html, f"缺少设计令牌 {token}"
+    # 衬线字体栈要覆盖 macOS / Windows 常见中文字体
+    assert "Songti SC" in html and "SimSun" in html
+
+
+def test_about_section_rhythm_alternates():
+    """区块必须是「深-浅-深-浅-深」交替节奏"""
+    r = requests.get(f"{BASE}/about.html")
+    html = r.text
+    assert "ab-section--cream" in html
+    assert "ab-section--ink" in html
+    # Hero 与收尾 CTA 都用深色，与中间区块形成呼应
+    assert html.count("ab-section--ink") >= 2
+
+
+def test_about_timeline_alternates_around_center_line():
+    """成长历程必须是中轴交替时间线（每项一半宽 + 奇偶不同侧）
+
+    否则会退化成一列卡片，失去模板的编辑风排版特征。
+    """
+    r = requests.get(f"{BASE}/about.html")
+    html = r.text
+    assert ".ab-timeline::before" in html, "缺少中轴线"
+    assert ".ab-tl-item {\n      position: relative;\n      width: 50%;" in html, \
+        "时间线项应为半宽（左右交替）"
+    assert ".ab-tl-item:nth-child(even)" in html, "缺少偶数项反向排布"
+    assert ".ab-tl-dot" in html and "border-radius: 50%" in html
+    # 窄屏要退化为左轴单列
+    assert ".ab-tl-item:nth-child(even) {" in html
+
+
+def test_about_has_no_legacy_classnames():
+    """旧版 about 页的类名不应再残留（避免样式与结构各自为政）"""
+    r = requests.get(f"{BASE}/about.html")
+    html = r.text
+    for legacy in ('class="about-hero"', 'class="story-section"', 'class="story-grid"',
+                   'class="milestones"', 'class="values-section"', 'class="brand-cta"'):
+        assert legacy not in html, f"残留旧类名：{legacy}"
+
+
+def test_about_dark_blocks_merge_with_footer():
+    """收尾 CTA 必须与页脚无缝相接
+
+    两个坑：
+    1. 页面深色块若与页脚不同色，接缝处会出现一条色差；
+    2. `.footer` 有 40px 外边距，会让 CTA 与页脚之间露出页面底色（奶油），
+       在页尾形成一条割裂两片深色的空白带。
+
+    参考站的做法是「同色 + 无间隙」，此处用 .about-page 作用域屏蔽页脚外边距来对齐。
+    """
+    r = requests.get(f"{BASE}/about.html")
+    assert r.status_code == 200
+    html = r.text
+    # 深色令牌必须直接引用页脚色，避免硬编码出另一种深色
+    assert "--ab-ink: var(--jjs-dark);" in html, "深色区块应与页脚同色"
+    # 页脚外边距必须在本页屏蔽，且优先级要高过断点里的 .ab-section 简写 padding
+    assert ".about-page .footer { margin-top: 0; }" in html, "页脚 40px 外边距未屏蔽，会出现空隙带"
+    assert ".about-page .ab-cta { padding-bottom: 0; }" in html, \
+        "收尾 CTA 底部留白未收紧（且需 .about-page 前缀压过断点规则）"
+    # CTA 要有独立类名，否则无法单独收紧底部留白
+    assert 'class="ab-section ab-section--ink ab-cta"' in html
+
+
+def test_about_keeps_cms_bindings():
+    """重构后后台「品牌管理」的字段仍要全部驱动前端"""
+    r = requests.get(f"{BASE}/about.html")
+    assert r.status_code == 200
+    html = r.text
+    assert "/api/site-content?page=about" in html
+    for binding in ("hero_tag", "hero_title", "hero_subtitle", "story_title",
+                    "story_content", "milestones", "values", "cta_title", "cta_desc"):
+        assert binding in html, f"缺少后台字段绑定：{binding}"
+    # Hero 与故事图都要有默认占位，接口异常时版式不塌
+    assert "DEFAULT_HERO_IMG" in html
+    assert "picsum.photos/seed/yoyole-nature" in html

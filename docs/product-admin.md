@@ -13,7 +13,7 @@
 | 订单管理 | `orders` | 订单查询、状态流转、批量操作、导出（见 [`order-admin.md`](./order-admin.md)）|
 | 用户管理 | `customers` | 顾客账号 |
 | 订阅管理 | `newsletter` | 邮件订阅者与群发 |
-| **品牌管理** | `brand` | 品牌故事、Hero 区、成长经历与品牌价值观（前台「关于我们」页） |
+| **品牌管理** | `brand` | 品牌故事、Hero 区、成长经历与品牌价值观（前台「关于我们」页，见 [`about-page.md`](./about-page.md)）|
 | **首页和用户管理** | `home` | 用户故事审核、首页 Hero 轮播 |
 | 管理员权限 | `admins` | 仅 superadmin 可见；含修改 / 重置密码 |
 | 接口文档 | `apidocs` | 商品管理接口文档 |
@@ -505,6 +505,7 @@ if (reason === null) return;
 | `test/test_api.py::TestProductPackage` | 商品包导出与导入 |
 | `docs/product-import.md` | 产品册 PPT 批量导入 |
 | `docs/product-package.md` | 文件夹商品包导出 / 导入 |
+| `docs/about-page.md` | 关于我们（品牌故事页）设计规范 |
 
 ---
 
