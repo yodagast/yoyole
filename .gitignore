@@ -12,6 +12,12 @@ __pycache__/
 *.pid
 *.jpg
 *.png
+# 站点图标（favicon）是构建产物但必须入库：线上靠这些文件渲染标签页图标，
+# 不能像商品图那样在运行时上传，因此对下列文件单独开白名单。
+!static/favicon.ico
+!static/img/favicon.svg
+!static/img/favicon-*.png
+!static/img/apple-touch-icon.png
 *.DS_Store
 # 商品包导出产物（运行时生成，不入库；static/uploads 里的商品图仍需跟踪）
 static/exports/

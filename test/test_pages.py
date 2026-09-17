@@ -400,3 +400,99 @@ def test_about_keeps_cms_bindings():
     # Hero 与故事图都要有默认占位，接口异常时版式不塌
     assert "DEFAULT_HERO_IMG" in html
     assert "picsum.photos/seed/yoyole-nature" in html
+
+
+def test_footer_shows_icp_beian_and_operator():
+    """页脚必须展示 ICP 备案号（可跳转工信部）和网站主办单位名称
+
+    备案合规的两个硬性点，缺一即可能被判不合规：
+    1. 备案号必须可点击跳转到工信部备案系统 https://beian.miit.gov.cn/；
+       只写一行纯文本不跳转是常见踩坑点；
+    2. 备案主体名称必须与备案证书完全一致，所以与备案号一起展示，
+       且统一取常量，避免多处硬编码写错主体名。
+    """
+    r = requests.get(f"{BASE}/static/js/pymall.js")
+    assert r.status_code == 200
+    js = r.text
+
+    assert "浙ICP备2026077052号" in js, "页脚缺少 ICP 备案号"
+    assert "杭州余杭波动粒子信息经营部" in js, "页脚缺少网站主办单位名称"
+    # 备案号必须链接到工信部备案系统，且外链需带 noopener
+    assert "https://beian.miit.gov.cn/" in js, "备案号未链接到工信部备案系统"
+    assert 'class="beian-link"' in js
+    assert 'target="_blank"' in js and "noopener" in js
+    # 备案信息与页面标题共用同一常量，避免多处硬编码不一致
+    assert "var ICP_BEIAN_NO = '浙ICP备2026077052号';" in js
+    assert "var COMPANY_NAME = '杭州余杭波动粒子信息经营部';" in js
+
+
+def test_beian_link_is_styled():
+    """备案号链接不能与版权文字同样暗淡/不可辨识
+
+    .copyright 里所有文字都是 rgba(255,255,255,.5) 的浅灰，
+    备案号若继承该颜色并叠加无下划线，会被判定为「备案号不易辨识」。
+    """
+    r = requests.get(f"{BASE}/static/css/jjshouse.css")
+    assert r.status_code == 200
+    css = r.text
+    assert ".copyright .beian-link" in css, "备案号链接缺少独立样式，不易辨识"
+    assert ".copyright .beian-link:hover" in css
+
+
+@pytest.mark.parametrize("page", [
+    "index.html", "products.html", "cart.html", "orders.html", "order-detail.html",
+    "about.html", "stories.html", "story-detail.html", "wishlist.html", "account.html",
+])
+def test_page_title_contains_operator(page):
+    """页面标题要带主办单位名称
+
+    浏览器标签页显示的就是 <title>；关闭标签时，Chrome/Edge 会在
+    「最近关闭的标签页」里回显该标题，主体名称因此始终可见。
+    """
+    r = requests.get(f"{BASE}/{page}")
+    assert r.status_code == 200
+    assert "杭州余杭波动粒子信息经营部" in r.text, f"{page} 的 <title> 缺少主办单位名称"
+
+
+def test_dynamic_page_title_contains_operator():
+    """故事页会按语言动态改写 document.title，改写后同样要带主办单位名称"""
+    for page in ("stories.html", "story-detail.html"):
+        r = requests.get(f"{BASE}/{page}")
+        assert r.status_code == 200
+        assert "PyMall.siteTitle(" in r.text, f"{page} 动态标题未走 siteTitle，切换语言后主体名称会丢失"
+
+
+FAVICON_ASSETS = [
+    "/static/img/favicon.svg",
+    "/static/img/favicon-32x32.png",
+    "/static/img/favicon-16x16.png",
+    "/static/img/apple-touch-icon.png",
+]
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_page_declares_favicon(page):
+    """每个页面都要声明标签页图标，否则浏览器标签栏是空白的默认图标"""
+    r = requests.get(f"{BASE}/{page}")
+    assert r.status_code == 200
+    html = r.text
+    assert 'rel="icon"' in html, f'{page} 缺少 <link rel="icon">'
+    assert "/static/img/favicon.svg" in html, f"{page} 未引用 SVG 标签页图标"
+
+
+@pytest.mark.parametrize("asset", FAVICON_ASSETS)
+def test_favicon_assets_available(asset):
+    r = requests.get(f"{BASE}{asset}")
+    assert r.status_code == 200
+    assert r.content, f"{asset} 是空文件"
+
+
+def test_favicon_ico_at_site_root():
+    """浏览器会无条件请求 /favicon.ico（不读 <link>），必须命中而不是 404
+
+    站点根路径由 `StaticFiles(directory="static", html=True)` 挂载，
+    所以图标文件要放在 static/favicon.ico，不能只放 static/img/ 下。
+    """
+    r = requests.get(f"{BASE}/favicon.ico")
+    assert r.status_code == 200, "/favicon.ico 未命中，需放到 static/ 根目录"
+    assert r.content[:4] == b"\x00\x00\x01\x00", "/favicon.ico 不是合法的 ICO 文件"

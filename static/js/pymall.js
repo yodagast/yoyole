@@ -10,6 +10,19 @@
 
   var Vue = global.Vue;
 
+  // ---------- 备案主体信息（工信部要求公开展示） ----------
+  // 网站主办单位名称 + ICP 备案号统一在此定义，页脚 SiteFooter 与各页面标题共用，
+  // 避免多处硬编码导致备案信息与备案证书不一致（备案信息必须与工信部系统一致）。
+  var COMPANY_NAME = '杭州余杭波动粒子信息经营部';
+  var ICP_BEIAN_NO = '浙ICP备2026077052号';
+  var ICP_BEIAN_URL = 'https://beian.miit.gov.cn/';
+
+  // 页面标题统一追加主办单位名称：浏览器标签页（关闭标签前的标签名）
+  // 与「最近关闭的标签页」列表里都能看到备案主体名称。
+  function siteTitle(text) {
+    return text ? text + ' | ' + COMPANY_NAME : COMPANY_NAME;
+  }
+
   // ---------- 翻译表（与后端 i18n.py 一致） ----------
   var TRANSLATIONS = {
     zh: {
@@ -1003,7 +1016,17 @@
             </div>
           </div>
         </div>
-        <div class="copyright">© 2026 PyMall. All rights reserved.</div>
+        <!--
+          备案信息栏（工信部法定要求）：
+          1. ICP 备案号必须展示，且必须可点击跳转至工信部备案系统 beian.miit.gov.cn；
+          2. 必须同时展示网站主办单位名称（公司主体全称）。
+          该行为法定强制展示内容，不参与中英文切换，两种语言下保持中文原文。
+        -->
+        <div class="copyright">
+          <span class="copyright-org">© 2026 ${COMPANY_NAME} 版权所有</span>
+          <a class="beian-link" href="${ICP_BEIAN_URL}" target="_blank" rel="noopener noreferrer"
+             title="工业和信息化部政务服务平台"><base-icon name="shield" :size="12"></base-icon>${ICP_BEIAN_NO}</a>
+        </div>
       </footer>`,
     setup() {
       const state = Vue.reactive({ email: '' });
@@ -1043,6 +1066,11 @@
     localName: localName,
     api: api,
     money: money,
+    // 备案主体信息（页脚 + 页面标题共用）
+    COMPANY_NAME: COMPANY_NAME,
+    ICP_BEIAN_NO: ICP_BEIAN_NO,
+    ICP_BEIAN_URL: ICP_BEIAN_URL,
+    siteTitle: siteTitle,
     getToken: getToken,
     setToken: setToken,
     clearToken: clearToken,
