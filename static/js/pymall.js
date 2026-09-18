@@ -52,6 +52,13 @@
       order_no: '订单号', order_status: '订单状态', empty_cart: '购物车是空的',
       go_shopping: '去逛逛', language: '语言', email: '邮箱', password: '密码',
       full_name: '姓名', mock_pay: '模拟支付', alipay: '支付宝', wechat: '微信支付', stripe: 'Stripe',
+      paypal: 'PayPal', pay_title: '扫码/点击完成支付', pay_choose: '请选择支付方式',
+      pay_paypal_tip: '将跳转到 PayPal 收银台，支持 PayPal 余额与信用卡',
+      pay_fx_tip: '按 $1 ≈ ¥{0} 折算，实际扣款以 PayPal 为准',
+      pay_sandbox_tip: '当前为 PayPal 沙箱环境，不会真实扣款',
+      pay_success: '支付成功', pay_cancelled: '已取消支付',
+      pay_failed: '支付失败，请重试', pay_loading: '正在拉起 PayPal…',
+      pay_close: '关闭', pay_continue: '继续支付',
       pending: '待支付', paid: '已支付', shipped: '已发货', completed: '已完成',
       cancelled: '已取消', refunded: '已退款', status: '状态', actions: '操作',
       cancel_order: '取消订单', confirm_receipt: '确认收货', no_orders: '暂无订单',
@@ -223,6 +230,13 @@
       order_no: 'Order No.', order_status: 'Status', empty_cart: 'Your cart is empty',
       go_shopping: 'Go Shopping', language: 'Language', email: 'Email', password: 'Password',
       full_name: 'Name', mock_pay: 'Mock Pay', alipay: 'Alipay', wechat: 'WeChat', stripe: 'Stripe',
+      paypal: 'PayPal', pay_title: 'Complete your payment', pay_choose: 'Choose a payment method',
+      pay_paypal_tip: 'You will be redirected to PayPal Checkout (PayPal balance or card)',
+      pay_fx_tip: 'Converted at $1 ≈ ¥{0}; the amount charged is decided by PayPal',
+      pay_sandbox_tip: 'PayPal sandbox mode — no real charge will be made',
+      pay_success: 'Payment successful', pay_cancelled: 'Payment cancelled',
+      pay_failed: 'Payment failed, please try again', pay_loading: 'Loading PayPal…',
+      pay_close: 'Close', pay_continue: 'Continue payment',
       pending: 'Pending', paid: 'Paid', shipped: 'Shipped', completed: 'Completed',
       cancelled: 'Cancelled', refunded: 'Refunded', status: 'Status', actions: 'Actions',
       cancel_order: 'Cancel', confirm_receipt: 'Confirm Receipt', no_orders: 'No orders yet',
@@ -486,6 +500,14 @@
     authModal: false,
     authMode: 'login', // 'login' | 'register' | 'reset'
     cartItems: [],
+    // 支付弹窗（PayPal 等需要前端 SDK 渲染按钮的通道）
+    pay: {
+      open: false,
+      orderNo: '',
+      info: null,      // /pay 返回的渲染参数（client_id / currency / paypal_order_id ...）
+      error: '',
+      handlers: null,  // { onPaid, onCancel }
+    },
   });
 
   // ---------- I18n Composable ----------
@@ -976,6 +998,151 @@
     },
   };
 
+  // ---------- 支付统一入口 ----------
+  // 4 个页面（cart / orders / order-detail / account）的「支付」按钮都走这里，
+  // 避免每页各写一套 fetch(pay_url) 逻辑（历史上就是 4 份重复代码，改一处漏三处）。
+  //
+  //  - mock：沿用「服务端下发同源 pay_url，前端 GET 一下就视为支付成功」的模拟收银台；
+  //  - paypal：服务端已建单（拿回 paypal_order_id），前端弹窗用 PayPal JS SDK 渲染按钮，
+  //    买家批准后由**服务端**调 capture 扣款并落账（金额校验只能在服务端做）。
+  function startPay(orderNo, handlers) {
+    handlers = handlers || {};
+    return api('/api/orders/' + orderNo + '/pay', { method: 'POST', token: getToken() })
+      .then(function (res) {
+        if (res && res.method === 'paypal') {
+          store.pay.orderNo = orderNo;
+          store.pay.info = res;
+          store.pay.error = '';
+          store.pay.handlers = handlers;
+          store.pay.open = true;
+          return null; // 后续交给弹窗（PayDialog）
+        }
+        if (res && res.pay_url) {
+          return fetch(res.pay_url).then(function (r) { return r.json(); });
+        }
+        throw new Error(t('pay_failed'));
+      })
+      .then(function (done) {
+        if (done !== null && done !== undefined) {
+          toast(t('pay_success'), 'success');
+          if (handlers.onPaid) handlers.onPaid(done);
+        }
+        return done;
+      })
+      .catch(function (e) {
+        toast(e.message || t('pay_failed'), 'error');
+        return null; // 不往外抛：调用方只管在后面的 then 里收尾
+      });
+  }
+
+  // PayPal JS SDK 只加载一次（SDK 会按 client-id/currency 缓存，重复插入没意义）
+  var paypalSdkLoading = null;
+  function loadPayPalSdk(info) {
+    if (window.paypal) return Promise.resolve(window.paypal);
+    if (paypalSdkLoading) return paypalSdkLoading;
+    paypalSdkLoading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = info.sdk_host + '/sdk/js?client-id=' + encodeURIComponent(info.client_id)
+        + '&currency=' + encodeURIComponent(info.currency) + '&intent=capture&components=buttons';
+      s.async = true;
+      s.onload = function () {
+        window.paypal ? resolve(window.paypal) : reject(new Error(t('pay_failed')));
+      };
+      s.onerror = function () {
+        paypalSdkLoading = null; // 允许用户重试
+        reject(new Error(t('pay_failed')));
+      };
+      document.head.appendChild(s);
+    });
+    return paypalSdkLoading;
+  }
+
+  // 支付弹窗：目前只承载 PayPal 按钮（mock 通道不需要弹窗）
+  var PayDialog = {
+    template: `
+      <div class="modal-mask" v-if="pay.open" @click.self="close">
+        <div class="modal pay-modal">
+          <button class="modal-close" @click="close">×</button>
+          <h3>{{ t('pay_title') }}</h3>
+          <div class="pay-line">
+            <span>{{ t('order_no') }}</span><b>{{ pay.orderNo }}</b>
+          </div>
+          <div class="pay-line">
+            <span>{{ t('payment_amount') }}</span><b>{{ money(pay.info && pay.info.order_total) }}</b>
+          </div>
+          <div class="pay-usd" v-if="pay.info && pay.info.amount">
+            <b>{{ pay.info.currency }} {{ pay.info.amount }}</b>
+            <div class="pay-fx-tip" v-if="pay.info.fx_rate">{{ tt('pay_fx_tip', pay.info.fx_rate) }}</div>
+          </div>
+          <div class="pay-sandbox" v-if="pay.info && pay.info.mode === 'sandbox'">{{ t('pay_sandbox_tip') }}</div>
+          <div class="pay-paypal-box" ref="box"></div>
+          <div class="pay-hint" v-if="!pay.error">{{ t('pay_paypal_tip') }}</div>
+          <div class="pay-error" v-if="pay.error">{{ pay.error }}</div>
+        </div>
+      </div>`,
+    setup() {
+      var box = Vue.ref(null);
+      var pay = store.pay;
+
+      function close() {
+        pay.open = false;
+        pay.info = null;
+        pay.error = '';
+      }
+
+      function finish() {
+        var handlers = pay.handlers;
+        toast(t('pay_success'), 'success');
+        close();
+        if (handlers && handlers.onPaid) handlers.onPaid();
+      }
+
+      // 扣款：无论「买家刚批准」还是「Webhook 已先落账、订单其实已付」，都走这个幂等接口
+      function callCapture() {
+        return api('/api/payments/paypal/capture', {
+          method: 'POST', token: getToken(), body: { order_no: pay.orderNo },
+        }).then(function () {
+          finish();
+        }).catch(function (e) {
+          pay.error = e.message || t('pay_failed');
+        });
+      }
+
+      function render() {
+        var info = pay.info;
+        if (!info) return;
+        if (info.already_paid) { callCapture(); return; }
+        loadPayPalSdk(info).then(function (paypal) {
+          if (box.value) box.value.innerHTML = '';
+          return paypal.Buttons({
+            style: { layout: 'vertical', shape: 'rect', label: 'paypal', height: 40 },
+            // 再调一次 /pay 拿订单号：服务端对同一订单复用一个 PayPal 单，
+            // 所以买家中断后回来点「继续支付」不会在 PayPal 侧堆废单
+            createOrder: function () {
+              return api('/api/orders/' + pay.orderNo + '/pay', { method: 'POST', token: getToken() })
+                .then(function (r) { return r.paypal_order_id; });
+            },
+            onApprove: function () { return callCapture(); },
+            onCancel: function () { toast(t('pay_cancelled')); },
+            onError: function (err) {
+              pay.error = (err && (err.message || err.detail)) || t('pay_failed');
+            },
+          }).render(box.value);
+        }).catch(function (e) {
+          pay.error = e.message || t('pay_failed');
+        });
+      }
+
+      Vue.watch(function () { return pay.open; }, function (open) {
+        if (open) Vue.nextTick(render);
+      });
+
+      // ⚠️ box 必须 return：模板 ref="box" 靠这个名字回填，
+      // 不返回的话 Vue 拿不到 DOM，render(null) 会报 "Expected element to be passed..."
+      return { pay: pay, box: box, t: t, tt: tt, money: money, close: close };
+    },
+  };
+
   // Toast
   function toast(msg, type) {
     var el = document.createElement('div');
@@ -1013,8 +1180,7 @@
           <div class="footer-col">
             <h4>{{ t('contact_us') }}</h4>
             <ul>
-              <li><base-icon name="mail" :size="13"></base-icon> support@pymall.com</li>
-              <li><base-icon name="phone" :size="13"></base-icon> 400-888-8888</li>
+              <li><base-icon name="mail" :size="13"></base-icon> support@yoyole.vip</li>
             </ul>
           </div>
           <div class="footer-col">
@@ -1107,12 +1273,14 @@
     buyNow: buyNow,
     toast: toast,
     openAuth: openAuth,
+    startPay: startPay,
     icons: ICONS,
     components: {
       BaseIcon: BaseIcon,
       TopBar: TopBar,
       MainNav: MainNav,
       AuthModal: AuthModal,
+      PayDialog: PayDialog,
       SiteFooter: SiteFooter,
     },
   };
@@ -1124,6 +1292,7 @@
     app.component('top-bar', TopBar);
     app.component('main-nav', MainNav);
     app.component('auth-modal', AuthModal);
+    app.component('pay-dialog', PayDialog);
     app.component('site-footer', SiteFooter);
     // 全局注入
     app.config.globalProperties.$t = t;

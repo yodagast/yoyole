@@ -400,6 +400,7 @@ class PaymentMethod(str, enum.Enum):
     ALIPAY = "alipay"
     WECHAT = "wechat"
     STRIPE = "stripe"
+    PAYPAL = "paypal"
     MOCK = "mock"
 
 
@@ -704,6 +705,14 @@ class Payment(Base):
         Enum(PaymentStatus, name="payment_status"), default=PaymentStatus.UNPAID, index=True
     )
     gateway_response: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 第三方网关侧的订单号（PayPal order id，形如 5O190127TN364715T）。
+    # 注意与 transaction_no 的分工：transaction_no 是我们自己的流水号（PAY...），
+    # provider_order_id 是网关的，capture / 退款都要用它。
+    provider_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # 第三方网关侧的扣款号（PayPal capture id，退款走它）
+    provider_capture_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # 下单时的汇率快照（站点按 CNY 定价，PayPal 按 USD 收单）
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

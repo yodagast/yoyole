@@ -1,6 +1,7 @@
 """订单与支付路由：下单、支付、订单查询、取消/确认"""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -27,7 +28,7 @@ from app.models import (
     StockMovement,
     utc_to_local_naive,
 )
-from app.payments import PaymentRequest, get_gateway
+from app.payments import PaymentRequest, cny_to_usd, get_gateway
 from app.schemas import (
     CheckoutIn,
     Message,
@@ -38,6 +39,8 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["orders"])
+
+logger = logging.getLogger(__name__)
 
 # Python 写入的 UTC 时间 → 本地时间（与 DB 生成的 created_at 同口径）
 utc_to_local = utc_to_local_naive
@@ -187,8 +190,10 @@ async def checkout(
         gateway = get_gateway(method)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"支付方式 {method} 尚未配置")
-    # 占位通道（alipay/wechat/stripe 未接入真实 API）禁止提交订单
-    if gateway.name in ("alipay", "wechat", "stripe") and not settings.PAYMENT_GATEWAY_ENABLED.get(gateway.name):
+    # 占位通道（未接入真实 API 的 alipay/wechat/stripe 等）禁止提交订单。
+    # 判断依据统一取 PAYMENT_GATEWAY_ENABLED，不要再硬编码通道名——否则新增
+    # 通道（如 paypal）会绕开开关，用户下单后才发现付不了款。
+    if not settings.PAYMENT_GATEWAY_ENABLED.get(gateway.name):
         raise HTTPException(
             status_code=400,
             detail=f"支付方式 {gateway.name} 尚未开通，请选择「模拟支付」",
@@ -215,6 +220,87 @@ async def checkout(
         status=order.status.value,
         payment={"transaction_no": payment.transaction_no, "method": payment.method.value},
     )
+
+
+def _paypal_pay_payload(order: Order, payment: Payment, gateway) -> dict:
+    """下发给前端的 PayPal 渲染参数
+
+    只含公开信息（client_id 本来就要给浏览器）；**client_secret / webhook_id 永不出后端**。
+    """
+    return {
+        "success": True,
+        "method": "paypal",
+        "order_no": order.order_no,
+        "transaction_no": payment.transaction_no,
+        "paypal_order_id": payment.provider_order_id,
+        "client_id": gateway.client_id,
+        "sdk_host": gateway.sdk_host,
+        "mode": gateway.mode,
+        "currency": payment.currency,
+        "amount": str(payment.amount),
+        "order_total": str(order.total_amount),
+        "order_currency": order.currency,
+        "fx_rate": str(payment.fx_rate or ""),
+        "pay_url": f"{gateway.sdk_host}/checkoutnow?token={payment.provider_order_id}",
+    }
+
+
+async def _start_paypal_payment(db: AsyncSession, order: Order, payment: Payment) -> dict:
+    """发起（或复用）PayPal 支付，返回 JS SDK 需要的参数
+
+    幂等设计：同一订单重复点「支付」时**复用**已建的 PayPal 订单。这样
+    「付款中断后再回来继续支付」拿到的是同一个 PayPal 订单号，不会在 PayPal
+    侧堆一堆废单，也不会让用户重复付款。
+    """
+    gateway = get_gateway("paypal")
+    if not gateway.configured:
+        raise HTTPException(
+            status_code=400,
+            detail="PayPal 通道未配置：请在 .env 填写 PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET",
+        )
+
+    if payment.provider_order_id:
+        info = await gateway.query_payment(payment.provider_order_id)
+        state = str(info.get("status", "")).lower()
+        if state in ("created", "approved", "saved"):
+            return _paypal_pay_payload(order, payment, gateway)
+        if state == "completed":
+            # 买家其实已经付了，只是本地还没落账（回调未到 / 前端丢了响应）。
+            # 返回 already_paid，让前端直接调 capture 接口——那边是幂等的，
+            # 会把已有 capture 读回来并补上落账。
+            return {**_paypal_pay_payload(order, payment, gateway), "already_paid": True}
+        logger.info("[paypal] 订单 %s 的原 PayPal 单状态=%s，重建支付单", order.order_no, state)
+
+    rate = settings.PAYPAL_FX_CNY_PER_USD
+    usd = cny_to_usd(order.total_amount, rate)
+    # 支付记录跟随「实际扣款币种/金额」，并把汇率快照下来，回调时据此校验金额
+    payment.currency = settings.PAYPAL_CURRENCY
+    payment.amount = usd
+    payment.fx_rate = Decimal(str(rate))
+
+    result = await gateway.create_payment(
+        PaymentRequest(
+            order_no=order.order_no,
+            amount=usd,
+            currency=settings.PAYPAL_CURRENCY,
+            subject=f"订单 {order.order_no}",
+            method="paypal",
+            notify_url=f"{settings.BASE_URL.rstrip('/')}/api/payments/paypal/webhook",
+        )
+    )
+    if not result.success:
+        payment.status = PaymentStatus.FAILED
+        payment.gateway_response = {"error": result.error}
+        await db.commit()
+        raise HTTPException(status_code=400, detail=result.error)
+
+    # 注意：不改写 transaction_no（那是我们的内部流水号，回调/查询都按它找记录），
+    # PayPal 的订单号单独存 provider_order_id。
+    payment.provider_order_id = result.transaction_no
+    payment.status = PaymentStatus.PROCESSING
+    payment.gateway_response = result.provider_response
+    await db.commit()
+    return _paypal_pay_payload(order, payment, gateway)
 
 
 @router.post("/orders/{order_no}/pay", response_model=dict)
@@ -246,13 +332,21 @@ async def pay_order(
         raise HTTPException(status_code=400, detail="无可支付记录")
 
     gateway = get_gateway(pending_payment.method.value)
+
+    # PayPal 是「前端 SDK 渲染按钮 + 服务端 capture」的交互模型，没有可 GET 的 pay_url，
+    # 因此单独走一条分支：这里只建单，真正扣款在 /api/payments/paypal/capture。
+    if pending_payment.method == PaymentMethod.PAYPAL:
+        return await _start_paypal_payment(db, order, pending_payment)
+
     pay_req = PaymentRequest(
         order_no=order.order_no,
         amount=order.total_amount,
         currency=order.currency,
         subject=f"订单 {order.order_no}",
         method=pending_payment.method.value,
-        notify_url=f"{request.url.scheme}://{request.url.netloc}/api/payments/callback",
+        # ⚠️ 不能用 request.url.netloc：反代（nginx → 127.0.0.1:8020）下会拼出内网 http 地址，
+        # 而支付网关只往公网 HTTPS 地址回通知，线上会直接丢回调。
+        notify_url=f"{settings.BASE_URL.rstrip('/')}/api/payments/callback",
     )
     result_pay = await gateway.create_payment(pay_req)
     if not result_pay.success:

@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/css/jjshouse.css?v=5">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -121,8 +121,8 @@
 
           <div class="detail-label">{{ t('payment_method') }}</div>
           <div class="pay-methods">
-            <div class="pay-method" :class="{active: form.payment_method === m.value}"
-                 v-for="m in payMethods" :key="m.value" @click="form.payment_method = m.value">
+            <div class="pay-method" :class="{active: form.payment_method === m.value, disabled: !m.enabled}"
+                 v-for="m in payMethods" :key="m.value" @click="pickMethod(m)">
               <span class="pm-icon"><base-icon :name="m.icon" :size="20"></base-icon></span>
               <div>
                 <div class="pm-name">{{ m.label }}</div>
@@ -153,10 +153,11 @@
 
     <site-footer></site-footer>
     <auth-modal></auth-modal>
+    <pay-dialog></pay-dialog>
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=40"></script>
+  <script src="/static/js/pymall.js?v=43"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -173,6 +174,7 @@
             notLoggedIn: false,
             addresses: [],
             activeAddrId: null,
+            payEnabled: {},
             form: {
               receiver_name: '',
               receiver_phone: '',
@@ -225,14 +227,42 @@
             }).catch(function (e) { PyMall.toast(e.message, 'error'); });
           }
 
+          // 支付通道开关一律由后端下发（.env 的 PAYMENT_GATEWAY_ENABLED + 凭据是否配好），
+          // 前端不硬编码——否则后台新开/关掉通道时页面还是旧的，用户会选到付不了的通道。
+          // 顺序即默认优先级：PayPal 是真实通道，排在模拟支付前面。
+          var payMethodDefs = [
+            { value: 'paypal', icon: 'wallet', label: t('paypal') },
+            { value: 'mock', icon: 'card', label: t('mock_pay') },
+            { value: 'alipay', icon: 'wallet', label: t('alipay') },
+            { value: 'wechat', icon: 'review', label: t('wechat') },
+            { value: 'stripe', icon: 'card', label: 'Stripe' },
+          ];
+
           var payMethods = Vue.computed(function () {
-            return [
-              { value: 'mock', icon: 'card', label: t('mock_pay'), enabled: true },
-              { value: 'alipay', icon: 'wallet', label: t('alipay'), enabled: false },
-              { value: 'wechat', icon: 'review', label: t('wechat'), enabled: false },
-              { value: 'stripe', icon: 'card', label: 'Stripe', enabled: false },
-            ];
+            var enabled = state.payEnabled || {};
+            return payMethodDefs.map(function (m) {
+              return { value: m.value, icon: m.icon, label: m.label, enabled: !!enabled[m.value] };
+            });
           });
+
+          function loadPayMethods() {
+            PyMall.api('/api/payments/methods', { noLang: true }).then(function (data) {
+              state.payEnabled = (data && data.enabled) || {};
+              var list = payMethods.value.filter(function (m) { return m.enabled; });
+              // 默认选中优先级最高的已开通通道；一个都没开就啥也不选，提交时后端会拦
+              if (list.length && !state.payEnabled[state.form.payment_method]) {
+                state.form.payment_method = list[0].value;
+              }
+            }).catch(function () { state.payEnabled = {}; });
+          }
+
+          function pickMethod(m) {
+            if (!m.enabled) {
+              PyMall.toast(t('pay_choose'), 'error');
+              return;
+            }
+            state.form.payment_method = m.value;
+          }
 
           var cart = Vue.computed(function () {
             return { items: state.items, total_amount: state.total_amount };
@@ -305,19 +335,12 @@
                 payment_method: f.payment_method,
               },
             }).then(function (order) {
-              return PyMall.api('/api/orders/' + order.order_no + '/pay', {
-                method: 'POST', token: PyMall.getToken(),
-              }).then(function (pay) {
-                if (pay.pay_url) {
-                  return fetch(pay.pay_url).then(function () { return order; });
-                }
-                return order;
-              });
-            }).then(function (order) {
               state.submitting = false;
               PyMall.refreshCart();
-              PyMall.toast(t('operation_success'), 'success');
-              location.href = '/orders.html';
+              // 支付分通道：mock 直接确认，PayPal 在弹窗里完成（onPaid 后跳订单页）
+              PyMall.startPay(order.order_no, {
+                onPaid: function () { location.href = '/orders.html'; },
+              });
             }).catch(function (e) {
               state.submitting = false;
               PyMall.toast(e.message, 'error');
@@ -331,6 +354,7 @@
           Vue.onMounted(function () {
             load();
             loadAddresses();
+            loadPayMethods();
           });
 
           return {
@@ -339,6 +363,7 @@
             notLoggedIn: Vue.computed(function () { return state.notLoggedIn; }),
             submitting: submitting, form: form,
             payMethods: payMethods,
+            pickMethod: pickMethod,
             addresses: Vue.computed(function () { return state.addresses; }),
             activeAddrId: Vue.computed(function () { return state.activeAddrId; }),
             applyAddress: applyAddress, addAddress: addAddress,

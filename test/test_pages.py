@@ -60,12 +60,15 @@ PAGE_ASSERTS = {
         "empty_cart",            # 空购物车
         "checkout",              # 结算
         "'/api/orders/checkout'",  # 结算接口
+        "'/api/payments/methods'",  # 支付通道开关由后端下发
+        "pay-dialog",            # PayPal 支付弹窗
     ],
     "orders.html": [
         "mountPyMall",
         "no_orders",             # 空订单
         "order-card",            # 订单卡片
-        "'/api/orders/' + o.order_no + '/pay'",  # 支付操作
+        "PyMall.startPay(",     # 支付操作（mock/PayPal 统一入口）
+        "pay-dialog",            # PayPal 支付弹窗
         "'/api/orders/' + o.order_no + '/cancel'",  # 取消操作
     ],
     "admin.html": [
@@ -407,6 +410,49 @@ def test_about_keeps_cms_bindings():
     # Hero 与故事图都要有默认占位，接口异常时版式不塌
     assert "DEFAULT_HERO_IMG" in html
     assert "picsum.photos/seed/yoyole-nature" in html
+
+
+def test_footer_contact_uses_support_mailbox():
+    """页脚「联系我们」只留官方支持邮箱 support@yoyole.vip，且不再展示电话
+
+    400 电话已下线，若页脚残留会引导用户拨打无法接通的号码。
+    """
+    r = requests.get(f"{BASE}/static/js/pymall.js")
+    assert r.status_code == 200
+    js = r.text
+    assert "support@yoyole.vip" in js, "页脚缺少官方支持邮箱"
+    assert "support@pymall.com" not in js, "页脚仍残留旧邮箱 support@pymall.com"
+    assert "400-888-8888" not in js, "页脚仍残留已下线的客服电话"
+    # 邮箱行仍要带邮件图标，与其它页脚条目视觉一致
+    assert 'name="mail" :size="13"></base-icon> support@yoyole.vip' in js
+
+
+@pytest.mark.parametrize("page", [
+    "cart.html", "orders.html", "order-detail.html", "account.html",
+])
+def test_pay_pages_use_unified_pay_entry(page):
+    """四个带付款按钮的页面统一走 PyMall.startPay，并挂上 PayPal 支付弹窗
+
+    历史上每个页面各写一套「POST /pay → fetch(pay_url)」，那种写法只支持
+    mock 通道：PayPal 需要在弹窗里渲染 SDK 按钮，不能靠 GET 一个 pay_url。
+    """
+    r = requests.get(f"{BASE}/{page}")
+    assert r.status_code == 200
+    html = r.text
+    assert "PyMall.startPay(" in html, f"{page} 未使用统一支付入口"
+    assert "pay-dialog" in html, f"{page} 缺少 <pay-dialog>（PayPal 弹窗无处挂载）"
+    assert "fetch(pay.pay_url" not in html, f"{page} 仍残留只支持 mock 的旧支付代码"
+
+
+def test_pay_dialog_is_shared_component():
+    """支付弹窗是共享组件：只在 pymall.js 里实现一次，各页面只负责挂载"""
+    js = requests.get(f"{BASE}/static/js/pymall.js").text
+    assert "var PayDialog = {" in js
+    assert "app.component('pay-dialog', PayDialog)" in js, "共享组件未全局注册"
+    assert "startPay: startPay" in js, "统一支付入口未导出到 window.PyMall"
+    # client_secret / webhook_id 绝不能出现在前端资源里
+    assert "client_secret" not in js
+    assert "WEBHOOK_ID" not in js
 
 
 def test_footer_shows_icp_beian_and_operator():

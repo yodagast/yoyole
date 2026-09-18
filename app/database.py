@@ -76,6 +76,23 @@ _MIGRATIONS: list[tuple[str, str, str]] = [
     ("orders", "cancel_reason", "VARCHAR(200) NULL"),
     ("orders", "completed_at", "TIMESTAMP NULL"),
     ("orders", "cancelled_at", "TIMESTAMP NULL"),
+    # PayPal 收单：网关侧订单号/扣款号 + 汇率快照
+    ("payments", "provider_order_id", "VARCHAR(64) NULL"),
+    ("payments", "provider_capture_id", "VARCHAR(64) NULL"),
+    ("payments", "fx_rate", "NUMERIC(10, 4) NULL"),
+    # 已有表补列后建索引（幂等建索引语句见下方 _INDEXES）
+]
+
+# 需要补充的 PostgreSQL ENUM 取值：(类型名, 取值)
+# 说明：SQLAlchemy 的 Enum 存的是「枚举成员名」，Python 侧加了成员（如 Paypal）
+# 并不会自动改数据库类型，必须 ALTER TYPE；否则写入直接报 invalid input value。
+_ENUM_VALUES: list[tuple[str, str]] = [
+    ("payment_method", "PAYPAL"),
+]
+
+# 幂等建索引（轻量迁移里无法用 ADD COLUMN 带索引）
+_INDEXES: list[str] = [
+    'CREATE INDEX IF NOT EXISTS ix_payments_provider_order_id ON payments (provider_order_id)',
 ]
 
 # 补充列后需要回填默认值的语句（幂等）
@@ -110,6 +127,30 @@ async def run_light_migrations() -> None:
                     text(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{column}" {column_def}')
                 )
                 logger.info("[migrate] 已为 %s.%s 补充列 %s", table, column, column_def)
+
+        # 补充 ENUM 取值（PG 12+ 允许在事务里 ADD VALUE，但同一事务内不能使用该值）
+        for enum_name, value in _ENUM_VALUES:
+            exists = (
+                await conn.execute(
+                    text(
+                        "SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+                        "WHERE t.typname = :n AND e.enumlabel = :v"
+                    ),
+                    {"n": enum_name, "v": value},
+                )
+            ).scalar()
+            if not exists:
+                await conn.execute(
+                    text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{value}'")
+                )
+                logger.info("[migrate] 已为 ENUM %s 补充取值 %s", enum_name, value)
+
+        # 幂等建索引
+        for sql in _INDEXES:
+            try:
+                await conn.execute(text(sql))
+            except Exception:  # noqa: BLE001  表尚未创建时跳过
+                logger.debug("[migrate] 建索引跳过：%s", sql)
 
         # 回填默认值（表不存在时忽略）
         for sql in _BACKFILLS:

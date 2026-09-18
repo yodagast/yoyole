@@ -1,12 +1,61 @@
 """支付网关抽象层：定义统一接口，提供模拟支付实现，便于扩展真实通道"""
 from __future__ import annotations
 
+import json
+import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Any
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Mapping
+
+import httpx
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class PayPalError(RuntimeError):
+    """PayPal 调用/配置异常（消息可直接回给前端展示）"""
+
+
+def amount_str(value: Decimal | str | float) -> str:
+    """PayPal 要求金额是「最多两位小数的字符串」，禁止科学计数法/浮点尾差"""
+    return str(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def cny_to_usd(amount_cny: Decimal | str | float, rate: float | str | None = None) -> Decimal:
+    """站点 CNY 金额 → PayPal 收单金额（USD）
+
+    PayPal 的 CNY 只用于境内账户余额，跨境收单必须换外币，所以这里按固定汇率折算。
+    **调用方必须把用到的汇率一起快照进支付记录**，否则汇率变动后回调金额会对不上。
+    金额至少 0.01（PayPal 不接受 0 元订单）。
+    """
+    raw_rate = rate if rate is not None else settings.PAYPAL_FX_CNY_PER_USD
+    try:
+        dec_rate = Decimal(str(raw_rate))
+    except Exception:  # noqa: BLE001  配置写错时退回默认汇率，避免整站支付挂掉
+        dec_rate = Decimal("7.2")
+    if dec_rate <= 0:
+        dec_rate = Decimal("7.2")
+    usd = (Decimal(str(amount_cny)) / dec_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return max(usd, Decimal("0.01"))
+
+
+def paypal_error_text(status_code: int, data: dict[str, Any]) -> str:
+    """从 PayPal 错误体里抽一句人话（PayPal 的错误结构层级较深）"""
+    detail = data.get("error_description") or data.get("message") or ""
+    issues = []
+    for d in (data.get("details") or []):
+        issue = d.get("issue") or ""
+        desc = d.get("description") or ""
+        if issue or desc:
+            issues.append(f"{issue} {desc}".strip())
+    if issues:
+        detail = "; ".join(issues)
+    return f"PayPal 返回 {status_code}：{detail or '未知错误'}"
 
 
 @dataclass
@@ -133,12 +182,327 @@ class StripeGateway(BasePaymentGateway):
         return {"success": False, "error": "Stripe 通道尚未配置"}
 
 
+class PayPalGateway(BasePaymentGateway):
+    """PayPal 跨境收单网关（Orders v2）
+
+    完整链路（前端 JS SDK Buttons + 服务端 capture + webhook 兜底）：
+
+        前端点「立即支付」→ POST /api/orders/{no}/pay → create_payment() 建 PayPal 订单
+        → 弹窗里买家批准（onApprove）→ POST /api/payments/paypal/capture → capture_order() 扣款
+        → 落账（_mark_payment_success）；掉单则由 webhook 补上
+
+    约定：
+    - 币种用 settings.PAYPAL_CURRENCY（USD）；站点按 CNY 定价，换算由调用方完成并快照汇率；
+    - 金额一律字符串传输（amount_str）；
+    - 写操作都带 PayPal-Request-Id 幂等头：网络重试/用户重复点击不会重复建单、重复扣款；
+    - access_token 只留在进程内存（约 9 小时有效，提前 60s 续期），不落库、不打日志。
+    """
+
+    name = "paypal"
+
+    def __init__(self) -> None:
+        self.client_id = settings.PAYPAL_CLIENT_ID
+        self.client_secret = settings.PAYPAL_CLIENT_SECRET
+        self.mode = "live" if settings.paypal_live else "sandbox"
+        self.api_base = settings.paypal_api_base
+        self.sdk_host = settings.paypal_sdk_host
+        self._token = ""
+        self._token_expires_at = 0.0
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.client_id and self.client_secret)
+
+    # ---------- 底层请求 ----------
+
+    async def access_token(self) -> str:
+        """OAuth2 client_credentials 取 token（带内存缓存）"""
+        if not self.configured:
+            raise PayPalError(
+                "PayPal 未配置：请在 .env 填写 PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET"
+            )
+        if self._token and time.time() < self._token_expires_at - 60:
+            return self._token
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{self.api_base}/v1/oauth2/token",
+                    auth=(self.client_id, self.client_secret),
+                    data={"grant_type": "client_credentials"},
+                    headers={"Accept": "application/json"},
+                )
+        except httpx.HTTPError as exc:
+            raise PayPalError(f"PayPal 鉴权请求失败：{exc}") from exc
+        if resp.status_code != 200:
+            raise PayPalError(f"PayPal 鉴权失败（{resp.status_code}），请检查 .env 里的 client_id/secret")
+        body = resp.json()
+        self._token = body.get("access_token", "")
+        self._token_expires_at = time.time() + float(body.get("expires_in") or 0)
+        return self._token
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: dict | None = None,
+        content: bytes | None = None,
+        request_id: str = "",
+    ) -> tuple[int, dict[str, Any]]:
+        """统一请求入口：返回 (状态码, 解析后的 body)"""
+        token = await self.access_token()
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        if content is not None:
+            headers["Content-Type"] = "application/json"
+        elif method.upper() in ("POST", "PATCH", "PUT"):
+            # ⚠️ PayPal 对无 body 的 POST 也要求声明 JSON（capture 缺了它直接 415）
+            headers["Content-Type"] = "application/json"
+        if request_id:
+            # 幂等键：同样的键重复调用只会生效一次
+            headers["PayPal-Request-Id"] = request_id
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.request(
+                    method,
+                    f"{self.api_base}{path}",
+                    json=json_body if content is None else None,
+                    content=content,
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise PayPalError(f"PayPal 请求失败：{exc}") from exc
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001  少数错误响应没有 JSON body
+            data = {}
+        return resp.status_code, data if isinstance(data, dict) else {"raw": data}
+
+    # ---------- 接口实现 ----------
+
+    async def create_payment(self, req: PaymentRequest) -> PaymentResult:
+        """建 PayPal 订单；成功时 transaction_no = PayPal order id"""
+        if not self.configured:
+            return PaymentResult(
+                success=False,
+                transaction_no="",
+                error="PayPal 未配置：请在 .env 填写 PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET",
+            )
+        currency = req.currency or settings.PAYPAL_CURRENCY
+        body = {
+            "intent": "CAPTURE",
+            "purchase_units": [
+                {
+                    "reference_id": req.order_no,
+                    "custom_id": req.order_no,          # 对账/排障时用来回查我们的订单号
+                    "description": (req.subject or f"Order {req.order_no}")[:127],
+                    "amount": {"currency_code": currency, "value": amount_str(req.amount)},
+                }
+            ],
+        }
+        try:
+            status, data = await self._request(
+                "POST", "/v2/checkout/orders", json_body=body, request_id=f"create-{req.order_no}"
+            )
+        except PayPalError as exc:
+            return PaymentResult(success=False, transaction_no="", error=str(exc))
+        if status >= 400:
+            return PaymentResult(success=False, transaction_no="", error=paypal_error_text(status, data))
+        order_id = data.get("id", "")
+        return PaymentResult(
+            success=True,
+            transaction_no=order_id,
+            # 兜底跳转地址（前端 SDK 不可用时可用，例如企业内网屏蔽了 paypal.com 的脚本）
+            pay_url=f"{self.sdk_host}/checkoutnow?token={order_id}",
+            provider_response={
+                "id": order_id,
+                "status": data.get("status"),
+                "mode": self.mode,
+                "currency": currency,
+                "amount": amount_str(req.amount),
+            },
+        )
+
+    async def query_payment(self, transaction_no: str) -> dict[str, Any]:
+        """查 PayPal 订单状态（transaction_no = PayPal order id）"""
+        if not self.configured or not transaction_no:
+            return {"status": "unknown", "transaction_no": transaction_no}
+        status, data = await self._request("GET", f"/v2/checkout/orders/{transaction_no}")
+        if status >= 400:
+            return {"status": "unknown", "transaction_no": transaction_no, "error": paypal_error_text(status, data)}
+        return {
+            "status": str(data.get("status", "")).lower() or "unknown",
+            "transaction_no": transaction_no,
+            "raw": data,
+        }
+
+    async def capture_order(self, paypal_order_id: str, order_no: str) -> dict[str, Any]:
+        """捕获（真正扣款）
+
+        返回 `{ok, capture_id, amount, currency, status, error}`。
+        幂等处理：重复 capture 会收到 422 `ORDER_ALREADY_CAPTURED`，此时回查订单把
+        已有 capture 读出来当成功处理——用户刷新页面/重复点击不该看到报错。
+        """
+        if not self.configured:
+            return {"ok": False, "error": "PayPal 未配置"}
+        status, data = await self._request(
+            "POST",
+            f"/v2/checkout/orders/{paypal_order_id}/capture",
+            json_body={},  # capture 无需参数，但要带 JSON 空对象（否则 415）
+            request_id=f"capture-{order_no}",
+        )
+        if status >= 400:
+            issues = {d.get("issue") for d in (data.get("details") or [])}
+            if "ORDER_ALREADY_CAPTURED" in issues:
+                logger.info("[paypal] 订单 %s 已被捕获，改走回查", order_no)
+                return await self._read_capture(paypal_order_id, order_no)
+            if "ORDER_NOT_APPROVED" in issues:
+                return {"ok": False, "error": "买家尚未在 PayPal 完成付款授权，请重新发起支付"}
+            return {"ok": False, "error": paypal_error_text(status, data)}
+        return self._extract_capture(data) or {
+            "ok": False,
+            "error": "PayPal 返回里没有 capture 信息，请联系客服人工核对",
+        }
+
+    async def _read_capture(self, paypal_order_id: str, order_no: str) -> dict[str, Any]:
+        """回查订单，读出已存在的 capture（幂等补偿路径）"""
+        status, data = await self._request("GET", f"/v2/checkout/orders/{paypal_order_id}")
+        if status >= 400:
+            return {"ok": False, "error": paypal_error_text(status, data)}
+        return self._extract_capture(data) or {
+            "ok": False,
+            "error": f"PayPal 订单 {paypal_order_id} 无可用 capture（订单号 {order_no}）",
+        }
+
+    @staticmethod
+    def _extract_capture(payload: dict[str, Any]) -> dict[str, Any] | None:
+        """取第一笔 capture
+
+        capture 响应与订单详情的结构一致，都是
+        `purchase_units[].payments.captures[]`，所以两种来源共用这段解析。
+        """
+        for unit in (payload.get("purchase_units") or []):
+            captures = ((unit.get("payments") or {}).get("captures") or [])
+            if not captures:
+                continue
+            cap = captures[0]
+            amount = cap.get("amount") or {}
+            return {
+                "ok": True,
+                "capture_id": cap.get("id", ""),
+                "status": cap.get("status", ""),
+                "amount": amount.get("value", ""),
+                "currency": amount.get("currency_code", ""),
+                # custom_id 是建单时写进去的我们的订单号，用于对账兜底
+                "order_no": unit.get("custom_id") or cap.get("custom_id") or "",
+                "raw": cap,
+            }
+        return None
+
+    async def handle_callback(self, payload: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+        """PayPal 不走通用回调入口
+
+        PayPal 的异步通知必须验签（raw body + paypal-* 请求头），通用入口拿不到这些，
+        所以 PayPal 的事件由 `POST /api/payments/paypal/webhook` 专门处理。
+        这里固定返回失败，避免被伪造的 JSON 直接判成功。
+        """
+        return False, "", {"error": "PayPal 回调请走 /api/payments/paypal/webhook（需验签）"}
+
+    async def refund(self, transaction_no: str, amount: Decimal) -> dict[str, Any]:
+        """退款：transaction_no 传 capture id（PayPal 只按 capture 退款）"""
+        if not self.configured:
+            return {"success": False, "error": "PayPal 未配置"}
+        if not transaction_no:
+            return {"success": False, "error": "缺少 PayPal capture id，无法退款"}
+        body = {
+            "amount": {
+                "value": amount_str(amount),
+                "currency_code": settings.PAYPAL_CURRENCY,
+            }
+        }
+        status, data = await self._request(
+            "POST",
+            f"/v2/payments/captures/{transaction_no}/refund",
+            json_body=body,
+            request_id=f"refund-{transaction_no}-{amount_str(amount)}",
+        )
+        if status >= 400:
+            return {"success": False, "error": paypal_error_text(status, data)}
+        return {
+            "success": True,
+            "transaction_no": data.get("id", ""),
+            "status": data.get("status", ""),
+            "refund_amount": amount_str(amount),
+        }
+
+
+async def verify_paypal_webhook(headers: Mapping[str, str], raw_body: bytes) -> tuple[bool, str]:
+    """校验 PayPal webhook 签名（postback 方式），返回 (是否可信, 失败原因)
+
+    为什么不自己算 CRC32 + RSA：那需要额外依赖与证书缓存；postback 由 PayPal 自己校验，
+    代价是多一次 HTTPS 往返（webhook 是低频路径，可接受）。
+
+    ⚠️ 官方明确要求把事件原文**原封不动**回传，解析成对象再序列化可能验签失败，
+    所以这里用字符串拼接把 raw body 直接嵌进 webhook_event 字段，不做二次序列化。
+    """
+    webhook_id = settings.PAYPAL_WEBHOOK_ID
+    if not webhook_id:
+        return False, "未配置 PAYPAL_WEBHOOK_ID"
+
+    transmission_id = headers.get("paypal-transmission-id", "")
+    transmission_time = headers.get("paypal-transmission-time", "")
+    cert_url = headers.get("paypal-cert-url", "")
+    auth_algo = headers.get("paypal-auth-algo", "")
+    transmission_sig = headers.get("paypal-transmission-sig", "")
+    if not all((transmission_id, transmission_time, cert_url, transmission_sig)):
+        return False, "缺少 paypal-transmission-* 签名请求头"
+
+    gateway = get_gateway("paypal")
+    try:
+        token = await gateway.access_token()
+    except PayPalError as exc:
+        return False, str(exc)
+
+    jd = lambda v: json.dumps(v).encode()  # noqa: E731  保证转义正确
+    payload = (
+        b'{"transmission_id":' + jd(transmission_id)
+        + b',"transmission_time":' + jd(transmission_time)
+        + b',"cert_url":' + jd(cert_url)
+        + b',"auth_algo":' + jd(auth_algo)
+        + b',"transmission_sig":' + jd(transmission_sig)
+        + b',"webhook_id":' + jd(webhook_id)
+        + b',"webhook_event":' + raw_body.strip() + b"}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{settings.paypal_api_base}/v1/notifications/verify-webhook-signature",
+                content=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+            )
+    except httpx.HTTPError as exc:
+        return False, f"验签请求失败：{exc}"
+    body = {}
+    try:
+        body = resp.json()
+    except Exception:  # noqa: BLE001
+        pass
+    if resp.status_code != 200:
+        return False, f"验签接口返回 {resp.status_code}"
+    if str(body.get("verification_status", "")).upper() != "SUCCESS":
+        return False, "签名校验未通过"
+    return True, ""
+
+
 # 支付网关注册表：通过工厂模式获取实例，扩展新通道只需实现 BasePaymentGateway 并注册
 GATEWAYS: dict[str, type[BasePaymentGateway]] = {
     "mock": MockGateway,
     "alipay": AlipayGateway,
     "wechat": WechatGateway,
     "stripe": StripeGateway,
+    "paypal": PayPalGateway,
 }
 
 

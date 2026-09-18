@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/css/jjshouse.css?v=5">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=6">
   <style>
     /* ---- 我的故事 tab ---- */
     .acct2-story-form .form-group label { display:block; font-size:13px; font-weight:600; color:#475569; margin-bottom:6px; }
@@ -322,10 +322,11 @@
     </div>
 
     <auth-modal></auth-modal>
+    <pay-dialog></pay-dialog>
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=40"></script>
+  <script src="/static/js/pymall.js?v=43"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -383,12 +384,8 @@
           function reload() { if (window.location) window.location.reload(); }
           function goShopping() { location.href = '/products.html'; }
           function pay(o) {
-            PyMall.api('/api/orders/' + o.order_no + '/pay', { method: 'POST', token: PyMall.getToken() })
-              .then(function (pay) {
-                if (pay.pay_url) return fetch(pay.pay_url).then(function (r) { return r.json(); });
-                throw new Error('no pay_url');
-              }).then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
-              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+            // 统一支付入口：mock 走模拟收银台，PayPal 走 SDK 弹窗（见 pymall.js startPay）
+            PyMall.startPay(o.order_no, { onPaid: reload });
           }
           function cancel(o) {
             PyMall.api('/api/orders/' + o.order_no + '/cancel', { method: 'POST', token: PyMall.getToken() })

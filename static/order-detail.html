@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/css/jjshouse.css?v=5">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -128,10 +128,11 @@
     </div>
 
     <auth-modal></auth-modal>
+    <pay-dialog></pay-dialog>
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=40"></script>
+  <script src="/static/js/pymall.js?v=43"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -195,12 +196,9 @@
 
           function pay() {
             var o = state.order;
-            PyMall.api('/api/orders/' + o.order_no + '/pay', { method: 'POST', token: PyMall.getToken() })
-              .then(function (pay) {
-                if (pay.pay_url) return fetch(pay.pay_url).then(function (r) { return r.json(); });
-                throw new Error('no pay_url');
-              }).then(function () { PyMall.toast(t('operation_success'), 'success'); reload(); })
-              .catch(function (e) { PyMall.toast(e.message, 'error'); });
+            // 支付分通道（mock / PayPal）统一由 PyMall.startPay 处理：
+            // PayPal 需要弹窗里渲染 SDK 按钮，不能像 mock 那样直接 GET pay_url
+            PyMall.startPay(o.order_no, { onPaid: function () { reload(); } });
           }
           function cancel() {
             var o = state.order;

@@ -485,6 +485,12 @@ class PayIn(BaseModel):
     method: str = "mock"
 
 
+class PayPalCaptureIn(BaseModel):
+    """PayPal 扣款入参（前端 SDK onApprove 回调时提交，服务端负责 capture）"""
+
+    order_no: str = Field(min_length=1, max_length=64)
+
+
 class PaymentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

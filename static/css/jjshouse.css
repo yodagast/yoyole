@@ -1766,6 +1766,80 @@ img {
   box-shadow: 0 0 0 2px rgba(216, 30, 83, 0.12);
 }
 
+/* 未开通的通道：整块置灰 + 不让点，避免用户选完到提交才发现付不了 */
+.pay-method.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #fafafa;
+}
+
+/* ================= 支付弹窗（PayPal） ================= */
+.pay-modal {
+  width: 420px;
+}
+
+.pay-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--jjs-gray);
+  padding: 6px 0;
+}
+
+.pay-line b {
+  color: var(--jjs-dark);
+  word-break: break-all;
+}
+
+/* 实际扣款金额用外币展示：站点按 CNY 定价，PayPal 按 USD 收单 */
+.pay-usd {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #f7f8fa;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--jjs-dark);
+}
+
+.pay-fx-tip {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--jjs-gray-light);
+  margin-top: 4px;
+}
+
+.pay-sandbox {
+  margin: 6px 0 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: #fff7e6;
+  color: #b26a00;
+  font-size: 12px;
+  text-align: center;
+}
+
+.pay-paypal-box {
+  min-height: 44px;
+  margin-top: 10px;
+}
+
+.pay-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--jjs-gray-light);
+  text-align: center;
+}
+
+.pay-error {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--jjs-primary);
+  text-align: center;
+}
+
 .summary-row {
   display: flex;
   justify-content: space-between;

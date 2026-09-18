@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.deps import require_admin
 from app.i18n import get_lang
+from app.payments import get_gateway
 from app.models import (
     AdminUser,
     Customer,
@@ -64,7 +65,8 @@ TAB_LABELS = {k: v for k, v in ORDER_TABS}
 
 # 支付方式 / 支付状态中文（后台展示用）
 PAY_METHOD_LABELS = {
-    "alipay": "支付宝", "wechat": "微信支付", "stripe": "Stripe", "mock": "模拟支付",
+    "alipay": "支付宝", "wechat": "微信支付", "stripe": "Stripe",
+    "paypal": "PayPal", "mock": "模拟支付",
 }
 PAY_STATUS_LABELS = {
     "unpaid": "未支付", "processing": "处理中", "success": "支付成功",
@@ -424,6 +426,35 @@ async def update_order_note(
     return _order_to_admin_out(order, get_lang(request))
 
 
+async def _refund_via_gateway(order: Order, operator: str) -> str:
+    """已支付订单退款：真实通道调网关退款接口，返回错误信息（空串 = 成功）
+
+    最坏的情况是「本地显示已退款，钱其实没退回去」，所以网关退款失败时**必须**中止
+    后续状态变更，让运营看到报错去处理，而不是静默变成一个假的已退款。
+    mock 通道直接放过（开发/演示用）；PayPal 走 `captures/{id}/refund`。
+    """
+    from app.models import PaymentStatus
+
+    for p in (order.payments or []):
+        if p.status != PaymentStatus.SUCCESS:
+            continue
+        method = p.method.value if hasattr(p.method, "value") else str(p.method)
+        if method != "paypal":
+            continue
+        gateway = get_gateway(method)
+        capture_id = p.provider_capture_id or ""
+        if not capture_id:
+            return "该订单缺少 PayPal 扣款号（capture id），无法自动退款，请到 PayPal 后台人工处理"
+        result = await gateway.refund(capture_id, p.amount)
+        if not result.get("success"):
+            return f"PayPal 退款失败：{result.get('error') or '未知错误'}"
+        logger.info(
+            "[refund] PayPal 退款成功 order=%s capture=%s amount=%s operator=%s",
+            order.order_no, capture_id, p.amount, operator,
+        )
+    return ""
+
+
 @router.post("/orders-search/{order_no}/cancel", response_model=AdminOrderOut)
 async def cancel_order(
     order_no: str,
@@ -453,6 +484,12 @@ async def cancel_order(
         raise HTTPException(
             status_code=400, detail="已支付订单请选择「退款」而非直接取消"
         )
+
+    # 真实支付通道（PayPal）要先真正把钱退回去，再改本地状态
+    if was_paid:
+        refund_error = await _refund_via_gateway(order, admin.username)
+        if refund_error:
+            raise HTTPException(status_code=400, detail=refund_error)
 
     # 回滚库存：未支付订单释放锁定；已支付订单把真实库存加回
     for item in order.items:
