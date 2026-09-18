@@ -20,12 +20,19 @@
 from __future__ import annotations
 
 import os
+import re
 
 import pytest
 import requests
 
 # 目标服务地址：默认 8010，可覆盖（如 export TEST_BASE_URL=http://127.0.0.1:8020）
 BASE = os.environ.get("TEST_BASE_URL", "http://127.0.0.1:8010").rstrip("/")
+
+# 公开页面 <title> 统一为「页面名 - YOYOLE」短格式。
+# 浏览器标签栏大约只显示 20~24 个字符，超长会被截断成
+# 「YOYOLE | 瑜伽与户外生活 | 杭州余杭波动粒子信息经...」，页面名与品牌都看不清。
+TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
+TAB_TITLE_MAX_LEN = 24
 
 # 页面 -> 关键内容断言（该页面必须包含的字符串）
 PAGE_ASSERTS = {
@@ -487,23 +494,49 @@ def test_gongan_link_is_styled():
     "index.html", "products.html", "cart.html", "orders.html", "order-detail.html",
     "about.html", "stories.html", "story-detail.html", "wishlist.html", "account.html",
 ])
-def test_page_title_contains_operator(page):
-    """页面标题要带主办单位名称
+def test_page_title_is_short_and_branded(page):
+    """标签页标题必须是「页面名 - YOYOLE」短格式，不能塞主办单位全称
 
-    浏览器标签页显示的就是 <title>；关闭标签时，Chrome/Edge 会在
-    「最近关闭的标签页」里回显该标题，主体名称因此始终可见。
+    主办单位全称 12 个字（杭州余杭波动粒子信息经营部），追加到标题末尾后
+    首页标题长达 33 字，浏览器标签栏只显示前 ~20 字，被截断成
+    「YOYOLE | 瑜伽与户外生活 | 杭州余杭波动粒子信息经...」，页面名和品牌
+    都看不全，反而降低可辨识度，因此标题只保留「页面名 - YOYOLE」。
+    备案主体名 + 两个备案号改由页脚承担（见 test_footer_shows_icp_beian_and_operator）。
     """
     r = requests.get(f"{BASE}/{page}")
     assert r.status_code == 200
-    assert "杭州余杭波动粒子信息经营部" in r.text, f"{page} 的 <title> 缺少主办单位名称"
+    m = TITLE_RE.search(r.text)
+    assert m, f"{page} 缺少 <title>"
+    title = m.group(1).strip()
+    assert "YOYOLE" in title, f"{page} 标题缺少品牌名：{title}"
+    assert "杭州余杭波动粒子信息经营部" not in title, \
+        f"{page} 标题仍带主办单位全称，会被标签页截断：{title}"
+    assert len(title) <= TAB_TITLE_MAX_LEN, \
+        f"{page} 标题过长（{len(title)} 字）会被标签页截断：{title}"
 
 
-def test_dynamic_page_title_contains_operator():
-    """故事页会按语言动态改写 document.title，改写后同样要带主办单位名称"""
+def test_home_title_is_brand_slogan():
+    """首页标签页标题固定为「瑜伽与户外-YOYOLE」
+
+    首页用「品类-品牌」的短标题，与站内其它页「页面名 - YOYOLE」保持一致短。
+    """
+    r = requests.get(f"{BASE}/index.html")
+    assert r.status_code == 200
+    assert "<title>瑜伽与户外-YOYOLE</title>" in r.text, "首页标题不是「瑜伽与户外-YOYOLE」"
+    # pymall.js 里的兜底标题（siteTitle 无参调用）要与首页一致
+    assert "var SITE_TITLE = '瑜伽与户外-YOYOLE';" in requests.get(
+        f"{BASE}/static/js/pymall.js").text
+
+
+def test_dynamic_page_title_is_short_and_branded():
+    """故事页会按语言动态改写 document.title，改写后同样要是「页面名 - 品牌」短格式"""
     for page in ("stories.html", "story-detail.html"):
         r = requests.get(f"{BASE}/{page}")
         assert r.status_code == 200
-        assert "PyMall.siteTitle(" in r.text, f"{page} 动态标题未走 siteTitle，切换语言后主体名称会丢失"
+        assert "PyMall.siteTitle(" in r.text, \
+            f"{page} 动态标题未走 siteTitle，切换语言后标题格式会不一致"
+        # siteTitle() 自己会拼品牌名，再拼一次会得到「… - YOYOLE - YOYOLE」
+        assert "+ ' - YOYOLE')" not in r.text, f"{page} 动态标题重复拼接品牌名"
 
 
 FAVICON_ASSETS = [

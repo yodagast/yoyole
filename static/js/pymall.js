@@ -11,8 +11,9 @@
   var Vue = global.Vue;
 
   // ---------- 备案主体信息（工信部要求公开展示） ----------
-  // 网站主办单位名称 + ICP 备案号统一在此定义，页脚 SiteFooter 与各页面标题共用，
+  // 网站主办单位名称 + ICP 备案号统一在此定义，由页脚 SiteFooter 展示，
   // 避免多处硬编码导致备案信息与备案证书不一致（备案信息必须与工信部系统一致）。
+  // 注意：不再写进 <title>（全称过长会被标签页截断），只出现在页脚。
   var COMPANY_NAME = '杭州余杭波动粒子信息经营部';
   var ICP_BEIAN_NO = '浙ICP备2026077052号';
   var ICP_BEIAN_URL = 'https://beian.miit.gov.cn/';
@@ -24,10 +25,16 @@
   var GONGAN_BEIAN_URL = 'https://beian.mps.gov.cn/#/query/webSearch?code=33011002020623';
   var GONGAN_BEIAN_ICON = '/static/img/gongan-beian.png';
 
-  // 页面标题统一追加主办单位名称：浏览器标签页（关闭标签前的标签名）
-  // 与「最近关闭的标签页」列表里都能看到备案主体名称。
+  // 品牌信息：标签页标题用的短品牌名 + 首页标题。
+  var BRAND_NAME = 'YOYOLE';
+  var SITE_TITLE = '瑜伽与户外-YOYOLE';
+
+  // 页面标题统一追加品牌名。
+  // 历史做法是追加主办单位全称，但全称过长，浏览器标签页里会被截断成
+  // 「YOYOLE | 瑜伽与户外生活 | 杭州余杭波动粒子信息经...」，页面名和品牌
+  // 反而都看不全；备案主体名与两个备案号仍在页脚完整展示，备案合规不受影响。
   function siteTitle(text) {
-    return text ? text + ' | ' + COMPANY_NAME : COMPANY_NAME;
+    return text ? text + ' - ' + BRAND_NAME : SITE_TITLE;
   }
 
   // ---------- 翻译表（与后端 i18n.py 一致） ----------
@@ -1080,6 +1087,8 @@
     money: money,
     // 备案主体信息（页脚 + 页面标题共用）
     COMPANY_NAME: COMPANY_NAME,
+    BRAND_NAME: BRAND_NAME,
+    SITE_TITLE: SITE_TITLE,
     ICP_BEIAN_NO: ICP_BEIAN_NO,
     ICP_BEIAN_URL: ICP_BEIAN_URL,
     GONGAN_BEIAN_NO: GONGAN_BEIAN_NO,
