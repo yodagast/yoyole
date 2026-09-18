@@ -2086,6 +2086,8 @@
                   + '<td style="font-size:12px;color:#64748b">'
                   + escHtml(String(p.created_at || '').replace('T', ' ')) + '</td>'
                   + '<td>' + dl
+                  + '<a class="pd-link" onclick="Admin.pkgImportFromServer(\''
+                  + escHtml(p.name) + '\')">导入到本站</a> '
                   + '<a class="pd-link danger" onclick="Admin.pkgDeleteExport(\''
                   + escHtml(p.name) + '\')">删除</a></td></tr>';
               }).join('')
@@ -2155,12 +2157,65 @@
           headers: { 'Authorization': 'Bearer ' + (adminToken || App.getAdminToken() || '') },
           body: form,
         }).then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (d) {
-            if (!res.ok) throw new Error(d.detail || ('导入失败（HTTP ' + res.status + '）'));
+          return res.text().then(function (txt) {
+            var d = {};
+            try { d = JSON.parse(txt) || {}; } catch (e) { d = {}; }
+            if (!res.ok) throw new Error(d.detail || pkgHttpError(res));
             return d;
           });
         }).then(pkgShowImportResult)
           .catch(function (e) { App.toast(e.message, 'error'); });
+      }
+
+      // 非 JSON 的错误响应要单独识别：这类错误**后端根本没收到请求**，
+      // 直接弹「导入失败（HTTP 413）」会让人以为是导入逻辑坏了
+      function pkgHttpError(res) {
+        var hint = {
+          413: '请求体被前置服务（nginx 等反向代理）拦下了，后端并未收到这个请求。'
+             + '可把反向代理的 client_max_body_size 调大（如 900m），'
+             + '或改用列表里的「导入到本站」直接从服务器导入。',
+          502: '网关连不上后端服务，请确认服务正在运行。',
+          504: '网关等后端超时（包很大时常见），可稍后重试或改用「导入到本站」。',
+        }[res.status];
+        return '导入失败（HTTP ' + res.status + '）' + (hint ? '：' + hint : '');
+      }
+
+      // 从服务器已导出的包导入（不走浏览器上传，绕开反向代理的体积限制）
+      function pkgImportFromServer(name) {
+        App.dialog({
+          title: '从服务器导入商品包', tone: 'info', okText: '开始导入',
+          message: '商品包：' + name + '\n'
+            + '直接读取服务器上的这个包，不需要上传文件，'
+            + '因此不受反向代理上传体积限制（413）影响。',
+          field: {
+            label: '已存在的货号如何处理？输入 merge 跳过 / update 覆盖更新',
+            value: 'merge', placeholder: 'merge',
+          },
+        }).then(function (mode) {
+          if (mode === null) return;
+          mode = (String(mode).trim().toLowerCase() || 'merge');
+          if (mode !== 'merge' && mode !== 'update') {
+            App.toast('只能填 merge 或 update', 'error');
+            return;
+          }
+          return App.confirmDialog(
+            mode === 'merge'
+              ? '货号已存在的商品会被跳过，只新增商品包里的新商品。'
+              : '已存在的商品会被商品包内容覆盖（名称/描述/价格/图片/SKU），且包内未出现的旧规格会被停用。',
+            { title: '确认导入方式', tone: mode === 'merge' ? 'info' : 'warn',
+              okText: '确认导入' }
+          ).then(function (ok) {
+            if (!ok) return;
+            App.toast('正在从服务器导入，请稍候...', 'success');
+            return api('/api/admin/product-package/import-server', {
+              method: 'POST',
+              body: { name: name, mode: mode, review_status: 'pending' },
+            }).then(function (d) {
+              pkgShowImportResult(d);
+              pkgOpenList();       // 刷新列表
+            }).catch(function (e) { App.toast(e.message, 'error'); });
+          });
+        }).catch(function (e) { App.toast(e.message, 'error'); });
       }
 
       function pkgShowImportResult(d) {
@@ -3951,7 +4006,8 @@
         pkgOpenExport: pkgOpenExport, pkgCloseExport: pkgCloseExport,
         pkgExportToServer: pkgExportToServer, pkgExportDownload: pkgExportDownload,
         pkgOpenList: pkgOpenList, pkgDeleteExport: pkgDeleteExport,
-        pkgStartImport: pkgStartImport, pkgShowImportResult: pkgShowImportResult,
+        pkgStartImport: pkgStartImport, pkgImportFromServer: pkgImportFromServer,
+        pkgShowImportResult: pkgShowImportResult,
         // 订单查询（PDD 风格）
         odSwitchTab: odSwitchTab, odGoPage: odGoPage, odSearch: odSearch,
         odReset: odReset, odToggleExtra: odToggleExtra, odQuickRange: odQuickRange,

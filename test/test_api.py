@@ -15,6 +15,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import shutil
 import subprocess
 import time
 import zipfile
@@ -2007,6 +2008,8 @@ class TestProductPackage:
                              json={"ids": [1]}).status_code == 401
         assert requests.get(f"{BASE}/api/admin/product-package/exports").status_code == 401
         assert requests.get(f"{BASE}/api/admin/product-package/format").status_code == 401
+        assert requests.post(f"{BASE}/api/admin/product-package/import-server",
+                             json={"name": "x"}).status_code == 401
 
     def test_export_creates_folder_and_zip(self, admin_token, pkg_product):
         name = f"pytest-pkg-{ts}"
@@ -2113,6 +2116,84 @@ class TestProductPackage:
         r = requests.delete(f"{BASE}/api/admin/product-package/exports/no-such-pkg-xyz",
                             headers=admin_token)
         assert r.status_code == 404
+
+    def test_import_server_skips_existing(self, admin_token, pkg_product):
+        """服务器上已导出的包可直接导入，全程不经过浏览器上传
+
+        这是 413 的正解：包本来就导出在服务器 static/exports/ 下，
+        再走 multipart 上传一遍既浪费（几十 MB 往返）又会被反向代理的
+        client_max_body_size 拦下 —— 此时后端连请求都收不到。
+        """
+        name = f"pytest-srv-{ts}"
+        r = requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name, "include_images": False,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        try:
+            r = requests.post(f"{BASE}/api/admin/product-package/import-server", json={
+                "name": name, "mode": "merge", "review_status": "approved",
+            }, headers=admin_token)
+            assert r.status_code == 200, r.text
+            d = r.json()
+            assert d["mode"] == "merge"
+            # 包内货号与库中同名 → merge 应整条跳过，不重复建商品
+            assert d["skipped"] == 1, d
+            assert d["imported"] == 0 and d["updated"] == 0
+            assert d["failed"] == 0, d["errors"]
+        finally:
+            requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                            headers=admin_token)
+
+    def test_import_server_from_zip_only(self, admin_token, pkg_product):
+        """只有 zip、没有同名目录的包也要能导入（服务端自行解压）"""
+        name = f"pytest-srvzip-{ts}"
+        r = requests.post(f"{BASE}/api/admin/product-package/export", json={
+            "ids": [pkg_product["id"]], "package_name": name,
+            "include_images": False, "zip_output": True,
+        }, headers=admin_token)
+        assert r.status_code == 200, r.text
+        out_dir = Path(r.json()["out_dir"])
+        try:
+            shutil.rmtree(out_dir)          # 只留 zip，模拟手工拷进 exports 的包
+            assert not out_dir.exists()
+            r = requests.post(f"{BASE}/api/admin/product-package/import-server", json={
+                "name": name, "mode": "merge",
+            }, headers=admin_token)
+            assert r.status_code == 200, r.text
+            assert r.json()["skipped"] == 1
+
+            # 顺带验证「只有 zip」的包也能删（曾因先判目录存在而 404，
+            # zip 永远清不掉 —— 测试清理会静默失败并残留文件）
+            r = requests.delete(
+                f"{BASE}/api/admin/product-package/exports/{name}", headers=admin_token
+            )
+            assert r.status_code == 200, r.text
+            rows = requests.get(f"{BASE}/api/admin/product-package/exports",
+                                headers=admin_token).json()
+            assert not [x for x in rows if x["name"] == name], "zip-only 包删除后仍有残留"
+        finally:
+            requests.delete(f"{BASE}/api/admin/product-package/exports/{name}",
+                            headers=admin_token)
+
+    def test_import_server_unknown_package(self, admin_token):
+        r = requests.post(f"{BASE}/api/admin/product-package/import-server", json={
+            "name": "no-such-package-xyz",
+        }, headers=admin_token)
+        assert r.status_code == 404
+
+    def test_import_server_rejects_bad_mode(self, admin_token):
+        """参数校验要在「包是否存在」之前，否则非法 mode 会被 404 掩盖"""
+        r = requests.post(f"{BASE}/api/admin/product-package/import-server", json={
+            "name": "whatever", "mode": "replace",
+        }, headers=admin_token)
+        assert r.status_code == 400
+
+    def test_import_server_rejects_traversal(self, admin_token):
+        """包名要防路径穿越（不能读到 exports 目录之外）"""
+        r = requests.post(f"{BASE}/api/admin/product-package/import-server", json={
+            "name": "../../../etc",
+        }, headers=admin_token)
+        assert r.status_code in (400, 404), r.text
 
     # ---------- 导入 ----------
     @staticmethod

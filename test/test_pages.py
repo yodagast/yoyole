@@ -439,6 +439,50 @@ def test_beian_link_is_styled():
     assert ".copyright .beian-link:hover" in css
 
 
+def test_footer_shows_gongan_beian_with_icon():
+    """页脚必须展示公安联网备案号 + 官方盾牌图标，并链接到公安部查询页
+
+    公安备案与工信部 ICP 备案是两套独立备案，合规三个硬性点：
+    1. 备案号文本必须是「浙公网安备XXXXXXXXXXX号」；
+    2. 必须与官方盾牌图标（20x20）一起展示 —— 只有文字没有图标会被要求整改；
+    3. 备案号必须可点击跳转到公安部「全国互联网安全管理服务平台」查询页，且带 code 参数。
+    """
+    r = requests.get(f"{BASE}/static/js/pymall.js")
+    assert r.status_code == 200
+    js = r.text
+
+    assert "浙公网安备33011002020623号" in js, "页脚缺少公安联网备案号"
+    assert "var GONGAN_BEIAN_NO = '浙公网安备33011002020623号';" in js
+    # 备案号与图标走同一常量，避免多处硬编码导致主体不一致
+    assert "var GONGAN_BEIAN_URL = " in js
+    assert "https://beian.mps.gov.cn/#/query/webSearch?code=33011002020623" in js
+    assert 'class="gongan-link"' in js
+    assert 'class="gongan-icon"' in js and "GONGAN_BEIAN_ICON" in js
+    assert 'rel="noreferrer noopener"' in js or ('rel="noreferrer' in js and "noopener" in js)
+
+
+def test_gongan_beian_icon_asset_available():
+    """盾牌图标必须能被直接访问（20x20 PNG）
+
+    图标文件被 .gitignore 的 `*.png` 规则挡着，若忘记开白名单，
+    线上会 404，页脚只剩文字 → 公安备案展示不合规。
+    """
+    r = requests.get(f"{BASE}/static/img/gongan-beian.png")
+    assert r.status_code == 200, "公安备案盾牌图标 404"
+    assert r.headers["content-type"].startswith("image/")
+    assert r.content[:4] == b"\x89PNG"
+
+
+def test_gongan_link_is_styled():
+    """盾牌图标不能被压扁/隐藏，链接文字需保持可辨识"""
+    r = requests.get(f"{BASE}/static/css/jjshouse.css")
+    assert r.status_code == 200
+    css = r.text
+    assert ".copyright .gongan-link" in css, "公安备案链接缺少独立样式"
+    assert ".copyright .gongan-link:hover" in css
+    assert ".copyright .gongan-icon" in css, "盾牌图标缺少尺寸样式，会被压扁"
+
+
 @pytest.mark.parametrize("page", [
     "index.html", "products.html", "cart.html", "orders.html", "order-detail.html",
     "about.html", "stories.html", "story-detail.html", "wishlist.html", "account.html",

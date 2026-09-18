@@ -920,6 +920,23 @@ class ProductPackageExportOut(BaseModel):
     zip_url: str | None = None        # 可下载 URL（/static/... 下的相对路径）
 
 
+class ProductPackageImportServerIn(BaseModel):
+    """从服务器已导出的商品包导入（不经浏览器上传）
+
+    用 JSON 而非 multipart 是故意的：走 `App.api()` 即可，且请求体只有几十字节，
+    不会被反向代理的 `client_max_body_size` 拦成 413。
+    """
+
+    name: str = Field(
+        min_length=1, max_length=120,
+        description="服务器 static/exports 下的包名（`GET /exports` 返回的 name）",
+    )
+    mode: str = Field(default="merge", description="merge=跳过已存在货号 / update=覆盖更新")
+    review_status: str = Field(
+        default="pending", description="pending=待审核（默认）/ approved=直接上架"
+    )
+
+
 class ProductPackageImportOut(BaseModel):
     """商品包导入结果"""
 

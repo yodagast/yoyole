@@ -18,6 +18,8 @@ __pycache__/
 !static/img/favicon.svg
 !static/img/favicon-*.png
 !static/img/apple-touch-icon.png
+# 公安联网备案盾牌图标同样是构建产物，线上必须能访问，单独开白名单。
+!static/img/gongan-beian.png
 *.DS_Store
 # 商品包导出产物（运行时生成，不入库；static/uploads 里的商品图仍需跟踪）
 static/exports/

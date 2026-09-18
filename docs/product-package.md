@@ -163,6 +163,44 @@ Content-Disposition: attachment; filename="2026春夏.zip"
 }
 ```
 
+### `POST /api/admin/product-package/import-server`
+
+直接导入**服务器上已存在**的商品包，不经浏览器上传。`application/json`：
+
+| 字段 | 说明 |
+|---|---|
+| `name` | 服务器 `static/exports/` 下的包名（`GET /exports` 返回的 `name`） |
+| `mode` | 同上传导入：`merge`（默认）/ `update` |
+| `review_status` | 同上传导入：`pending`（默认）/ `approved` / `rejected` |
+
+包名兼容两种形态：有同名目录就用目录；只有 `.zip` 时服务端自行解压到临时目录再导入。
+
+```bash
+curl -X POST http://127.0.0.1:8020/api/admin/product-package/import-server \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"2026-jyt","mode":"merge","review_status":"approved"}'
+```
+
+### 上传导入报 413？（重要）
+
+前端弹「**导入失败（HTTP 413）**」时，先分清两种 413：
+
+| 响应体 | 来源 | 含义 |
+|---|---|---|
+| `{"detail":"商品包超过 800MB 上限"}` | 本服务 | 包真的超 800MB，拆包即可 |
+| HTML / 纯文本错误页 | **前置反向代理** | 后端**根本没收到请求**，nginx 默认 `client_max_body_size 1m` 就会这样 |
+
+判据：本服务的 413 一定带 JSON `detail`，前端会直接展示那段中文；
+只显示「导入失败（HTTP 413）」说明响应不是 JSON，即代理拦的。
+此时 `run.log` 里也**查不到这条请求的访问日志**。
+
+两种修法（推荐都做）：
+
+1. **调大反代上限**（治本，图片上传 / PPT 导入同样受益）——
+   见 `docs/deploy.md` 的 nginx 配置，`client_max_body_size 900m;`
+2. **改用「导入到本站」**（治标但更省事）——商品包本来就导出在服务器上，
+   直接读本地目录，请求体只有几十字节，并把几十 MB 的「下载再上传」往返也省掉
+
 ### merge 与 update 的语义
 
 | 场景 | `merge`（默认） | `update` |
@@ -181,7 +219,7 @@ Content-Disposition: attachment; filename="2026春夏.zip"
 | `products` 为空或超 2000 条 | 400 |
 | 压缩包含 `../` 路径穿越 | 400「压缩包内含非法路径」 |
 | 解压后体积 > 800MB（zip 炸弹） | 400 |
-| 上传体积 > 800MB | 413 |
+| 上传体积 > 800MB | 413（**带** JSON `detail`；若响应体是 HTML 则来自反向代理，见上节） |
 | SKU 编码被**其他商品**占用 | 只跳过该规格，记入 `warnings`，其余规格正常导入 |
 | 单个商品写入失败 | **只回滚该商品**（savepoint），前面已导入的保留，计入 `failed` + `errors` |
 | 包内类目不存在 | 自动创建（`categories_created` +1） |
@@ -217,7 +255,12 @@ Content-Disposition: attachment; filename="2026春夏.zip"
 
 ### 已导出商品包
 
-「已导出商品包」→ 列出服务器上的包（合并同名目录与 zip），可下载 zip 或删除。
+「已导出商品包」→ 列出服务器上的包（合并同名目录与 zip），每行三个操作：
+
+- **下载 zip**：浏览器直接下载（仅有目录、未生成 zip 的包没有此项）
+- **导入到本站**：直接读服务器上的这个包导入，**不需要上传文件**，
+  适合包很大、或者前置反向代理有限制（413）的场景
+- **删除**：目录与同名 zip 一起删除；只有 zip、没有目录的包也能删
 
 ---
 
@@ -229,7 +272,8 @@ Content-Disposition: attachment; filename="2026春夏.zip"
 | `POST` | `/api/admin/product-package/export-zip` | 导出并直接下载 zip |
 | `GET` | `/api/admin/product-package/exports` | 列出已导出的包 |
 | `DELETE` | `/api/admin/product-package/exports/{name}` | 删除包（目录 + zip） |
-| `POST` | `/api/admin/product-package/import` | 从 zip 导入 |
+| `POST` | `/api/admin/product-package/import` | 从上传的 zip 导入 |
+| `POST` | `/api/admin/product-package/import-server` | 直接从服务器上已导出的包导入（免上传） |
 | `GET` | `/api/admin/product-package/format` | 格式说明（前端弹窗用） |
 
 写操作需要 `superadmin` / `operator`；`format` 与列表需要管理员登录。

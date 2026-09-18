@@ -2061,6 +2061,29 @@ img {
   text-decoration: underline;
 }
 
+/* 公安联网备案：公安部要求备案号与官方盾牌图标一起展示，图标不可被压扁/隐藏，
+   链接文字同样要保持可辨识（不能随版权文字一起变淡）。 */
+.copyright .gongan-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.62);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.copyright .gongan-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.copyright .gongan-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
 /* ================= 弹窗 ================= */
 .modal-mask {
   position: fixed;

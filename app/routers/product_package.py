@@ -7,7 +7,8 @@
     POST /api/admin/product-package/export-zip    → 直接下载 .zip（浏览器另存）
 
 导入：
-    POST /api/admin/product-package/import        → multipart，支持 .zip 或目录结构
+    POST /api/admin/product-package/import        → multipart，上传 .zip 导入
+    POST /api/admin/product-package/import-server → 直接导入服务器上已导出的包（不经上传）
 
 辅助：
     GET  /api/admin/product-package/format        → 商品包格式说明（前端展示用）
@@ -51,6 +52,7 @@ from app.schemas import (
     ProductPackageExportIn,
     ProductPackageExportOut,
     ProductPackageImportOut,
+    ProductPackageImportServerIn,
 )
 
 logger = logging.getLogger(__name__)
@@ -292,6 +294,80 @@ async def list_exports(
 
 
 # ---------------------------------------------------------------- 导入
+def _check_import_params(mode: str, review_status: str) -> None:
+    """两个导入接口共用的参数校验"""
+    if mode not in ("merge", "update"):
+        raise HTTPException(status_code=400, detail="mode 必须是 merge 或 update")
+    if review_status not in ("pending", "approved", "rejected"):
+        raise HTTPException(
+            status_code=400, detail="review_status 必须是 pending / approved / rejected"
+        )
+
+
+async def _import_dir_and_log(
+    db: AsyncSession,
+    pkg_dir: Path,
+    *,
+    source: str,
+    mode: str,
+    review_status: str,
+    admin: AdminUser,
+) -> ProductPackageImportOut:
+    """把已就绪的商品包目录入库，并记审计日志、提交事务
+
+    上传导入与「服务器已导出包导入」共用这一段，避免两条链路各写一份导致行为分叉。
+    """
+    try:
+        result = await import_products_from_dir(
+            db, pkg_dir,
+            mode=mode,
+            review_status=review_status,
+            operator=admin.username,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    log_action(
+        db, None, "import_package",
+        {
+            "source_file": source, "mode": mode,
+            "review_status": review_status,
+            "imported": result.imported, "updated": result.updated,
+            "skipped": result.skipped, "failed": result.failed,
+            "skus_created": result.sku_created,
+            "categories_created": result.categories_created,
+            "images": result.images_imported,
+        },
+        admin.username, sku=source,
+        name=f"商品包导入（{result.imported + result.updated} 款）",
+    )
+    await db.commit()
+
+    logger.info(
+        "[import-pkg] %s 由 %s 导入：新增 %s，更新 %s，跳过 %s，失败 %s（mode=%s）",
+        source, admin.username, result.imported,
+        result.updated, result.skipped, result.failed, mode,
+    )
+
+    return ProductPackageImportOut(
+        source=result.source or source,
+        mode=mode,
+        imported=result.imported,
+        updated=result.updated,
+        skipped=result.skipped,
+        failed=result.failed,
+        sku_created=result.sku_created,
+        sku_updated=result.sku_updated,
+        categories_created=result.categories_created,
+        images_imported=result.images_imported,
+        missing_images=result.missing_images[:50],
+        errors=result.errors[:50],
+        warnings=result.warnings[:50],
+        products_total=result.products_total,
+        skus_total=result.skus_total,
+    )
+
+
 @router.post("/import", response_model=ProductPackageImportOut)
 async def import_package(
     file: UploadFile = File(..., description="商品包 .zip（内部含 manifest.json 与 images/）"),
@@ -307,13 +383,11 @@ async def import_package(
 
     包内需包含 `manifest.json`（唯一必需文件）与 `images/` 目录；
     压缩包允许外层多套一层目录（macOS「压缩」默认行为已兼容）。
+
+    注意：大包走 multipart 上传时可能被前置反向代理拦下（nginx 默认 1MB）→ 413，
+    此时后端根本收不到请求；服务器上已有的包改用 `/import-server` 导入。
     """
-    if mode not in ("merge", "update"):
-        raise HTTPException(status_code=400, detail="mode 必须是 merge 或 update")
-    if review_status not in ("pending", "approved", "rejected"):
-        raise HTTPException(
-            status_code=400, detail="review_status 必须是 pending / approved / rejected"
-        )
+    _check_import_params(mode, review_status)
 
     filename = file.filename or "package.zip"
     if Path(filename).suffix.lower() not in (".zip",):
@@ -351,57 +425,67 @@ async def import_package(
             raise HTTPException(status_code=400, detail="压缩包已损坏，无法解压") from exc
 
         # ---------- 入库 ----------
-        try:
-            result = await import_products_from_dir(
-                db, pkg_dir,
-                mode=mode,
-                review_status=review_status,
-                operator=admin.username,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        log_action(
-            db, None, "import_package",
-            {
-                "source_file": filename, "mode": mode,
-                "review_status": review_status,
-                "imported": result.imported, "updated": result.updated,
-                "skipped": result.skipped, "failed": result.failed,
-                "skus_created": result.sku_created,
-                "categories_created": result.categories_created,
-                "images": result.images_imported,
-            },
-            admin.username, sku=filename,
-            name=f"商品包导入（{result.imported + result.updated} 款）",
-        )
-        await db.commit()
-
-        logger.info(
-            "[import-pkg] %s 由 %s 导入：新增 %s，更新 %s，跳过 %s，失败 %s（mode=%s）",
-            filename, admin.username, result.imported,
-            result.updated, result.skipped, result.failed, mode,
-        )
-
-        return ProductPackageImportOut(
-            source=result.source or filename,
-            mode=mode,
-            imported=result.imported,
-            updated=result.updated,
-            skipped=result.skipped,
-            failed=result.failed,
-            sku_created=result.sku_created,
-            sku_updated=result.sku_updated,
-            categories_created=result.categories_created,
-            images_imported=result.images_imported,
-            missing_images=result.missing_images[:50],
-            errors=result.errors[:50],
-            warnings=result.warnings[:50],
-            products_total=result.products_total,
-            skus_total=result.skus_total,
+        return await _import_dir_and_log(
+            db, pkg_dir,
+            source=filename, mode=mode,
+            review_status=review_status, admin=admin,
         )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@router.post("/import-server", response_model=ProductPackageImportOut)
+async def import_package_from_server(
+    payload: ProductPackageImportServerIn,
+    admin: AdminUser = Depends(require_admin(WRITE_ROLES)),
+    db: AsyncSession = Depends(get_db),
+):
+    """直接导入服务器上已导出的商品包（**完全不经过浏览器上传**）
+
+    存在的理由：商品包动辄几十上百 MB，走 multipart 上传时会被前置反向代理拦下 ——
+    nginx 默认 `client_max_body_size 1m`，超限直接回 **413 纯 HTML 错误页**，
+    不带 JSON `detail`，前端只能弹「导入失败（HTTP 413）」，看着像后端故障，
+    实际后端根本没收到请求（`run.log` 里连访问日志都没有）。
+
+    而商品包本来就导出在服务器 `static/exports/<包名>/`，直接读本地目录导入即可绕开
+    这一环，也省掉「下载 37MB zip 再上传一遍」的往返。请求体是 JSON，只有几十字节。
+    """
+    _check_import_params(payload.mode, payload.review_status)
+
+    name = _safe_package_name(payload.name)
+    target = (EXPORT_ROOT / name).resolve()
+    if not str(target).startswith(str(EXPORT_ROOT.resolve())):
+        raise HTTPException(status_code=400, detail="非法的包名")
+
+    tmp_dir: Path | None = None
+    try:
+        if target.is_dir():
+            pkg_dir = target
+        else:
+            # 只有 zip、没有同名目录（例如手工拷进 exports 的包）：解压到临时目录再导入
+            zip_path = target.with_suffix(".zip")
+            if not zip_path.exists():
+                raise HTTPException(
+                    status_code=404, detail=f"服务器上找不到商品包「{name}」"
+                )
+            tmp_dir = Path(tempfile.mkdtemp(prefix="pkg-srv-"))
+            try:
+                pkg_dir = await asyncio.to_thread(
+                    extract_zip, zip_path, tmp_dir / "extracted"
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except zipfile.BadZipFile as exc:
+                raise HTTPException(status_code=400, detail="压缩包已损坏，无法解压") from exc
+
+        return await _import_dir_and_log(
+            db, pkg_dir,
+            source=name, mode=payload.mode,
+            review_status=payload.review_status, admin=admin,
+        )
+    finally:
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @router.get("/format")
@@ -441,18 +525,22 @@ async def delete_export(
     name: str,
     admin: AdminUser = Depends(require_admin(WRITE_ROLES)),
 ):
-    """删除服务器上某个已导出的商品包（目录与同名 zip）"""
+    """删除服务器上某个已导出的商品包（目录与同名 zip）
+
+    注意：只有 zip、没有同名目录的包也是合法状态（手工拷进 exports 的包就是如此），
+    不能只用 `target.exists()` 判断存在性 —— 否则目录被删掉后 zip 永远清不掉。
+    """
     safe = _safe_package_name(name)
     target = (EXPORT_ROOT / safe).resolve()
     if not str(target).startswith(str(EXPORT_ROOT.resolve())):
         raise HTTPException(status_code=400, detail="非法的包名")
-    if not target.exists():
+    zip_path = target.with_suffix(".zip")
+    if not target.exists() and not zip_path.exists():
         raise HTTPException(status_code=404, detail="商品包不存在")
     if target.is_dir():
         shutil.rmtree(target)
-    else:
+    elif target.exists():
         target.unlink(missing_ok=True)
-    zip_path = target.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink(missing_ok=True)
     logger.info("[export] %s 删除了商品包 %s", admin.username, safe)
