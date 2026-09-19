@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-  <link rel="stylesheet" href="/static/css/jjshouse.css?v=6">
+  <link rel="stylesheet" href="/static/css/jjshouse.css?v=7">
 </head>
 <body>
   <div id="app">
@@ -157,7 +157,7 @@
   </div>
 
   <script src="/static/js/vue.global.prod.js"></script>
-  <script src="/static/js/pymall.js?v=43"></script>
+  <script src="/static/js/pymall.js?v=44"></script>
   <script>
     (function () {
       var PyMall = window.PyMall;
@@ -232,9 +232,9 @@
           // 顺序即默认优先级：PayPal 是真实通道，排在模拟支付前面。
           var payMethodDefs = [
             { value: 'paypal', icon: 'wallet', label: t('paypal') },
+            { value: 'wechat', icon: 'review', label: t('wechat') },
             { value: 'mock', icon: 'card', label: t('mock_pay') },
             { value: 'alipay', icon: 'wallet', label: t('alipay') },
-            { value: 'wechat', icon: 'review', label: t('wechat') },
             { value: 'stripe', icon: 'card', label: 'Stripe' },
           ];
 

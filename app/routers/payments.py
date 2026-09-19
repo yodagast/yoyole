@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from typing import Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -27,6 +28,13 @@ from app.models import (
 )
 from app.payments import get_gateway, verify_paypal_webhook
 from app.schemas import PayPalCaptureIn
+from app.wechatpay import (
+    WechatPayError,
+    build_response_sign_message,
+    decrypt_resource,
+    fen_to_amount,
+    verify_with_public_key,
+)
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 logger = logging.getLogger(__name__)
@@ -179,6 +187,8 @@ async def payment_methods():
         for name in ("mock", "alipay", "wechat", "stripe", "paypal")
     }
     enabled["paypal"] = settings.paypal_enabled
+    # 微信除了开关，还要求商户凭据齐备（mchid/appid/APIv3 密钥/证书）
+    enabled["wechat"] = settings.wechatpay_enabled
     return {"enabled": enabled, "default": "mock"}
 
 
@@ -200,6 +210,202 @@ def _find_paypal_payment(order: Order) -> Payment | None:
         if p.method == PaymentMethod.PAYPAL:
             return p
     return None
+
+
+# ================= 微信支付 =================
+
+
+def _find_wechat_payment(order: Order) -> Payment | None:
+    for p in (order.payments or []):
+        if p.method == PaymentMethod.WECHAT:
+            return p
+    return None
+
+
+async def _load_order_by_no(db: AsyncSession, order_no: str) -> Order | None:
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items), selectinload(Order.payments))
+        .where(Order.order_no == order_no)
+    )
+    return result.scalar_one_or_none()
+
+
+def _verify_wechat_message(headers: Mapping[str, str], raw_body: bytes) -> None:
+    """验证微信回调/通知的签名（与应答验签同一套规则）"""
+    serial = headers.get("wechatpay-serial", "")
+    signature = headers.get("wechatpay-signature", "")
+    timestamp = headers.get("wechatpay-timestamp", "")
+    nonce = headers.get("wechatpay-nonce", "")
+    if not (serial and signature and timestamp and nonce):
+        raise HTTPException(
+            status_code=400,
+            detail="回调缺少 Wechatpay-Signature/Timestamp/Nonce 头（反代可能过滤了扩展头）",
+        )
+    public_key = settings.wechatpay_public_key_for(serial)
+    if not public_key:
+        raise HTTPException(
+            status_code=400,
+            detail=f"找不到序列号 {serial} 对应的微信支付公钥/平台证书，请检查 .env 与 cert/",
+        )
+    message = build_response_sign_message(timestamp, nonce, raw_body)
+    if not verify_with_public_key(message, signature, public_key):
+        # 微信会故意发「签名探测流量」来检验商户是否真的验签，所以必须拒绝
+        raise HTTPException(status_code=400, detail="微信回调验签失败")
+
+
+@router.post("/wechat/notify")
+async def wechat_notify(request: Request, db: AsyncSession = Depends(get_db)):
+    """微信支付成功回调（异步通知）
+
+    ⚠️ 与 PayPal 一样的三个硬要求：
+    1. 用**原始 body** 验签（解析后重新序列化会验签失败，还要防反代改写）；
+    2. 验签通过后立即以 200 应答、再处理业务（微信要求 5 秒内应答，否则按
+       15s/15s/30s/… 的节奏重试最多 15 次），因此业务逻辑必须幂等；
+    3. 业务以 resource 解密后的 out_trade_no 为准，不看 query 参数。
+    """
+    raw = await request.body()
+    _verify_wechat_message(request.headers, raw)
+
+    try:
+        message = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="回调 body 不是合法 JSON")
+
+    event_type = message.get("event_type", "")
+    resource = message.get("resource") or {}
+    if message.get("resource_type") != "encrypt-resource":
+        raise HTTPException(status_code=400, detail="非预期的回调数据结构")
+    try:
+        data = decrypt_resource(resource, settings.WECHATPAY_API_V3_KEY)
+    except WechatPayError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    handled = await _handle_wechat_paid(db, event_type, data)
+    # 200 空体即「已接收」；业务异常也不要抛 5xx，否则微信会一直重投
+    return {"code": "SUCCESS", "message": "成功", "event_type": event_type, "handled": handled}
+
+
+async def _handle_wechat_paid(db: AsyncSession, event_type: str, data: dict) -> bool:
+    """处理微信付款成功（幂等：回调会重投，前端轮询也可能先落账）"""
+    if event_type != "TRANSACTION.SUCCESS":
+        logger.info("[wechat] 忽略事件 %s", event_type)
+        return False
+    if str(data.get("trade_state", "")).upper() != "SUCCESS":
+        return False
+
+    order_no = data.get("out_trade_no") or ""
+    order = await _load_order_by_no(db, order_no)
+    if not order:
+        logger.warning("[wechat] 回调订单不存在：%s", order_no)
+        return False
+    payment = _find_wechat_payment(order)
+    if not payment:
+        logger.warning("[wechat] 回调订单不是微信支付：%s", order_no)
+        return False
+    if payment.status == PaymentStatus.SUCCESS:
+        return True  # 已落账（前端轮询先到 / 回调重投）
+
+    # 金额校验：回调金额必须是订单实际金额，防止被改价
+    amount = data.get("amount") or {}
+    try:
+        paid = fen_to_amount(amount.get("payer_total") or amount.get("total") or 0)
+    except (InvalidOperation, TypeError):
+        paid = None
+    if paid is None or paid != payment.amount:
+        logger.error(
+            "[wechat] 回调金额与订单不一致 order=%s expect=%s actual=%s transaction_id=%s",
+            order_no, payment.amount, amount, data.get("transaction_id"),
+        )
+        return False
+
+    payment.provider_capture_id = data.get("transaction_id") or payment.provider_capture_id
+    payment.gateway_response = {
+        **(payment.gateway_response or {}),
+        "transaction_id": data.get("transaction_id"),
+        "trade_state": data.get("trade_state"),
+        "bank_type": data.get("bank_type"),
+        "success_time": data.get("success_time"),
+    }
+    await _mark_payment_success(db, payment.transaction_no)
+    logger.info("[wechat] 支付成功落账：订单 %s", order_no)
+    return True
+
+
+@router.get("/wechat/status/{order_no}")
+async def wechat_payment_status(
+    order_no: str,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    """查单（前端二维码弹窗轮询用）
+
+    微信文档明确要求「不能只依赖回调，要结合查单接口」：回调可能延迟或丢失，
+    所以这里主动查微信，确认已支付就顺手补落账。
+    """
+    order = await _load_customer_order(db, order_no, customer)
+    payment = _find_wechat_payment(order)
+    if not payment:
+        raise HTTPException(status_code=400, detail="该订单不是微信支付")
+
+    if payment.status == PaymentStatus.SUCCESS:
+        return {"paid": True, "order_status": order.status.value, "trade_state": "success"}
+
+    gateway = get_gateway("wechat")
+    if not gateway.configured:
+        raise HTTPException(status_code=400, detail="微信支付通道未配置")
+
+    info = await gateway.query_payment(payment.provider_order_id or order.order_no)
+    trade_state = str(info.get("status", "")).lower()
+    if trade_state == "success":
+        # 走与回调完全相同的落账逻辑（含金额校验），避免两条路径口径不一致
+        raw = info.get("raw") or {}
+        await _handle_wechat_paid(db, "TRANSACTION.SUCCESS", raw)
+        await db.refresh(payment)
+    elif trade_state in ("closed", "revoked", "payerror"):
+        payment.status = PaymentStatus.FAILED
+        await db.commit()
+
+    return {
+        "paid": payment.status == PaymentStatus.SUCCESS,
+        "order_status": order.status.value,
+        "trade_state": trade_state or "unknown",
+        "transaction_id": payment.provider_capture_id or "",
+    }
+
+
+@router.post("/wechat/refund-notify")
+async def wechat_refund_notify(request: Request, db: AsyncSession = Depends(get_db)):
+    """微信退款结果通知（异步）
+
+    微信侧退款是异步的：申请接口只表示「已受理」，最终结果在这里同步。
+    后台「取消并退款」在申请成功后已把本地状态置为 REFUNDED，这里主要做对账与日志。
+    """
+    raw = await request.body()
+    _verify_wechat_message(request.headers, raw)
+    try:
+        message = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="回调 body 不是合法 JSON")
+
+    resource = message.get("resource") or {}
+    try:
+        data = decrypt_resource(resource, settings.WECHATPAY_API_V3_KEY)
+    except WechatPayError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    refund_status = str(data.get("refund_status", "")).upper()
+    order_no = data.get("out_trade_no") or ""
+    order = await _load_order_by_no(db, order_no)
+    if order and refund_status in ("SUCCESS", "CHANGE"):
+        payment = _find_wechat_payment(order)
+        if payment and payment.status != PaymentStatus.REFUNDED:
+            payment.status = PaymentStatus.REFUNDED
+            await db.commit()
+    if refund_status == "ABNORMAL":
+        # 退款异常（用户银行卡作废等），需要运营到商户平台人工处理
+        logger.error("[wechat] 退款异常需人工处理：order=%s data=%s", order_no, data)
+    return {"code": "SUCCESS", "message": "成功", "refund_status": refund_status}
 
 
 @router.post("/paypal/capture")

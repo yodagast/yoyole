@@ -59,6 +59,10 @@
       pay_success: '支付成功', pay_cancelled: '已取消支付',
       pay_failed: '支付失败，请重试', pay_loading: '正在拉起 PayPal…',
       pay_close: '关闭', pay_continue: '继续支付',
+      pay_wechat_title: '微信扫码支付',
+      pay_wechat_scan: '请用微信「扫一扫」扫描二维码完成支付',
+      pay_wechat_polling: '支付完成后本页面会自动刷新，无需手动操作',
+      pay_not_paid: '尚未检测到支付成功，请完成支付后再试',
       pending: '待支付', paid: '已支付', shipped: '已发货', completed: '已完成',
       cancelled: '已取消', refunded: '已退款', status: '状态', actions: '操作',
       cancel_order: '取消订单', confirm_receipt: '确认收货', no_orders: '暂无订单',
@@ -237,6 +241,10 @@
       pay_success: 'Payment successful', pay_cancelled: 'Payment cancelled',
       pay_failed: 'Payment failed, please try again', pay_loading: 'Loading PayPal…',
       pay_close: 'Close', pay_continue: 'Continue payment',
+      pay_wechat_title: 'Pay with WeChat',
+      pay_wechat_scan: 'Scan the QR code with WeChat to complete the payment',
+      pay_wechat_polling: 'This page refreshes automatically once payment succeeds',
+      pay_not_paid: 'Payment not detected yet, please finish the payment and retry',
       pending: 'Pending', paid: 'Paid', shipped: 'Shipped', completed: 'Completed',
       cancelled: 'Cancelled', refunded: 'Refunded', status: 'Status', actions: 'Actions',
       cancel_order: 'Cancel', confirm_receipt: 'Confirm Receipt', no_orders: 'No orders yet',
@@ -1017,6 +1025,21 @@
           store.pay.open = true;
           return null; // 后续交给弹窗（PayDialog）
         }
+        if (res && res.method === 'wechat') {
+          // 手机浏览器：微信给了 h5_url，直接跳转拉起微信（不需要弹窗）
+          if (res.channel === 'h5' && res.h5_url) {
+            location.href = res.h5_url;
+            return null;
+          }
+          // PC：拿 code_url 在弹窗里画二维码，用户扫码付款（前端轮询确认结果）
+          if (res.already_paid) return queryWechatPaid(orderNo);
+          store.pay.orderNo = orderNo;
+          store.pay.info = res;
+          store.pay.error = '';
+          store.pay.handlers = handlers;
+          store.pay.open = true;
+          return null;
+        }
         if (res && res.pay_url) {
           return fetch(res.pay_url).then(function (r) { return r.json(); });
         }
@@ -1033,6 +1056,36 @@
         toast(e.message || t('pay_failed'), 'error');
         return null; // 不往外抛：调用方只管在后面的 then 里收尾
       });
+  }
+
+  // 微信查单：确认已支付就补落账（回调可能延迟/丢失，微信文档也要求结合查单）
+  function queryWechatPaid(orderNo) {
+    return api('/api/payments/wechat/status/' + orderNo, { token: getToken() })
+      .then(function (r) {
+        if (r && r.paid) return { success: true, method: 'wechat', order_no: orderNo };
+        throw new Error(t('pay_not_paid'));
+      });
+  }
+
+  // 本地画二维码（qrcode.min.js 已随站点一起托管，不依赖外部 CDN）
+  var qrcodeLoading = null;
+  function loadQrcodeLib() {
+    if (window.QRCode) return Promise.resolve(window.QRCode);
+    if (qrcodeLoading) return qrcodeLoading;
+    qrcodeLoading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/static/js/qrcode.min.js';
+      s.async = true;
+      s.onload = function () {
+        window.QRCode ? resolve(window.QRCode) : reject(new Error(t('pay_failed')));
+      };
+      s.onerror = function () {
+        qrcodeLoading = null;
+        reject(new Error(t('pay_failed')));
+      };
+      document.head.appendChild(s);
+    });
+    return qrcodeLoading;
   }
 
   // PayPal JS SDK 只加载一次（SDK 会按 client-id/currency 缓存，重复插入没意义）
@@ -1057,34 +1110,61 @@
     return paypalSdkLoading;
   }
 
-  // 支付弹窗：目前只承载 PayPal 按钮（mock 通道不需要弹窗）
+  // 支付弹窗：承载需要额外交互的通道
+  //  - PayPal：渲染 SDK 按钮，买家批准后服务端 capture；
+  //  - 微信 Native：把 code_url 画成二维码，用户扫码付款，前端轮询查单确认。
+  // mock 与微信 H5 不需要弹窗（前者直接确认，后者直接跳转）。
   var PayDialog = {
     template: `
       <div class="modal-mask" v-if="pay.open" @click.self="close">
         <div class="modal pay-modal">
           <button class="modal-close" @click="close">×</button>
-          <h3>{{ t('pay_title') }}</h3>
+          <h3>{{ isWechat ? t('pay_wechat_title') : t('pay_title') }}</h3>
           <div class="pay-line">
             <span>{{ t('order_no') }}</span><b>{{ pay.orderNo }}</b>
           </div>
           <div class="pay-line">
-            <span>{{ t('payment_amount') }}</span><b>{{ money(pay.info && pay.info.order_total) }}</b>
+            <span>{{ t('payment_amount') }}</span>
+            <b>{{ money(isWechat ? (pay.info && pay.info.amount) : (pay.info && pay.info.order_total)) }}</b>
           </div>
-          <div class="pay-usd" v-if="pay.info && pay.info.amount">
-            <b>{{ pay.info.currency }} {{ pay.info.amount }}</b>
-            <div class="pay-fx-tip" v-if="pay.info.fx_rate">{{ tt('pay_fx_tip', pay.info.fx_rate) }}</div>
-          </div>
-          <div class="pay-sandbox" v-if="pay.info && pay.info.mode === 'sandbox'">{{ t('pay_sandbox_tip') }}</div>
-          <div class="pay-paypal-box" ref="box"></div>
-          <div class="pay-hint" v-if="!pay.error">{{ t('pay_paypal_tip') }}</div>
+
+          <!-- PayPal：实际扣款币种是 USD（站点按 CNY 定价，按汇率折算） -->
+          <template v-if="!isWechat">
+            <div class="pay-usd" v-if="pay.info && pay.info.amount">
+              <b>{{ pay.info.currency }} {{ pay.info.amount }}</b>
+              <div class="pay-fx-tip" v-if="pay.info.fx_rate">{{ tt('pay_fx_tip', pay.info.fx_rate) }}</div>
+            </div>
+            <div class="pay-sandbox" v-if="pay.info && pay.info.mode === 'sandbox'">{{ t('pay_sandbox_tip') }}</div>
+            <div class="pay-paypal-box" ref="box"></div>
+            <div class="pay-hint" v-if="!pay.error">{{ t('pay_paypal_tip') }}</div>
+          </template>
+
+          <!-- 微信 Native：本地生成二维码，不依赖任何外部服务 -->
+          <template v-else>
+            <div class="pay-qr" ref="qr"></div>
+            <div class="pay-hint" v-if="!pay.error">{{ t('pay_wechat_scan') }}</div>
+            <div class="pay-polling" v-if="!pay.error">{{ t('pay_wechat_polling') }}</div>
+          </template>
+
           <div class="pay-error" v-if="pay.error">{{ pay.error }}</div>
         </div>
       </div>`,
     setup() {
       var box = Vue.ref(null);
+      var qr = Vue.ref(null);
       var pay = store.pay;
+      var timer = null;
+
+      var isWechat = Vue.computed(function () {
+        return !!(pay.info && pay.info.method === 'wechat');
+      });
+
+      function stopPolling() {
+        if (timer) { clearInterval(timer); timer = null; }
+      }
 
       function close() {
+        stopPolling();
         pay.open = false;
         pay.info = null;
         pay.error = '';
@@ -1092,6 +1172,7 @@
 
       function finish() {
         var handlers = pay.handlers;
+        stopPolling();
         toast(t('pay_success'), 'success');
         close();
         if (handlers && handlers.onPaid) handlers.onPaid();
@@ -1108,7 +1189,41 @@
         });
       }
 
-      function render() {
+      // 微信：轮询查单（回调可能延迟或丢失，微信文档也要求结合查单接口）
+      function startPolling() {
+        stopPolling();
+        var startedAt = Date.now();
+        timer = setInterval(function () {
+          // 二维码 2 小时有效，这里最多轮询 30 分钟就停，避免用户挂着页面无脑请求
+          if (Date.now() - startedAt > 30 * 60 * 1000) { stopPolling(); return; }
+          api('/api/payments/wechat/status/' + pay.orderNo, { token: getToken() })
+            .then(function (r) { if (r && r.paid) finish(); })
+            .catch(function () { /* 轮询失败静默重试，别打扰用户 */ });
+        }, 3000);
+      }
+
+      function renderWechat() {
+        var info = pay.info || {};
+        if (info.already_paid) {
+          queryWechatPaid(pay.orderNo).then(finish).catch(function (e) { pay.error = e.message; });
+          return;
+        }
+        loadQrcodeLib().then(function (QRCode) {
+          if (!qr.value) return;
+          qr.value.innerHTML = '';
+          new QRCode(qr.value, {
+            text: info.code_url,
+            width: 200,
+            height: 200,
+            correctLevel: QRCode.CorrectLevel.M,
+          });
+          startPolling();
+        }).catch(function (e) {
+          pay.error = e.message || t('pay_failed');
+        });
+      }
+
+      function renderPaypal() {
         var info = pay.info;
         if (!info) return;
         if (info.already_paid) { callCapture(); return; }
@@ -1133,13 +1248,23 @@
         });
       }
 
+      function render() {
+        if (!pay.info) return;
+        if (pay.info.method === 'wechat') renderWechat();
+        else renderPaypal();
+      }
+
       Vue.watch(function () { return pay.open; }, function (open) {
         if (open) Vue.nextTick(render);
+        else stopPolling();
       });
 
-      // ⚠️ box 必须 return：模板 ref="box" 靠这个名字回填，
+      // ⚠️ box / qr 必须 return：模板 ref 靠这个名字回填，
       // 不返回的话 Vue 拿不到 DOM，render(null) 会报 "Expected element to be passed..."
-      return { pay: pay, box: box, t: t, tt: tt, money: money, close: close };
+      return {
+        pay: pay, box: box, qr: qr, isWechat: isWechat,
+        t: t, tt: tt, money: money, close: close,
+      };
     },
   };
 

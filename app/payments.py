@@ -7,12 +7,22 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Mapping
 
 import httpx
 
 from app.config import settings
+from app.wechatpay import (
+    WechatPayError,
+    amount_to_fen,
+    build_authorization,
+    build_response_sign_message,
+    fen_to_amount,
+    verify_with_public_key,
+    wechatpay_error_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +69,16 @@ def paypal_error_text(status_code: int, data: dict[str, Any]) -> str:
 
 
 @dataclass
+class PaymentResult:
+    """支付发起结果"""
+    success: bool
+    transaction_no: str
+    pay_url: str = ""
+    provider_response: dict[str, Any] = field(default_factory=dict)
+    error: str = ""
+
+
+@dataclass
 class PaymentRequest:
     """发起支付请求参数"""
     order_no: str
@@ -68,16 +88,10 @@ class PaymentRequest:
     method: str = "mock"
     return_url: str = ""
     notify_url: str = ""
-
-
-@dataclass
-class PaymentResult:
-    """支付发起结果"""
-    success: bool
-    transaction_no: str
-    pay_url: str = ""
-    provider_response: dict[str, Any] = field(default_factory=dict)
-    error: str = ""
+    # 客户端形态（微信需要区分：手机浏览器走 H5，PC 走 Native 扫码）
+    channel: str = "native"
+    # 用户 IP（H5 下单必填，微信风控用）
+    client_ip: str = ""
 
 
 class BasePaymentGateway(ABC):
@@ -494,6 +508,232 @@ async def verify_paypal_webhook(headers: Mapping[str, str], raw_body: bytes) -> 
     if str(body.get("verification_status", "")).upper() != "SUCCESS":
         return False, "签名校验未通过"
     return True, ""
+
+
+class WechatGateway(BasePaymentGateway):
+    """微信支付网关（APIv3）
+
+    两种收款形态，按客户端自动选：
+    - **Native**（PC 扫码）：下单返回 `code_url`，前端把它转成二维码；
+    - **H5**（手机浏览器）：下单返回 `h5_url`，在浏览器里跳转拉起微信。
+
+    两者都是**异步**付款：用户付款后微信通过回调通知我们（加前端轮询兜底），
+    所以 create_payment 只负责「下单 + 给出让用户付钱的东西」。
+    """
+
+    name = "wechat"
+
+    def __init__(self) -> None:
+        self.api_base = (settings.WECHATPAY_API_BASE or "").rstrip("/")
+        self.last_error = ""
+
+    @property
+    def configured(self) -> bool:
+        return settings.wechatpay_configured
+
+    # ---------- 底层请求：签名 + 验签 ----------
+
+    async def _request(
+        self,
+        method: str,
+        url_path: str,
+        *,
+        body: dict | None = None,
+        skip_verify: bool = False,
+    ) -> tuple[int, dict[str, Any]]:
+        """发请求并（默认）验证应答签名，返回 (状态码, body)
+
+        url_path 必须带 query（签名串包含 query，漏了会 401）。
+        """
+        if not self.configured:
+            raise WechatPayError(
+                "微信支付未配置：请在 .env 填 WECHATPAY_MCHID / APPID / API_V3_KEY / "
+                "CERT_SERIAL_NO，并放好商户 API 证书私钥与微信支付公钥"
+            )
+        body_str = json.dumps(body, ensure_ascii=False, separators=(",", ":")) if body is not None else ""
+        authorization = build_authorization(
+            settings.WECHATPAY_MCHID,
+            settings.WECHATPAY_CERT_SERIAL_NO,
+            settings.wechatpay_private_key,
+            method,
+            url_path,
+            body_str,
+        )
+        headers = {
+            "Authorization": authorization,
+            "Accept": "application/json",
+            "User-Agent": "yoyole-wechatpay/1.0",
+        }
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        kwargs: dict[str, Any] = {"headers": headers}
+        if body is not None:
+            kwargs["content"] = body_str.encode("utf-8")
+
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.request(method, f"{self.api_base}{url_path}", **kwargs)
+        except httpx.HTTPError as exc:
+            raise WechatPayError(f"微信支付请求失败：{exc}") from exc
+
+        raw = resp.content
+        if resp.status_code >= 400:
+            try:
+                data = json.loads(raw or b"{}")
+            except json.JSONDecodeError:
+                data = {}
+            return resp.status_code, data
+
+        # 验签：微信会在极少数请求里发「探测流量」（错误签名）来判断商户是否真的验签，
+        # 所以这里不能跳过——验签失败一律视为不可信应答。
+        # 下载账单等返回二进制/文件流的接口不签名，调用方用 skip_verify 显式跳过。
+        if not skip_verify:
+            self._verify_response(resp.headers, raw)
+
+        try:
+            return resp.status_code, json.loads(raw or b"{}")
+        except json.JSONDecodeError:
+            return resp.status_code, {}
+
+    @staticmethod
+    def _verify_response(headers: Mapping[str, str], raw_body: bytes) -> None:
+        serial = headers.get("wechatpay-serial", "")
+        signature = headers.get("wechatpay-signature", "")
+        timestamp = headers.get("wechatpay-timestamp", "")
+        nonce = headers.get("wechatpay-nonce", "")
+        if not (serial and signature and timestamp and nonce):
+            # 反代/CDN 过滤了微信扩展头时会走到这里（线上排查清单里很常见的一条）
+            raise WechatPayError(
+                "微信支付应答缺少 Wechatpay-Signature/Timestamp/Nonce 头，"
+                "通常是反向代理或 CDN 过滤了扩展头"
+            )
+        public_key = settings.wechatpay_public_key_for(serial)
+        if not public_key:
+            raise WechatPayError(
+                f"找不到序列号 {serial} 对应的微信支付公钥/平台证书，请检查 .env 与 cert/ 目录"
+            )
+        message = build_response_sign_message(timestamp, nonce, raw_body)
+        if not verify_with_public_key(message, signature, public_key):
+            raise WechatPayError("微信支付应答验签失败（可能是签名探测流量，或公钥与当前商户号不匹配）")
+
+    # ---------- 接口实现 ----------
+
+    async def create_payment(self, req: PaymentRequest) -> PaymentResult:
+        """下单：手机浏览器走 H5，其它（PC）走 Native 扫码
+
+        金额单位是「分」；out_trade_no 用我们的订单号，回调/查单都以它为准。
+        """
+        if not self.configured:
+            return PaymentResult(
+                success=False,
+                transaction_no="",
+                error="微信支付未配置：请在 .env 补齐 WECHATPAY_* 各项",
+            )
+        client = (req.channel or "native").lower()
+        path = "/v3/pay/transactions/h5" if client == "h5" else "/v3/pay/transactions/native"
+        expire_at = datetime.now().astimezone() + timedelta(
+            minutes=settings.WECHATPAY_PAY_EXPIRE_MINUTES
+        )
+        body: dict[str, Any] = {
+            "appid": settings.WECHATPAY_APPID,
+            "mchid": settings.WECHATPAY_MCHID,
+            "description": (req.subject or f"订单 {req.order_no}")[:127],
+            "out_trade_no": req.order_no,
+            "notify_url": req.notify_url or f"{settings.BASE_URL.rstrip('/')}/api/payments/wechat/notify",
+            "time_expire": expire_at.strftime("%Y-%m-%dT%H:%M:%S%z").replace("+0800", "+08:00"),
+            "attach": req.order_no[:128],
+            "amount": {"total": amount_to_fen(req.amount), "currency": "CNY"},
+        }
+        if client == "h5":
+            body["scene_info"] = {
+                "payer_client_ip": req.client_ip or "127.0.0.1",
+                "h5_info": {"type": "Wap", "app_name": "YOYOLE", "app_url": settings.BASE_URL},
+            }
+
+        try:
+            status, data = await self._request("POST", path, body=body)
+        except WechatPayError as exc:
+            self.last_error = str(exc)
+            return PaymentResult(success=False, transaction_no="", error=str(exc))
+        if status >= 400:
+            error = wechatpay_error_text(status, data, client)
+            self.last_error = error
+            return PaymentResult(success=False, transaction_no="", error=error)
+
+        if client == "h5":
+            h5_url = data.get("h5_url", "")
+            return PaymentResult(
+                success=True,
+                transaction_no=req.order_no,
+                pay_url=h5_url,
+                provider_response={"channel": "h5", "h5_url": h5_url, "out_trade_no": req.order_no},
+            )
+        code_url = data.get("code_url", "")
+        return PaymentResult(
+            success=True,
+            transaction_no=req.order_no,
+            # 不是跳转地址，而是要渲染成二维码的 weixin:// 串，前端据此画码
+            pay_url=code_url,
+            provider_response={"channel": "native", "code_url": code_url, "out_trade_no": req.order_no},
+        )
+
+    async def query_payment(self, transaction_no: str) -> dict[str, Any]:
+        """按商户订单号查单（transaction_no 即 out_trade_no）"""
+        if not self.configured or not transaction_no:
+            return {"status": "unknown", "transaction_no": transaction_no}
+        path = (
+            f"/v3/pay/transactions/out-trade-no/{transaction_no}"
+            f"?mchid={settings.WECHATPAY_MCHID}"
+        )
+        try:
+            status, data = await self._request("GET", path)
+        except WechatPayError as exc:
+            return {"status": "unknown", "transaction_no": transaction_no, "error": str(exc)}
+        if status >= 400:
+            return {"status": "unknown", "transaction_no": transaction_no, "error": wechatpay_error_text(status, data)}
+        return {
+            "status": str(data.get("trade_state", "")).lower() or "unknown",
+            "transaction_no": transaction_no,
+            "transaction_id": data.get("transaction_id", ""),
+            "amount": data.get("amount"),
+            "raw": data,
+        }
+
+    async def handle_callback(self, payload: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+        """微信回调不走通用入口（需要验签 + AES-GCM 解密），见 /api/payments/wechat/notify"""
+        return False, "", {"error": "微信支付回调请走 /api/payments/wechat/notify（需验签解密）"}
+
+    async def refund(self, transaction_no: str, amount: Decimal) -> dict[str, Any]:
+        """退款：transaction_no 传我们的订单号（微信侧按 out_trade_no 退）
+
+        幂等键是 out_refund_no；重试必须用同一个，否则会重复退款。
+        """
+        if not self.configured:
+            return {"success": False, "error": "微信支付未配置"}
+        out_refund_no = f"RF{transaction_no}"[:64]
+        body = {
+            "out_trade_no": transaction_no,
+            "out_refund_no": out_refund_no,
+            "reason": "商户退款",
+            "notify_url": f"{settings.BASE_URL.rstrip('/')}/api/payments/wechat/refund-notify",
+            "amount": {
+                "refund": amount_to_fen(amount),
+                "total": amount_to_fen(amount),
+                "currency": "CNY",
+            },
+        }
+        try:
+            status, data = await self._request("POST", "/v3/refund/domestic/refunds", body=body)
+        except WechatPayError as exc:
+            return {"success": False, "error": str(exc)}
+        if status >= 400:
+            return {"success": False, "error": wechatpay_error_text(status, data)}
+        return {
+            "success": True,
+            "transaction_no": data.get("refund_id", ""),
+            "status": data.get("status", ""),
+            "refund_amount": str(fen_to_amount((data.get("amount") or {}).get("refund", 0))),
+        }
 
 
 # 支付网关注册表：通过工厂模式获取实例，扩展新通道只需实现 BasePaymentGateway 并注册

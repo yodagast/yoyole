@@ -439,18 +439,20 @@ async def _refund_via_gateway(order: Order, operator: str) -> str:
         if p.status != PaymentStatus.SUCCESS:
             continue
         method = p.method.value if hasattr(p.method, "value") else str(p.method)
-        if method != "paypal":
+        if method not in ("paypal", "wechat"):
             continue
         gateway = get_gateway(method)
-        capture_id = p.provider_capture_id or ""
-        if not capture_id:
+        # 微信按商户订单号退款（没有单独的 capture id）；PayPal 按 capture id 退
+        ref_key = p.provider_capture_id if method == "paypal" else (p.provider_order_id or order.order_no)
+        if method == "paypal" and not ref_key:
             return "该订单缺少 PayPal 扣款号（capture id），无法自动退款，请到 PayPal 后台人工处理"
-        result = await gateway.refund(capture_id, p.amount)
+        result = await gateway.refund(ref_key, p.amount)
         if not result.get("success"):
-            return f"PayPal 退款失败：{result.get('error') or '未知错误'}"
+            label = "PayPal" if method == "paypal" else "微信支付"
+            return f"{label} 退款失败：{result.get('error') or '未知错误'}"
         logger.info(
-            "[refund] PayPal 退款成功 order=%s capture=%s amount=%s operator=%s",
-            order.order_no, capture_id, p.amount, operator,
+            "[refund] %s 退款成功 order=%s ref=%s amount=%s operator=%s",
+            method, order.order_no, ref_key, p.amount, operator,
         )
     return ""
 

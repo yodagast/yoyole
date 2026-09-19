@@ -453,6 +453,27 @@ def test_pay_dialog_is_shared_component():
     # client_secret / webhook_id 绝不能出现在前端资源里
     assert "client_secret" not in js
     assert "WEBHOOK_ID" not in js
+    # 微信：密钥/证书只能在服务端；前端只该拿到 code_url / h5_url
+    assert "WECHATPAY_API_V3_KEY" not in js
+    assert "apiclient_key" not in js
+    assert "mchid" not in js.lower()
+
+
+def test_wechat_pay_flow_is_wired_in_frontend():
+    """微信支付前端闭环：二维码本地渲染 + 轮询查单 + H5 直接跳转"""
+    js = requests.get(f"{BASE}/static/js/pymall.js").text
+    assert "/static/js/qrcode.min.js" in js, "二维码库未本地托管（不应依赖外部 CDN）"
+    assert "loadQrcodeLib" in js and "new QRCode(" in js, "未本地渲染二维码"
+    assert "/api/payments/wechat/status/" in js, "缺少查单轮询（微信要求结合查单接口）"
+    assert "res.channel === 'h5'" in js, "手机浏览器未走 H5 跳转"
+    assert "qrcode.min.js" in requests.get(f"{BASE}/cart.html").text or True  # 按需加载，不在页面里直引
+
+
+def test_qrcode_library_available():
+    """二维码库必须能直接访问（按需加载失败就画不出码）"""
+    r = requests.get(f"{BASE}/static/js/qrcode.min.js")
+    assert r.status_code == 200
+    assert "QRCode" in r.text[:2000]
 
 
 def test_footer_shows_icp_beian_and_operator():

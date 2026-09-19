@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import delete, select
+from sqlalchemy import delete, inspect as sa_inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -303,6 +303,112 @@ async def _start_paypal_payment(db: AsyncSession, order: Order, payment: Payment
     return _paypal_pay_payload(order, payment, gateway)
 
 
+async def _start_wechat_payment(
+    request: Request, db: AsyncSession, order: Order, payment: Payment
+) -> dict:
+    """发起（或复用）微信支付，返回前端要用的下单信息
+
+    - PC 浏览器：返回 `code_url`，前端画成二维码让用户扫；
+    - 手机浏览器：返回 `h5_url`，前端直接跳转拉起微信。
+
+    幂等/复用：订单已下过单且微信侧仍是「未支付」时直接复用原二维码，避免用户
+    反复点「支付」在微信侧堆废单（微信侧 code_url 有效期 2 小时，过期需重新下单）。
+    """
+    gateway = get_gateway("wechat")
+    if not gateway.configured:
+        raise HTTPException(
+            status_code=400,
+            detail="微信支付通道未配置：请在 .env 补齐 WECHATPAY_* 各项（见 docs/wechatpay.md）",
+        )
+
+    channel = "h5" if _is_mobile_ua(request.headers.get("user-agent", "")) else "native"
+
+    if payment.provider_order_id:
+        info = await gateway.query_payment(payment.provider_order_id)
+        state = str(info.get("status", "")).lower()
+        if state in ("notpay", "userpaying"):
+            resp = payment.gateway_response or {}
+            # 只有在同一终端形态下才复用（PC 拿到的 code_url 对手机没用）
+            if resp.get("channel") == channel and resp.get("code_url") or resp.get("h5_url"):
+                return _wechat_pay_payload(order, payment, channel, expired=False)
+        if state == "success":
+            # 用户其实付过了，只是回调还没到 —— 让前端直接去查单，那边会补落账
+            return {**_wechat_pay_payload(order, payment, channel, expired=False), "already_paid": True}
+        logger.info("[wechat] 订单 %s 原支付单状态=%s，重新下单", order.order_no, state)
+
+    result = await gateway.create_payment(
+        PaymentRequest(
+            order_no=order.order_no,
+            amount=order.total_amount,
+            currency="CNY",
+            subject=_order_subject(order),
+            method="wechat",
+            channel=channel,
+            client_ip=_client_ip(request),
+            notify_url=f"{settings.BASE_URL.rstrip('/')}/api/payments/wechat/notify",
+        )
+    )
+    if not result.success:
+        payment.status = PaymentStatus.FAILED
+        payment.gateway_response = {"error": result.error}
+        await db.commit()
+        raise HTTPException(status_code=400, detail=result.error)
+
+    # 微信没有独立的「交易号」可提前拿，用商户订单号作为对账锚点
+    payment.provider_order_id = order.order_no
+    payment.status = PaymentStatus.PROCESSING
+    payment.gateway_response = result.provider_response
+    await db.commit()
+    return _wechat_pay_payload(order, payment, channel, expired=False)
+
+
+def _wechat_pay_payload(order: Order, payment: Payment, channel: str, *, expired: bool) -> dict:
+    resp = payment.gateway_response or {}
+    return {
+        "success": True,
+        "method": "wechat",
+        "channel": channel,
+        "order_no": order.order_no,
+        "transaction_no": payment.transaction_no,
+        "amount": str(payment.amount),
+        "currency": payment.currency,
+        "code_url": resp.get("code_url", ""),
+        "h5_url": resp.get("h5_url", ""),
+        "pay_url": resp.get("h5_url") or resp.get("code_url", ""),
+        "expired": expired,
+    }
+
+
+def _is_mobile_ua(ua: str) -> bool:
+    """粗判手机浏览器：决定微信走 H5 还是 Native（H5 只能在手机浏览器里拉起微信）"""
+    ua = (ua or "").lower()
+    return any(k in ua for k in ("mobile", "android", "iphone", "ipad", "micromessenger"))
+
+
+def _client_ip(request: Request) -> str:
+    """取用户真实 IP（反代下 request.client.host 是代理地址，优先 X-Forwarded-For）"""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+def _order_subject(order: Order) -> str:
+    """商品描述：用户微信账单里会看到，用首个商品名 + 件数（别写「订单 XXX」这种废话）
+
+    ⚠️ `order.items` 是懒加载关系：在 async 会话里若没提前 selectinload，
+    访问它会抛 MissingGreenlet（对外就是 500，支付直接失败）。
+    所以这里先判断加载状态，未加载就退化成不带商品名的描述——
+    描述只影响账单展示，不该拖死整个支付流程。
+    """
+    items = [] if "items" in sa_inspect(order).unloaded else list(order.items or [])
+    if not items:
+        return f"YOYOLE 订单 {order.order_no}"
+    first = items[0].product_name or "商品"
+    total_qty = sum(i.quantity or 0 for i in items)
+    return f"{first} 等 {total_qty} 件商品" if len(items) > 1 else first
+
+
 @router.post("/orders/{order_no}/pay", response_model=dict)
 async def pay_order(
     order_no: str,
@@ -313,7 +419,9 @@ async def pay_order(
     """发起支付，返回支付跳转地址"""
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.payments))
+        # ⚠️ items 必须一起预加载：微信分支要用商品名生成账单描述，
+        # 懒加载在 async 会话里会抛 MissingGreenlet（500）。
+        .options(selectinload(Order.items), selectinload(Order.payments))
         .where(Order.order_no == order_no, Order.customer_id == customer.id)
     )
     order = result.scalar_one_or_none()
@@ -337,6 +445,11 @@ async def pay_order(
     # 因此单独走一条分支：这里只建单，真正扣款在 /api/payments/paypal/capture。
     if pending_payment.method == PaymentMethod.PAYPAL:
         return await _start_paypal_payment(db, order, pending_payment)
+
+    # 微信支付同样是异步付款：Native 返回二维码链接、H5 返回跳转链接，
+    # 用户付完后由回调（+前端轮询）落账，所以这里也只是「下单」。
+    if pending_payment.method == PaymentMethod.WECHAT:
+        return await _start_wechat_payment(request, db, order, pending_payment)
 
     pay_req = PaymentRequest(
         order_no=order.order_no,

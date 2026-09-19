@@ -8,6 +8,11 @@ __pycache__/
 .venv/*
 .vscode/*
 .env
+.env.live
+# 微信支付证书与密钥（商户 API 私钥 / 微信支付公钥 / 平台证书）：绝对不能入库
+cert/
+# 证书自带的 .p12 与子目录也一并忽略
+*.p12
 *.log
 *.pid
 *.jpg
